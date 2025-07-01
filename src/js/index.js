@@ -10,7 +10,10 @@ window.addEventListener('load', async () => {
         zoomSmoothing:          0.075,
         inertiaFriction:        0.95,
         inertiaStopThreshold:   0.1,
+        initialScale:           0.9,
+        initialPosition:        { x: 0.5, y: 0.5 },
         canvas:                 document.getElementById('glcanvas'),
+        /*
         plugins: [
             {
                 name:     HotspotPlugin,
@@ -20,9 +23,10 @@ window.addEventListener('load', async () => {
                 }
             }
         ]
+        */
     };
 
-    // smoozoo(`./assets/32k-wide-image.png`, settings);
+    smoozoo(`./assets/32k-wide-image.png`, settings);
     // smoozoo(`./assets/xanadu-reconstruction.png`, settings);
-    smoozoo(`./assets/BTCUSDT.png?${cacheBust}`, settings);
+    // smoozoo(`./assets/BTCUSDT.png?${cacheBust}`, settings);
 });

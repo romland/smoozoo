@@ -1,5 +1,6 @@
 window.smoozoo = (imageUrl, settings) => {
     // DOM Element Selection & Initial Setup
+    // (rest of setup is at the bottom of this file)
     const canvas = settings.canvas;
     canvas.width = window.innerWidth;
     canvas.height = window.innerHeight;
@@ -722,7 +723,32 @@ window.smoozoo = (imageUrl, settings) => {
         const fitScale = Math.min(scaleToFitWidth, scaleToFitHeight);
 
         scale = targetScale = Math.min(1.0, fitScale);
+
         minScale = Math.min(scale, 0.1);
+
+        if(settings.initialScale) {
+            scale = targetScale = settings.initialScale;
+        }
+
+        
+        if (settings.initialPosition && typeof settings.initialPosition.x === 'number' && typeof settings.initialPosition.y === 'number') {
+            let targetX = settings.initialPosition.x;
+            let targetY = settings.initialPosition.y;
+
+            // If coordinates are between 0 and 1, treat them as percentages
+            if (targetX >= 0 && targetX <= 1 && targetY >= 0 && targetY <= 1) {
+                targetX = imageWidth * targetX;
+                targetY = imageHeight * targetY;
+            }
+
+            // Calculate origin to center the view on the target coordinates
+            originX = (canvas.width / (2 * scale)) - targetX;
+            originY = (canvas.height / (2 * scale)) - targetY;
+
+            // Also set the target origin for the smooth zoom animation state
+            targetOriginX = originX;
+            targetOriginY = originY;
+        }
 
         checkEdges(false);
     }
@@ -1032,10 +1058,7 @@ window.smoozoo = (imageUrl, settings) => {
         jumpToOrigin(targetOriginX, targetOriginY);
 
         const onDrag = (moveEvent) => {
-            const {
-                targetOriginX,
-                targetOriginY
-            } = calculateTargetOriginForMinimapEvent(moveEvent);
+            const { targetOriginX, targetOriginY } = calculateTargetOriginForMinimapEvent(moveEvent);
 
             jumpToOrigin(targetOriginX, targetOriginY);
         };

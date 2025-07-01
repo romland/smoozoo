@@ -23,7 +23,9 @@ export class HotspotPlugin
         this.init();
     }
 	
-    init() {
+    
+    init()
+    {
         this.container.innerHTML = '';
         this.popup = document.createElement('div');
         this.popup.className = 'hotspot-popup-shared';
@@ -31,8 +33,9 @@ export class HotspotPlugin
         document.addEventListener('click', this.handleOutsideClick);
     }
 
-    // --- MODIFIED: Click handler now robustly sets the anchor object ---
-    handleMarkerClick(e, data, markerElement) {
+
+    handleMarkerClick(e, data, markerElement)
+    {
         e.stopPropagation();
         
         // The anchor is always the specific marker that was clicked.
@@ -52,7 +55,9 @@ export class HotspotPlugin
         this.viewer.requestRender();
     }
 
-    handleOutsideClick(e) {
+
+    handleOutsideClick(e)
+    {
         if (this.stickyHotspots.length > 0 && !this.popup.contains(e.target)) {
             this.stickyHotspots = [];
             this.popupAnchor = null;
@@ -60,17 +65,22 @@ export class HotspotPlugin
         }
     }
 
-    worldToScreen(worldX, worldY) {
+
+    worldToScreen(worldX, worldY)
+    {
         const { scale, originX, originY } = this.viewer.getTransform();
         return { x: (worldX + originX) * scale, y: (worldY + originY) * scale };
     }
 
-    onMouseMove(e) {
+
+    onMouseMove(e)
+    {
         if (this.stickyHotspots.length > 0) {
             if (this.activeHotspots.length > 0) {
                 this.activeHotspots = [];
                 this.viewer.requestRender();
             }
+
             return;
         }
         
@@ -97,8 +107,9 @@ export class HotspotPlugin
         }
     }
     
-    // --- MODIFIED: Sets the full anchor object on hover ---
-    checkForHover() {
+
+    checkForHover()
+    {
         let foundHotspots = [];
         let hoveredClusterData = null;
     
@@ -138,7 +149,9 @@ export class HotspotPlugin
         }
     }
 
-    getMarkerFromPool() {
+    
+    getMarkerFromPool()
+    {
         if (this.markerPool.length > 0) {
             const marker = this.markerPool.pop();
             marker.style.display = 'block';
@@ -149,15 +162,18 @@ export class HotspotPlugin
         return marker;
     }
 
-    releaseMarkerToPool(marker) {
+    
+    releaseMarkerToPool(marker)
+    {
         marker.style.display = 'none';
         marker.className = '';
         marker.onclick = null;
         this.markerPool.push(marker);
     }
 
-    update() {
-        // This update flow remains the same.
+    
+    update()
+    {
         const canvas = this.viewer.getCanvas();
         const transform = this.viewer.getTransform();
         const canvasBounds = { left: 0, top: 0, right: canvas.width, bottom: canvas.height };
@@ -211,7 +227,9 @@ export class HotspotPlugin
         this.updatePopup();
     }
 
-	renderMarkers(items) {
+
+    renderMarkers(items)
+    {
         items.forEach(item => {
             const marker = this.getMarkerFromPool();
             marker.style.left = `${item.screenPos.x}px`;
@@ -224,14 +242,10 @@ export class HotspotPlugin
                 const diameter = 30 + Math.log2(item.count) * 5;
                 marker.style.width = `${diameter}px`;
                 marker.style.height = `${diameter}px`;
-                
-                // --- THE FIX ---
-                // Set the line-height equal to the height to vertically center the text.
-                marker.style.lineHeight = `${diameter/4}px`;
+                marker.style.lineHeight = `${diameter/4}px`;    // /4 because we use several lines -- if one line, just diameter
 
                 markerData = { ...item, marker };
             } else {
-                // (The rest of the function is unchanged)
                 marker.className = 'hotspot-marker';
                 marker.innerText = '';
                 const diameter = Math.max(5, item.radius * 2 * this.viewer.getTransform().scale);
@@ -245,13 +259,14 @@ export class HotspotPlugin
         });
     }
 	
-    updatePopup() {
+    
+    updatePopup()
+    {
         const hotspotsToShow = this.stickyHotspots.length > 0 ? this.stickyHotspots : this.activeHotspots;
 
         if (hotspotsToShow.length > 0 && this.popupAnchor) {
             this.popup.style.display = 'block'; // Ensure popup is visible to measure it
             
-            // Build content (unchanged)
             let contentHTML = '';
             hotspotsToShow.forEach((hotspot, index) => {
                 if (hotspot.content.title) contentHTML += `<h3>${hotspot.content.title}</h3>`;
@@ -262,6 +277,7 @@ export class HotspotPlugin
                     contentHTML += '<hr class="hotspot-separator">';
                 }
             });
+
             this.popup.innerHTML = contentHTML;
             this.popup.classList.toggle('is-sticky', this.stickyHotspots.length > 0);
 
@@ -296,7 +312,7 @@ export class HotspotPlugin
             }
             const finalPlacement = bestPlacement || placements.left;
 
-            // ** THE SMOOTHING FIX **
+            // SMOOTHING FIX
             // Calculate distance from the last rendered position
             const dist = Math.hypot(finalPlacement.left - this.lastPopupPosition.x, finalPlacement.top - this.lastPopupPosition.y);
 
@@ -315,9 +331,9 @@ export class HotspotPlugin
         }
     }
 
-
     
-    destroy() {
+    destroy()
+    {
         document.removeEventListener('click', this.handleOutsideClick);
         this.container.innerHTML = '';
     }
