@@ -728,6 +728,12 @@ window.smoozoo = (imageUrl, settings) => {
     }
 
 
+    function createPluginInstance(ClassName, api, options)
+    {
+        return new ClassName(api, options);
+    }
+
+
     // ----------------------
     // --- Event Handlers ---
     // ----------------------
@@ -1005,7 +1011,6 @@ window.smoozoo = (imageUrl, settings) => {
                 plugin.instance?.onMouseMove(e);
             }
         }
-
     }
 
 
@@ -1043,12 +1048,6 @@ window.smoozoo = (imageUrl, settings) => {
         window.addEventListener('mousemove', onDrag);
         window.addEventListener('mouseup', onDragEnd);
     }
-
-    function createPluginInstance(ClassName, api, options)
-    {
-        return new ClassName(api, options);
-    }
-
 
 
     // ---------------------------------------------------
@@ -1090,7 +1089,7 @@ window.smoozoo = (imageUrl, settings) => {
     initMinimap();
 
     // Really start stuff up, load image and initialize us
-    loadImageAndCreateTextureInfo(`${imageUrl}?cb=${Date.now()}`, async () => {
+    loadImageAndCreateTextureInfo(`${imageUrl}`, async () => {
         setInitialView();
         render();
 
