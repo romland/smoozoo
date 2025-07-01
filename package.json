@@ -1,0 +1,14 @@
+{
+  "name": "smoozoo",
+  "version": "1.0.0",
+  "description": "This is Smoozoo - a super-smooth, performant and modern image viewer for the web",
+  "main": "index.html",
+  "scripts": {
+    "test": "http-server src/"
+  },
+  "author": "Joakim Romland",
+  "license": "MIT",
+  "dependencies": {
+    "http-server": "^14.1.1"
+  }
+}
