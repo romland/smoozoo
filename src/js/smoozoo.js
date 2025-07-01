@@ -433,14 +433,34 @@ window.smoozoo = (imageUrl, settings) => {
         const viewProjMtx = makeMatrix(originX, originY, scale);
         gl.uniformMatrix3fv(viewProjectionMatrixLocation, false, viewProjMtx);
 
-        tiles.forEach(tile => {
-            gl.bindTexture(gl.TEXTURE_2D, tile.texture);
-            
-            // --- Set the texture coordinate scale for this specific tile ---
-            gl.uniform2f(texCoordScaleLocation, tile.texCoordScaleX, tile.texCoordScaleY);
+        // --- View Frustum Culling ---
+        // Calculate the visible boundary of the viewport in world coordinates.
+        // The origin is the top-left of the image, but originX/Y is how much we've panned the image
+        // relative to the top-left of the canvas. So, the visible world area starts at -originX.
+        const viewX = -originX;
+        const viewY = -originY;
+        const viewWidth = canvas.width / scale;
+        const viewHeight = canvas.height / scale;
 
-            setRectangle(gl, tile.x, tile.y, tile.width, tile.height);
-            gl.drawArrays(gl.TRIANGLES, 0, 6);
+        tiles.forEach(tile => {
+            // Check if the tile's bounding box intersects with the visible area.
+            // This is an Axis-Aligned Bounding Box (AABB) intersection test.
+            // It works by checking if the tile's rectangle and the view's rectangle overlap.
+            // We don't need to account for rotation here, as the culling is done on the original
+            // tile positions before they are rotated by the vertex shader on the GPU.
+            if (tile.x < viewX + viewWidth &&
+                tile.x + tile.width > viewX &&
+                tile.y < viewY + viewHeight &&
+                tile.y + tile.height > viewY)
+            {
+                gl.bindTexture(gl.TEXTURE_2D, tile.texture);
+                
+                // --- Set the texture coordinate scale for this specific tile ---
+                gl.uniform2f(texCoordScaleLocation, tile.texCoordScaleX, tile.texCoordScaleY);
+
+                setRectangle(gl, tile.x, tile.y, tile.width, tile.height);
+                gl.drawArrays(gl.TRIANGLES, 0, 6);
+            }
         });
 
         zoomLevelSpan.textContent = scale.toFixed(2);
@@ -453,7 +473,7 @@ window.smoozoo = (imageUrl, settings) => {
             }
         }
     }
-
+    
 
     // ---------------------------
     // --- Animation Functions ---
