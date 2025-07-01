@@ -4,6 +4,8 @@ window.smoozoo = (imageUrl, settings) => {
     const canvas = settings.canvas;
     canvas.width = window.innerWidth;
     canvas.height = window.innerHeight;
+
+    // We're requesting a 'webgl' context, which is WebGL 1.
     const gl = canvas.getContext('webgl');
 
     if (!gl) {
@@ -56,7 +58,10 @@ window.smoozoo = (imageUrl, settings) => {
     let elasticMoveAnimationId = null;
     let smoothZoomAnimationId = null;
 
-    // Get the maximum texture size the GPU can handle. This is crucial for the tiling logic.
+    // Get the maximum dimension (width or height) for a texture that the user's GPU can handle.
+    // This is a hardware limitation. If an image is larger than this size, we can't load it as a single
+    // texture. This is the entire reason for the "tiling" logic in this application. We will slice the
+    // large image into smaller pieces (tiles) that are each no larger than maxTextureSize.
     const maxTextureSize = gl.getParameter(gl.MAX_TEXTURE_SIZE);
 
     // Plugins
@@ -66,14 +71,29 @@ window.smoozoo = (imageUrl, settings) => {
     // ------------------------
     // --- Matrix Utilities ---
     // ------------------------
+
+    // In 2D graphics with WebGL, we use 3x3 matrices to represent transformations like translation (moving),
+    // rotation, and scaling. Even though we are in 2D, we use a 3x3 matrix (and vec3 in shaders) to
+    // handle translations efficiently using a mathematical trick called "homogeneous coordinates".
+    // The matrix is represented in JavaScript as a 9-element array in column-major order, which is
+    // what WebGL expects.
+    // A 3x3 matrix looks like this:
+    // | m0 m3 m6 |
+    // | m1 m4 m7 |
+    // | m2 m5 m8 |
+    // But in a JS array [m0, m1, m2, m3, m4, m5, m6, m7, m8] it's laid out column by column.    
     const mat3 = {
         /**
-         * Multiplies two 3x3 matrices.
-         * @param {number[]} a The first matrix.
-         * @param {number[]} b The second matrix.
-         * @returns {number[]} The result of the multiplication.
+         * Multiplies two 3x3 matrices (a * b).
+         * Matrix multiplication is how we combine transformations. For example, to rotate an object and then move it,
+         * you would multiply its position by a rotation matrix, and then multiply the result by a translation matrix.
+         * The order of multiplication is important! a * b is not the same as b * a.
+         * @param {number[]} a The first matrix (e.g., a rotation matrix).
+         * @param {number[]} b The second matrix (e.g., a translation matrix).
+         * @returns {number[]} The resulting combined transformation matrix.
          */
         multiply: (a, b) => {
+            // This is the standard mathematical formula for 3x3 matrix multiplication.
             const a00 = a[0], a01 = a[1], a02 = a[2], a10 = a[3], a11 = a[4], a12 = a[5], a20 = a[6], a21 = a[7], a22 = a[8];
             const b00 = b[0], b01 = b[1], b02 = b[2], b10 = b[3], b11 = b[4], b12 = b[5], b20 = b[6], b21 = b[7], b22 = b[8];
             return [
@@ -83,10 +103,22 @@ window.smoozoo = (imageUrl, settings) => {
             ];
         },
 
-        /** Creates a translation matrix. */
+        /**
+         * Creates a translation matrix. When this matrix is multiplied by a vector, it moves it by tx and ty.
+         * The resulting matrix is:
+         * | 1  0  tx |
+         * | 0  1  ty |
+         * | 0  0  1  |
+         */
         translation: (tx, ty) => [1, 0, 0, 0, 1, 0, tx, ty, 1],
 
-        /** Creates a rotation matrix. */
+        /**
+         * Creates a 2D rotation matrix. When multiplied by a vector, it rotates the vector around the origin (0,0).
+         * The resulting matrix is:
+         * | cos(a)  -sin(a)  0 |
+         * | sin(a)   cos(a)  0 |
+         * |   0        0     1 |
+         */
         rotation: (angleInRad) => {
             const c = Math.cos(angleInRad);
             const s = Math.sin(angleInRad);
@@ -97,40 +129,96 @@ window.smoozoo = (imageUrl, settings) => {
     // ---------------------
     // --- WebGL Shaders ---
     // ---------------------
+
+    /**
+     * The Vertex Shader's primary job is to calculate the final position of each vertex (corner)
+     * of the geometry we want to draw. It runs once for every single vertex.
+     */
     const vertexShaderSource = `
-        attribute vec2 a_position;
-        attribute vec2 a_texcoord;
-        varying vec2 v_texcoord;
-        uniform mat3 u_viewProjectionMatrix;
-        uniform mat3 u_rotationMatrix;
+        // --- Attributes ---
+        // Attributes are input variables that receive data from WebGL buffers.
+        // This data is unique to each vertex.
+        attribute vec2 a_position; // The original (x, y) position of a vertex in pixel coordinates (e.g., from 0 to image width).
+        attribute vec2 a_texcoord; // The (u, v) texture coordinate for this vertex (from 0.0 to 1.0). This maps a point on the texture to this vertex.
+
+        // --- Uniforms ---
+        // Uniforms are input variables that are the same for all vertices in a single draw call.
+        // We use them to pass in transformation data like matrices.
+        uniform mat3 u_viewProjectionMatrix; // A matrix that handles camera pan (origin) and zoom (scale).
+        uniform mat3 u_rotationMatrix;       // A matrix that handles the image rotation.
+
+        // --- Varyings ---
+        // Varyings are used to pass data from the Vertex Shader to the Fragment Shader.
+        // WebGL automatically interpolates (blends) these values for each pixel between the vertices.
+        varying vec2 v_texcoord; // We will pass the texture coordinate through to the fragment shader.
 
         void main() {
+            // --- Step 1: Apply Rotation ---
+            // We multiply the original position by the rotation matrix. Since the matrix is 3x3, we need to convert
+            // our 2D position (a_position) into a 3D vector (vec3) by adding a 1.0 as the third component.
+            // This is required for the homogeneous coordinate math to work correctly for translation.
             vec3 rotated_position = u_rotationMatrix * vec3(a_position, 1.0);
+
+            // --- Step 2: Apply View and Projection (Pan & Zoom) ---
+            // Now we take the rotated position and multiply it by the view-projection matrix.
+            // This matrix transforms the vertex from our "world" space (pixels) into a special coordinate
+            // system called "clip space", which is a 2x2x2 cube where X, Y, and Z range from -1.0 to +1.0.
             vec3 final_position = u_viewProjectionMatrix * vec3(rotated_position.xy, 1.0);
+
+            // --- Step 3: Set Final Position ---
+            // gl_Position is a special built-in variable that the vertex shader MUST set.
+            // It tells WebGL the final clip space coordinate for this vertex.
+            // We use the .xy from our final_position and set z to 0.0 (since we're in 2D) and w to 1.0.
             gl_Position = vec4(final_position.xy, 0.0, 1.0);
+
+            // --- Step 4: Pass Texture Coordinate to Fragment Shader ---
+            // We simply assign the input texture coordinate to the varying variable so the fragment shader can use it.
             v_texcoord = a_texcoord;
         }
     `;
 
+    /**
+     * The Fragment (or Pixel) Shader's job is to calculate the final color of each pixel on the screen
+     * that is covered by our geometry. It runs once for every single pixel.
+     */
     const fragmentShaderSource = `
+        // Sets the default floating point precision for performance. 'mediump' is a good balance.
         precision mediump float;
+
+        // --- Varyings (Input) ---
+        // This receives the interpolated texture coordinate from the vertex shader. For a pixel in the middle
+        // of our rectangle, this value might be (0.5, 0.5), for example.
         varying vec2 v_texcoord;
+
+        // --- Uniforms (Input) ---
+        // This represents the actual texture (our image tile) we want to draw.
+        // 'sampler2D' is the GLSL type for a 2D texture.
         uniform sampler2D u_image;
 
         void main() {
+            // --- Step 1: Sample the Texture ---
+            // The texture2D function looks up a color from the texture (u_image) at a specific
+            // coordinate (v_texcoord).
+            
+            // --- Step 2: Set Final Color ---
+            // gl_FragColor is a special built-in variable that the fragment shader MUST set.
+            // It determines the final color of the pixel as a RGBA (Red, Green, Blue, Alpha) vector.
             gl_FragColor = texture2D(u_image, v_texcoord);
         }
     `;
 
-
     // ------------------------------
     // --- WebGL Helper Functions ---
     // ------------------------------
+
+    // Compiles a shader from its GLSL source code.
     function createShader(gl, type, source)
     {
-        const shader = gl.createShader(type);
-        gl.shaderSource(shader, source);
-        gl.compileShader(shader);
+        const shader = gl.createShader(type); // Create a new shader object (e.g., VERTEX_SHADER).
+        gl.shaderSource(shader, source);      // Provide the GLSL source code.
+        gl.compileShader(shader);             // Compile the shader.
+
+        // Check if the compilation was successful. If not, log the error and clean up.
         if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
             console.error("Error compiling shader:", gl.getShaderInfoLog(shader));
             gl.deleteShader(shader);
@@ -140,53 +228,83 @@ window.smoozoo = (imageUrl, settings) => {
     }
 
 
+    // Links the compiled vertex and fragment shaders into a single "program".
     function createProgram(gl, vertexShader, fragmentShader)
     {
-        const program = gl.createProgram();
-        gl.attachShader(program, vertexShader);
+        const program = gl.createProgram(); // Create a new program object.
+        gl.attachShader(program, vertexShader); // Attach both shaders.
         gl.attachShader(program, fragmentShader);
-        gl.linkProgram(program);
+        gl.linkProgram(program); // Link them together.
 
+        // Check if the linking was successful. If not, log the error and clean up.
         if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
             console.error("Error linking program:", gl.getProgramInfoLog(program));
-            gl.deleteShader(program);
+            gl.deleteProgram(program); // Corrected from gl.deleteShader
             return null;
         }
-
         return program;
     }
 
 
     /**
      * Sets the vertex positions for a rectangle.
+     * 
+     * Fills the positionBuffer with the vertex coordinates for a rectangle.
+     * WebGL draws triangles, not rectangles, so we define a rectangle using two triangles (6 vertices).
+     * Triangle 1: (x1, y1), (x2, y1), (x1, y2)
+     * Triangle 2: (x1, y2), (x2, y1), (x2, y2)
      */
     function setRectangle(gl, x, y, width, height)
     {
-        const x1 = x,
-                x2 = x + width,
-                y1 = y,
-                y2 = y + height;
+        const x1 = x, x2 = x + width, y1 = y, y2 = y + height;
+        const positions = [x1, y1, x2, y1, x1, y2, x1, y2, x2, y1, x2, y2];
 
+        // Bind the positionBuffer, making it the active buffer.
         gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
-        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(
-            [ x1, y1, x2, y1, x1, y2, x1, y2, x2, y1, x2, y2 ]
-        ), gl.STATIC_DRAW);
+
+        // Upload the new vertex data to the GPU. gl.STATIC_DRAW is a hint that we don't expect this data to change frequently.
+        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(positions), gl.STATIC_DRAW);
     }
 
 
     /**
      * Creates a view-projection matrix to transform from pixel space to clip space.
+     * 
+     * This is the most complex matrix here. Its job is to transform
+     * coordinates from our "world space" (where the image lives, in pixels) toWebGL's "clip space"
+     * (a -1 to +1 cube). This single matrix effectively handles panning (translation) and zooming (scaling).
+     *
+     * It maps the visible portion of our world (defined by originX/Y and scale) onto the clip space rectangle.
+     *
+     * The transformation involves a few steps which are combined into this one matrix:
+     * 1. Translation: Move the world based on our pan position (originX, originY).
+     * 2. Scaling: Scale the world based on our zoom level (scale).
+     * 3. Projection: Convert from pixel coordinates to clip space coordinates (-1 to 1).
      */
     function makeMatrix(tx, ty, scale)
     {
-        const m0 = scale * 2 / canvas.width,
-                m4 = scale * -2 / canvas.height,
-                m6 = (scale * 2 * tx / canvas.width) - 1,
-                m7 = (scale * -2 * ty / canvas.height) + 1;
+        // This is a specialized matrix multiplication that combines scaling, translation, and projection.
+        // It's equivalent to:
+        //   let m = mat3.projection(canvas.width, canvas.height);
+        //   m = mat3.translate(m, tx, ty);
+        //   m = mat3.scale(m, scale, scale);
+        // but is calculated directly for performance.
 
+        // Scale x: maps pixel coordinates to the range -1 to 1.
+        const m0 = scale * 2 / canvas.width;
+
+        // Scale y: maps pixel coordinates to the range -1 to 1 (and flips the Y-axis, as WebGL's Y is up, canvas's is down).
+        const m4 = scale * -2 / canvas.height;
+
+        // Translate x: takes the scaled pan offset and moves the origin to the center.
+        const m6 = (scale * 2 * tx / canvas.width) - 1;
+
+        // Translate y: takes the scaled pan offset and moves the origin to the center.
+        const m7 = (scale * -2 * ty / canvas.height) + 1;
+
+        // The final 3x3 matrix in column-major order.
         return [ m0, 0, 0, 0, m4, 0, m6, m7, 1 ];
     }
-
 
     /**
      * Formats a number of bytes into a human-readable string (KB, MB, GB, etc.).
@@ -206,7 +324,8 @@ window.smoozoo = (imageUrl, settings) => {
 
 
     /**
-     * Loads an image, splits it into tiles if necessary, and creates WebGL textures.
+     * Loads an image, splits it into tiles if it exceeds the GPU's max texture size,
+     * and creates a WebGL texture for each tile.
      */
     async function loadImageAndCreateTextureInfo(url, callback)
     {
@@ -229,16 +348,20 @@ window.smoozoo = (imageUrl, settings) => {
                 orgImgHeight = img.height;
                 generateMinimapThumbnail(img);
 
+                // Calculate how many tiles we need in each dimension.
                 const numXTiles = Math.ceil(img.width / maxTextureSize);
                 const numYTiles = Math.ceil(img.height / maxTextureSize);
 
+                // Loop through each tile position.                
                 for (let y = 0; y < numYTiles; y++) {
                     for (let x = 0; x < numXTiles; x++) {
+                        // Calculate the source region (sx, sy, sw, sh) from the original image for this tile.                        
                         const sx = x * maxTextureSize,
-                                sy = y * maxTextureSize,
-                                sw = Math.min(maxTextureSize, img.width - sx),
-                                sh = Math.min(maxTextureSize, img.height - sy);
+                              sy = y * maxTextureSize,
+                              sw = Math.min(maxTextureSize, img.width - sx),
+                              sh = Math.min(maxTextureSize, img.height - sy);
 
+                        // Use a temporary 2D canvas to extract the tile's pixel data.
                         const tileCanvas = document.createElement('canvas');
                         tileCanvas.width = sw;
                         tileCanvas.height = sh;
@@ -246,14 +369,24 @@ window.smoozoo = (imageUrl, settings) => {
                         const tileCtx = tileCanvas.getContext('2d');
                         tileCtx.drawImage(img, sx, sy, sw, sh, 0, 0, sw, sh);
 
+                        // --- WebGL Texture Creation ---
                         const texture = gl.createTexture();
                         gl.bindTexture(gl.TEXTURE_2D, texture);
+
+                        // Upload the pixel data from the temporary canvas to the GPU texture.
+                        // PARAMS: target, level, internalFormat, format, type, source
                         gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, tileCanvas);
+
+                        // Set texture parameters. These control how the texture is sampled.
+                        // CLAMP_TO_EDGE prevents the texture from repeating at the edges, which is important for tiles.                        
                         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
                         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+
+                        // LINEAR filtering provides smooth scaling when zooming in or out. NEAREST would be pixelated.                        
                         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
                         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
 
+                        // Store the created texture and its world-space position and dimensions.
                         tiles.push({
                             texture,
                             x: sx,
@@ -276,36 +409,68 @@ window.smoozoo = (imageUrl, settings) => {
 
 
     /**
-     * The main rendering loop. Draws all tiles to the canvas.
+     * The main rendering loop. This function is called every time the view needs to be redrawn
+     * (e.g., during panning, zooming, or animation).
      */
     function render()
     {
         if (!tiles.length) {
-            return;
+            return; // Don't render if the image isn't loaded yet.
         }
 
+        // Set the color to use when clearing the canvas (a dark purple).
         gl.clearColor(0.055, 0.016, 0.133, 1.0);
+        // Clear the entire canvas to the specified color.
         gl.clear(gl.COLOR_BUFFER_BIT);
+
+        // Tell WebGL to use the shader program we created. All subsequent drawing commands will use these shaders.
         gl.useProgram(program);
-        gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
-        gl.enableVertexAttribArray(positionLocation);
+
+        // --- Connect Buffers to Shader Attributes ---
+        // To draw, we need to tell WebGL where to get the data for our shader's 'attribute' variables.
+
+        // 1. For vertex positions ('a_position'):
+        gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer); // Bind the position buffer.
+        gl.enableVertexAttribArray(positionLocation);   // Turn on the 'a_position' attribute.
+        // Tell the attribute how to get data out of positionBuffer.
+        // PARAMS: location, size (2 components per vertex), type (32bit floats), normalize (false), stride (0), offset (0).
         gl.vertexAttribPointer(positionLocation, 2, gl.FLOAT, false, 0, 0);
-        gl.bindBuffer(gl.ARRAY_BUFFER, texcoordBuffer);
-        gl.enableVertexAttribArray(texcoordLocation);
+
+        // 2. For texture coordinates ('a_texcoord'):
+        gl.bindBuffer(gl.ARRAY_BUFFER, texcoordBuffer); // Bind the texcoord buffer.
+        gl.enableVertexAttribArray(texcoordLocation);   // Turn on the 'a_texcoord' attribute.
+        // Tell the attribute how to get data out of texcoordBuffer.
         gl.vertexAttribPointer(texcoordLocation, 2, gl.FLOAT, false, 0, 0);
 
+        // --- Calculate and Set Uniforms ---
+        // Uniforms are global variables for the shaders. We set them once per frame.
+
+        // 1. Rotation Matrix ('u_rotationMatrix'):
         const angleInRad = rotation * Math.PI / 180;
+        // To rotate around the image center, we: 1. Translate to center, 2. Rotate, 3. Translate back.
         let rotMtx = mat3.translation(orgImgWidth / 2, orgImgHeight / 2);
         rotMtx = mat3.multiply(rotMtx, mat3.rotation(angleInRad));
         rotMtx = mat3.multiply(rotMtx, mat3.translation(-orgImgWidth / 2, -orgImgHeight / 2));
+        // Send the final rotation matrix to the vertex shader.
         gl.uniformMatrix3fv(rotationMatrixLocation, false, rotMtx);
 
+        // 2. View-Projection Matrix ('u_viewProjectionMatrix'):
         const viewProjMtx = makeMatrix(originX, originY, scale);
+        // Send the final view-projection matrix to the vertex shader.
         gl.uniformMatrix3fv(viewProjectionMatrixLocation, false, viewProjMtx);
 
+
+        // --- Draw The Tiles ---
+        // Loop through each image tile and draw it.
         tiles.forEach(tile => {
+            // Make the current tile's texture the active one for the fragment shader's 'u_image' sampler.
             gl.bindTexture(gl.TEXTURE_2D, tile.texture);
+
+            // Update the position buffer with this specific tile's world coordinates and dimensions.
             setRectangle(gl, tile.x, tile.y, tile.width, tile.height);
+
+            // THE DRAW CALL! This command tells the GPU to execute the shaders and draw the geometry.
+            // It will draw triangles, starting at vertex 0, and drawing 6 vertices in total (forming our rectangle).
             gl.drawArrays(gl.TRIANGLES, 0, 6);
         });
 
@@ -1073,24 +1238,33 @@ window.smoozoo = (imageUrl, settings) => {
     }
 
 
-    // ---------------------------------------------------
-    // --- Main, this is where we start executing code ---
-    // ---------------------------------------------------
+    // ------------------------------------------------------------
+    // --- Main, this is where we start executing code for real ---
+    // ------------------------------------------------------------
 
     // WebGL initialization
+
+    // 1. Compile and link the shaders into a single program.
     const vertexShader = createShader(gl, gl.VERTEX_SHADER, vertexShaderSource);
     const fragmentShader = createShader(gl, gl.FRAGMENT_SHADER, fragmentShaderSource);
     const program = createProgram(gl, vertexShader, fragmentShader);
 
+    // 2. Look up the memory locations of our shader's attributes and uniforms.
+    // We need these locations to send data to the GPU.
     const positionLocation = gl.getAttribLocation(program, "a_position");
     const texcoordLocation = gl.getAttribLocation(program, "a_texcoord");
     const viewProjectionMatrixLocation = gl.getUniformLocation(program, "u_viewProjectionMatrix");
     const rotationMatrixLocation = gl.getUniformLocation(program, "u_rotationMatrix");
 
-    // Set up WebGL Buffers
+    // 3. Create WebGL Buffers. Buffers are chunks of memory on the GPU that hold our vertex data.
     const positionBuffer = gl.createBuffer();
     const texcoordBuffer = gl.createBuffer();
+
+    // 4. Fill the texture coordinate buffer. The texture coordinates for a rectangular tile are always the same
+    // (from top-left (0,0) to bottom-right (1,1)), so we can set this data once and never change it.    
     gl.bindBuffer(gl.ARRAY_BUFFER, texcoordBuffer);
+
+    // The coordinates correspond to the 6 vertices of the two triangles that form the rectangle.
     gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([0, 0, 1, 0, 0, 1, 0, 1, 1, 0, 1, 1]), gl.STATIC_DRAW);
 
     // Set up event listeners
