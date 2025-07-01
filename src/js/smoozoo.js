@@ -131,51 +131,30 @@ window.smoozoo = (imageUrl, settings) => {
     // ---------------------
 
     /**
-     * The Vertex Shader's primary job is to calculate the final position of each vertex (corner)
-     * of the geometry we want to draw. It runs once for every single vertex.
+     * The Vertex Shader's primary job is to calculate the final position of each vertex.
+     * It's updated to scale texture coordinates to account for POT padding.
      */
     const vertexShaderSource = `
-        // --- Attributes ---
-        // Attributes are input variables that receive data from WebGL buffers.
-        // This data is unique to each vertex.
-        attribute vec2 a_position; // The original (x, y) position of a vertex in pixel coordinates (e.g., from 0 to image width).
-        attribute vec2 a_texcoord; // The (u, v) texture coordinate for this vertex (from 0.0 to 1.0). This maps a point on the texture to this vertex.
+        attribute vec2 a_position;
+        attribute vec2 a_texcoord;
 
-        // --- Uniforms ---
-        // Uniforms are input variables that are the same for all vertices in a single draw call.
-        // We use them to pass in transformation data like matrices.
-        uniform mat3 u_viewProjectionMatrix; // A matrix that handles camera pan (origin) and zoom (scale).
-        uniform mat3 u_rotationMatrix;       // A matrix that handles the image rotation.
+        uniform mat3 u_viewProjectionMatrix;
+        uniform mat3 u_rotationMatrix;
+        uniform vec2 u_texCoordScale; // NEW: Scales texture coordinates
 
-        // --- Varyings ---
-        // Varyings are used to pass data from the Vertex Shader to the Fragment Shader.
-        // WebGL automatically interpolates (blends) these values for each pixel between the vertices.
-        varying vec2 v_texcoord; // We will pass the texture coordinate through to the fragment shader.
+        varying vec2 v_texcoord;
 
         void main() {
-            // --- Step 1: Apply Rotation ---
-            // We multiply the original position by the rotation matrix. Since the matrix is 3x3, we need to convert
-            // our 2D position (a_position) into a 3D vector (vec3) by adding a 1.0 as the third component.
-            // This is required for the homogeneous coordinate math to work correctly for translation.
             vec3 rotated_position = u_rotationMatrix * vec3(a_position, 1.0);
-
-            // --- Step 2: Apply View and Projection (Pan & Zoom) ---
-            // Now we take the rotated position and multiply it by the view-projection matrix.
-            // This matrix transforms the vertex from our "world" space (pixels) into a special coordinate
-            // system called "clip space", which is a 2x2x2 cube where X, Y, and Z range from -1.0 to +1.0.
             vec3 final_position = u_viewProjectionMatrix * vec3(rotated_position.xy, 1.0);
 
-            // --- Step 3: Set Final Position ---
-            // gl_Position is a special built-in variable that the vertex shader MUST set.
-            // It tells WebGL the final clip space coordinate for this vertex.
-            // We use the .xy from our final_position and set z to 0.0 (since we're in 2D) and w to 1.0.
             gl_Position = vec4(final_position.xy, 0.0, 1.0);
 
-            // --- Step 4: Pass Texture Coordinate to Fragment Shader ---
-            // We simply assign the input texture coordinate to the varying variable so the fragment shader can use it.
-            v_texcoord = a_texcoord;
+            // Apply the texture coordinate scaling before passing to the fragment shader
+            v_texcoord = a_texcoord * u_texCoordScale;
         }
     `;
+
 
     /**
      * The Fragment (or Pixel) Shader's job is to calculate the final color of each pixel on the screen
@@ -324,17 +303,29 @@ window.smoozoo = (imageUrl, settings) => {
 
 
     /**
-     * Loads an image, splits it into tiles if it exceeds the GPU's max texture size,
-     * and creates a WebGL texture for each tile.
+     * Calculates the next highest power of two for a given number.
+     * e.g., nextPowerOf2(600) will return 1024.
+     */
+    function nextPowerOf2(n) {
+        if (n > 0 && (n & (n - 1)) === 0) {
+            return n; // Already a power of two
+        }
+        let p = 1;
+        while (p < n) {
+            p <<= 1; // Bitwise left shift (p = p * 2)
+        }
+        return p;
+    }
+
+
+    /**
+     * Loads an image, pads each tile to be power-of-two, and creates WebGL textures with Mipmaps.
      */
     async function loadImageAndCreateTextureInfo(url, callback)
     {
         try {
             const response = await fetch(url);
-
-            if (!response.ok)
-                throw new Error(`HTTP error! status: ${response.status}`);
-
+            if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
             const blob = await response.blob();
             orgImgBytes = blob.size;
             const objectURL = URL.createObjectURL(blob);
@@ -348,51 +339,56 @@ window.smoozoo = (imageUrl, settings) => {
                 orgImgHeight = img.height;
                 generateMinimapThumbnail(img);
 
-                // Calculate how many tiles we need in each dimension.
                 const numXTiles = Math.ceil(img.width / maxTextureSize);
                 const numYTiles = Math.ceil(img.height / maxTextureSize);
 
-                // Loop through each tile position.                
                 for (let y = 0; y < numYTiles; y++) {
                     for (let x = 0; x < numXTiles; x++) {
-                        // Calculate the source region (sx, sy, sw, sh) from the original image for this tile.                        
                         const sx = x * maxTextureSize,
                               sy = y * maxTextureSize,
                               sw = Math.min(maxTextureSize, img.width - sx),
                               sh = Math.min(maxTextureSize, img.height - sy);
 
-                        // Use a temporary 2D canvas to extract the tile's pixel data.
+                        // 1. Create a canvas with the tile's actual dimensions
                         const tileCanvas = document.createElement('canvas');
                         tileCanvas.width = sw;
                         tileCanvas.height = sh;
-
                         const tileCtx = tileCanvas.getContext('2d');
                         tileCtx.drawImage(img, sx, sy, sw, sh, 0, 0, sw, sh);
+
+                        // 2. Create a new canvas with power-of-two dimensions
+                        const potCanvas = document.createElement('canvas');
+                        potCanvas.width = nextPowerOf2(sw);
+                        potCanvas.height = nextPowerOf2(sh);
+                        const potCtx = potCanvas.getContext('2d');
+                        potCtx.drawImage(tileCanvas, 0, 0); // Draw the tile onto the larger canvas
+
+                        // 3. Calculate the texture coordinate scaling factor
+                        const texCoordScaleX = sw / potCanvas.width;
+                        const texCoordScaleY = sh / potCanvas.height;
 
                         // --- WebGL Texture Creation ---
                         const texture = gl.createTexture();
                         gl.bindTexture(gl.TEXTURE_2D, texture);
 
-                        // Upload the pixel data from the temporary canvas to the GPU texture.
-                        // PARAMS: target, level, internalFormat, format, type, source
-                        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, tileCanvas);
+                        // 4. Use the padded, power-of-two canvas to create the texture
+                        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, potCanvas);
+                        gl.generateMipmap(gl.TEXTURE_2D);
 
-                        // Set texture parameters. These control how the texture is sampled.
-                        // CLAMP_TO_EDGE prevents the texture from repeating at the edges, which is important for tiles.                        
+                        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
+                        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
                         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
                         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
 
-                        // LINEAR filtering provides smooth scaling when zooming in or out. NEAREST would be pixelated.                        
-                        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
-                        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-
-                        // Store the created texture and its world-space position and dimensions.
+                        // 5. Store the scaling factors with the tile data
                         tiles.push({
                             texture,
                             x: sx,
                             y: sy,
                             width: sw,
-                            height: sh
+                            height: sh,
+                            texCoordScaleX,
+                            texCoordScaleY
                         });
                     }
                 }
@@ -415,72 +411,42 @@ window.smoozoo = (imageUrl, settings) => {
     function render()
     {
         if (!tiles.length) {
-            return; // Don't render if the image isn't loaded yet.
+            return;
         }
 
-        // Set the color to use when clearing the canvas (a dark purple).
         gl.clearColor(0.055, 0.016, 0.133, 1.0);
-        // Clear the entire canvas to the specified color.
         gl.clear(gl.COLOR_BUFFER_BIT);
-
-        // Tell WebGL to use the shader program we created. All subsequent drawing commands will use these shaders.
         gl.useProgram(program);
-
-        // --- Connect Buffers to Shader Attributes ---
-        // To draw, we need to tell WebGL where to get the data for our shader's 'attribute' variables.
-
-        // 1. For vertex positions ('a_position'):
-        gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer); // Bind the position buffer.
-        gl.enableVertexAttribArray(positionLocation);   // Turn on the 'a_position' attribute.
-        // Tell the attribute how to get data out of positionBuffer.
-        // PARAMS: location, size (2 components per vertex), type (32bit floats), normalize (false), stride (0), offset (0).
+        gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
+        gl.enableVertexAttribArray(positionLocation);
         gl.vertexAttribPointer(positionLocation, 2, gl.FLOAT, false, 0, 0);
-
-        // 2. For texture coordinates ('a_texcoord'):
-        gl.bindBuffer(gl.ARRAY_BUFFER, texcoordBuffer); // Bind the texcoord buffer.
-        gl.enableVertexAttribArray(texcoordLocation);   // Turn on the 'a_texcoord' attribute.
-        // Tell the attribute how to get data out of texcoordBuffer.
+        gl.bindBuffer(gl.ARRAY_BUFFER, texcoordBuffer);
+        gl.enableVertexAttribArray(texcoordLocation);
         gl.vertexAttribPointer(texcoordLocation, 2, gl.FLOAT, false, 0, 0);
 
-        // --- Calculate and Set Uniforms ---
-        // Uniforms are global variables for the shaders. We set them once per frame.
-
-        // 1. Rotation Matrix ('u_rotationMatrix'):
         const angleInRad = rotation * Math.PI / 180;
-        // To rotate around the image center, we: 1. Translate to center, 2. Rotate, 3. Translate back.
         let rotMtx = mat3.translation(orgImgWidth / 2, orgImgHeight / 2);
         rotMtx = mat3.multiply(rotMtx, mat3.rotation(angleInRad));
         rotMtx = mat3.multiply(rotMtx, mat3.translation(-orgImgWidth / 2, -orgImgHeight / 2));
-        // Send the final rotation matrix to the vertex shader.
         gl.uniformMatrix3fv(rotationMatrixLocation, false, rotMtx);
 
-        // 2. View-Projection Matrix ('u_viewProjectionMatrix'):
         const viewProjMtx = makeMatrix(originX, originY, scale);
-        // Send the final view-projection matrix to the vertex shader.
         gl.uniformMatrix3fv(viewProjectionMatrixLocation, false, viewProjMtx);
 
-
-        // --- Draw The Tiles ---
-        // Loop through each image tile and draw it.
         tiles.forEach(tile => {
-            // Make the current tile's texture the active one for the fragment shader's 'u_image' sampler.
             gl.bindTexture(gl.TEXTURE_2D, tile.texture);
+            
+            // --- Set the texture coordinate scale for this specific tile ---
+            gl.uniform2f(texCoordScaleLocation, tile.texCoordScaleX, tile.texCoordScaleY);
 
-            // Update the position buffer with this specific tile's world coordinates and dimensions.
             setRectangle(gl, tile.x, tile.y, tile.width, tile.height);
-
-            // THE DRAW CALL! This command tells the GPU to execute the shaders and draw the geometry.
-            // It will draw triangles, starting at vertex 0, and drawing 6 vertices in total (forming our rectangle).
             gl.drawArrays(gl.TRIANGLES, 0, 6);
         });
 
         zoomLevelSpan.textContent = scale.toFixed(2);
-
         updatePanSlider();
         updateMinimap();
 
-        // --- PLUGIN HOOK ---
-        // Update the positions of HTML hotspot elements
         if(plugins.length) {
             for(const plugin of plugins) {
                 plugin.instance?.update();
@@ -1253,6 +1219,7 @@ window.smoozoo = (imageUrl, settings) => {
     // We need these locations to send data to the GPU.
     const positionLocation = gl.getAttribLocation(program, "a_position");
     const texcoordLocation = gl.getAttribLocation(program, "a_texcoord");
+    const texCoordScaleLocation = gl.getUniformLocation(program, "u_texCoordScale");
     const viewProjectionMatrixLocation = gl.getUniformLocation(program, "u_viewProjectionMatrix");
     const rotationMatrixLocation = gl.getUniformLocation(program, "u_rotationMatrix");
 

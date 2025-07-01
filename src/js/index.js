@@ -26,7 +26,7 @@ window.addEventListener('load', async () => {
         */
     };
 
-    smoozoo(`./assets/32k-wide-image.png`, settings);
-    // smoozoo(`./assets/xanadu-reconstruction.png`, settings);
+    // smoozoo(`./assets/32k-wide-image.png`, settings);
+    smoozoo(`./assets/xanadu-reconstruction.png`, settings);
     // smoozoo(`./assets/BTCUSDT.png?${cacheBust}`, settings);
 });
