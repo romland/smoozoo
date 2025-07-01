@@ -1,6 +1,4 @@
-import { HotspotPlugin } from "../plugins/smoozoo-plugin-hotspot.js";
-
-window.smoozoo = (settings) => {
+window.smoozoo = (imageUrl, settings) => {
     // DOM Element Selection & Initial Setup
     const canvas = settings.canvas;
     canvas.width = window.innerWidth;
@@ -59,6 +57,10 @@ window.smoozoo = (settings) => {
 
     // Get the maximum texture size the GPU can handle. This is crucial for the tiling logic.
     const maxTextureSize = gl.getParameter(gl.MAX_TEXTURE_SIZE);
+
+    // Plugins
+    let plugins = settings.plugins || [];
+
 
     // ------------------------
     // --- Matrix Utilities ---
@@ -271,7 +273,6 @@ window.smoozoo = (settings) => {
         }
     }
 
-    let hotspotPlugin; // Declare at this scope
 
     /**
      * The main rendering loop. Draws all tiles to the canvas.
@@ -314,8 +315,10 @@ window.smoozoo = (settings) => {
 
         // --- PLUGIN HOOK ---
         // Update the positions of HTML hotspot elements
-        if (hotspotPlugin) {
-            hotspotPlugin.update();
+        if(plugins.length) {
+            for(const plugin of plugins) {
+                plugin.instance?.update();
+            }
         }
     }
 
@@ -997,9 +1000,12 @@ window.smoozoo = (settings) => {
         
         // --- PLUGIN HOOK ---
         // Let the plugin know where the mouse is
-        if (hotspotPlugin) {
-            hotspotPlugin.onMouseMove(e);
+        if(plugins.length) {
+            for(const plugin of plugins) {
+                plugin.instance?.onMouseMove(e);
+            }
         }
+
     }
 
 
@@ -1037,6 +1043,12 @@ window.smoozoo = (settings) => {
         window.addEventListener('mousemove', onDrag);
         window.addEventListener('mouseup', onDragEnd);
     }
+
+    function createPluginInstance(ClassName, api, options)
+    {
+        return new ClassName(api, options);
+    }
+
 
 
     // ---------------------------------------------------
@@ -1078,33 +1090,30 @@ window.smoozoo = (settings) => {
     initMinimap();
 
     // Really start stuff up, load image and initialize us
-    // loadImageAndCreateTextureInfo('32k-wide-image.png', () => {
-    // loadImageAndCreateTextureInfo('xanadu-reconstruction.png', () => {
-    // loadImageAndCreateTextureInfo('BTCUSDT-james-wynn.png', () => {
-    loadImageAndCreateTextureInfo(`./assets/BTCUSDT.png?cb=${Date.now()}`, async () => {
+    loadImageAndCreateTextureInfo(`${imageUrl}?cb=${Date.now()}`, async () => {
         setInitialView();
         render();
 
         imageSizePixelsSpan.textContent = `${orgImgWidth}x${orgImgHeight}`;
         imageSizeBytesSpan.textContent = formatBytes(orgImgBytes);
         updatePanSlider();
-        
-        if(true) {
-            // --- PLUGIN INITIALIZATION ---
 
-            // 1. Define the metadata for our hotspots
-            const hotspotData = await (await fetch(`./assets/events-metadata.json?cb=${Date.now()}`)).json();
+        // -----------------
+        // The plugin system
+        // -----------------
+        const viewerApi = {
+            getTransform: () => ({ scale, originX, originY }),
+            getCanvas: () => canvas,
+            requestRender: render
+        };
 
-            // 2. Create the viewer "API" object for the plugin
-            const viewerApi = {
-                getTransform: () => ({ scale, originX, originY }),
-                getCanvas: () => canvas,
-                requestRender: render
-            };
-
-            // 3. Instantiate the plugin
-            hotspotPlugin = new HotspotPlugin(viewerApi, { hotspots: hotspotData });
-            hotspotPlugin.update();
+        for(const plugin of plugins) {
+            plugin.instance = createPluginInstance(plugin.name, viewerApi, plugin.options);
         }
+
+        for(const plugin of plugins) {
+            plugin.instance?.update();
+        }
+
     });
 }

@@ -1,6 +1,7 @@
 export class HotspotPlugin
 {
-    constructor(viewer, options) {
+    constructor(viewer, options)
+    {
         this.viewer = viewer;
         this.hotspots = options.hotspots || [];
         this.container = document.getElementById('hotspot-layer');

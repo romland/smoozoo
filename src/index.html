@@ -9,6 +9,9 @@
 
         <script type="module" src="./js/smoozoo.js"></script>
         <link rel="stylesheet" href="./css/smoozoo.css" />
+
+        <script type="module" src="./js/index.js"></script>
+
     </head>
     <body>
         <canvas id="glcanvas"></canvas>
@@ -33,22 +36,6 @@
             <p class="narrow"><strong></strong><span id="image-size-bytes">0 B</span></p>
             <p><span id="image-file-name"></span></p>
         </div>
-
-        <script>
-            window.addEventListener('load', () => {
-                const settings = {
-                    minimapMaxSize: 200,
-                    minimapMinSize: 8,
-                    elasticMoveDuration: 200,
-                    zoomSmoothing: 0.075,
-                    inertiaFriction: 0.95,
-                    inertiaStopThreshold: 0.1,
-                    canvas: document.getElementById('glcanvas'),
-                }
-
-                smoozoo(settings);
-            });
-        </script>
     </body>
 
 </html>
