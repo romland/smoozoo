@@ -1,8 +1,9 @@
 ## This is Smoozoo
 A super-smooth, performant and modern image viewer for the web.  
-Made for very large images that require sexy and fast navigation and zooming.
+Made for very large images that require fast navigation and scaling.
 
 ### Major Features
+- Sexy
 - WebGL
 - Scaling on GPU
 - No 3rd party dependencies
