@@ -949,7 +949,12 @@ window.smoozoo = (imageUrl, settings) => {
     // --- Touch Event Wrappers -----------
     // ------------------------------------
 
-    function handleTouchStart(e) {
+    function handleTouchStart(e)
+    {
+        if (minimapContainer.contains(e.target)) {
+            return;
+        }
+
         e.preventDefault();
         cancelAllAnimations();
         isTouching = true;
@@ -978,7 +983,8 @@ window.smoozoo = (imageUrl, settings) => {
     }
 
 
-    function handleTouchMove(e) {
+    function handleTouchMove(e)
+    {
         e.preventDefault();
         if (e.touches.length === 1 && panning) {
             const touch = e.touches[0];
@@ -1013,7 +1019,8 @@ window.smoozoo = (imageUrl, settings) => {
         }
     }
 
-function handleTouchEnd(e) {
+    function handleTouchEnd(e)
+    {
         e.preventDefault();
         // If other fingers are still on the screen, reset the gesture.
         if (e.touches.length > 0) {
@@ -1338,6 +1345,35 @@ function handleTouchEnd(e) {
     }
 
 
+    function handleMinimapTouchStart(e)
+    {
+        console.log("whut handleMinimapTouchStart called")
+
+        e.stopPropagation(); // Prevents the event from reaching the canvas listener.
+                
+        e.preventDefault(); // Prevent the page from scrolling
+
+        // Use the first touch point to calculate the position
+        const { targetOriginX, targetOriginY } = calculateTargetOriginForMinimapEvent(e.touches[0]);
+        jumpToOrigin(targetOriginX, targetOriginY);
+
+        const onTouchDrag = (moveEvent) => {
+            // Use the first touch point from the 'move' event
+            const { targetOriginX, targetOriginY } = calculateTargetOriginForMinimapEvent(moveEvent.touches[0]);
+            jumpToOrigin(targetOriginX, targetOriginY);
+        };
+
+        const onTouchDragEnd = () => {
+            // Stop listening when the finger is lifted
+            minimapContainer.removeEventListener('touchmove', onTouchDrag);
+            window.removeEventListener('touchend', onTouchDragEnd);
+        };
+
+        // Add the listeners for dragging and for ending the drag
+        minimapContainer.addEventListener('touchmove', onTouchDrag);
+        window.addEventListener('touchend', onTouchDragEnd);
+    }
+
     // ------------------------------------------------------------
     // --- Main, this is where we start executing code for real ---
     // ------------------------------------------------------------
@@ -1388,6 +1424,7 @@ function handleTouchEnd(e) {
     panSlider.addEventListener('mousedown', (e) => e.stopPropagation());
 
     minimapContainer.addEventListener('mousedown', handleMinimapMouseDown);
+    minimapContainer.addEventListener('touchstart', handleMinimapTouchStart, { passive: false });
 
     // Really start stuff up, load image and initialize us
     loadImageAndCreateTextureInfo(`${imageUrl}`, async () => {
