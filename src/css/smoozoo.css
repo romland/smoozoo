@@ -105,7 +105,7 @@ p.wide {
 body.ui-hidden #status-display,
 body.ui-hidden #control-display,
 body.ui-hidden #minimap-container {
-    opacity: 0;
+    opacity: 1;
     pointer-events: none;
     transition: opacity 0.3s ease;
 }
