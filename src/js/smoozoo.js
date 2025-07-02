@@ -632,7 +632,7 @@ window.smoozoo = (imageUrl, settings) => {
         }
     }
 
-    
+
     /**
      * Simulates inertial movement, but stops and hands off to checkEdges
      * as soon as a boundary is crossed.
@@ -977,6 +977,7 @@ window.smoozoo = (imageUrl, settings) => {
         }
     }
 
+
     function handleTouchMove(e) {
         e.preventDefault();
         if (e.touches.length === 1 && panning) {
@@ -1012,37 +1013,53 @@ window.smoozoo = (imageUrl, settings) => {
         }
     }
 
-    function handleTouchEnd(e) {
+function handleTouchEnd(e) {
         e.preventDefault();
+        // If other fingers are still on the screen, reset the gesture.
         if (e.touches.length > 0) {
             handleTouchStart(e);
             return;
         }
 
-        if (panning) {
-            const now = performance.now();
-            const timesince = now - lastTap;
-            lastTap = now;
-            const endTouch = e.changedTouches[0];
-            const distance = Math.sqrt(Math.pow(endTouch.clientX - touchStartX, 2) + Math.pow(endTouch.clientY - touchStartY, 2));
+        const endTouch = e.changedTouches[0];
+        const now = performance.now();
+        
+        // Calculate the distance the finger moved from start to end.
+        const distance = Math.sqrt(Math.pow(endTouch.clientX - touchStartX, 2) + Math.pow(endTouch.clientY - touchStartY, 2));
 
-            if (distance < 15 && timesince < 250) {
-                document.body.classList.toggle('ui-hidden');
-            } else if (panVelocityX !== 0 || panVelocityY !== 0) {
-                cancelAllAnimations();
-                // Pass the final velocity directly to the animation loop
+        // A "tap" is a touch that moved less than 15px.
+        if (distance < 15) {
+            // --- This was a TAP gesture ---
+            const timesince = now - lastTap;
+
+            // Check if this tap happened quickly after the last one.
+            if (timesince > 0 && timesince < 300) {
+                // DOUBLE TAP: Cancel the pending single tap and handle as a double tap.
+                clearTimeout(tapTimeout);
+                handleDoubleTap(e);
+            } else {
+                // SINGLE TAP: Wait to see if another tap follows.
+                tapTimeout = setTimeout(() => {
+                    document.body.classList.toggle('ui-hidden');
+                }, 300);
+            }
+            // **THE FIX**: Only update the timestamp for the last tap if the gesture was a tap.
+            lastTap = now;
+
+        } else {
+            // --- This was a PAN or FLICK gesture ---
+            // A flick is not a tap, so we do NOT update lastTap here.
+            if (panVelocityX !== 0 || panVelocityY !== 0) {
                 inertiaLoop(panVelocityX, panVelocityY, settings.touchInertiaFriction);
             } else {
                 checkEdges();
             }
-        } else if (isTouching) {
-            checkEdges();
         }
         
+        // Reset gesture state.
         panning = false;
         isTouching = false;
     }
-
 
     function handleDoubleTap(e)
     {
@@ -1320,23 +1337,6 @@ window.smoozoo = (imageUrl, settings) => {
         window.addEventListener('mouseup', onDragEnd);
     }
 
-    function handleHideMobileUI(e)
-    {
-        const now = new Date().getTime();
-        const timesince = now - lastTap;
-
-        if (timesince < 300 && timesince > 0) {
-            // Double tap
-            clearTimeout(tapTimeout);
-            handleDoubleTap(e);
-        } else {
-            // Single tap
-            tapTimeout = setTimeout(() => {
-                document.body.classList.toggle('ui-hidden');
-            }, 300);
-        }
-        lastTap = now;
-    }
 
     // ------------------------------------------------------------
     // --- Main, this is where we start executing code for real ---
@@ -1383,7 +1383,6 @@ window.smoozoo = (imageUrl, settings) => {
     canvas.addEventListener('touchstart', handleTouchStart, { passive: false });
     canvas.addEventListener('touchmove', handleTouchMove, { passive: false });
     canvas.addEventListener('touchend', handleTouchEnd, { passive: false });
-    canvas.addEventListener('touchend', handleHideMobileUI, false);
 
     panSlider.addEventListener('input',  handleSliderInput);
     panSlider.addEventListener('mousedown', (e) => e.stopPropagation());
