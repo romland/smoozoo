@@ -644,24 +644,20 @@ window.smoozoo = (imageUrl, settings) => {
 
         const stopThreshold = settings.inertiaStopThreshold || 0.1;
 
-        // Condition to stop the loop naturally if it fades out within bounds
         if (Math.abs(newVx) < stopThreshold && Math.abs(newVy) < stopThreshold) {
-            inertiaAnimationId = null; // Stop the animation
-            checkEdges(); // Final check, just in case
+            inertiaAnimationId = null;
+            checkEdges();
             return;
         }
 
-        // Apply the velocity for this frame
         originX += newVx / scale;
         originY += newVy / scale;
 
-        // --- Boundary Check ---
         const { width: imageWidth, height: imageHeight } = getCurrentImageSize();
         const viewWidth = canvas.width / scale;
         const viewHeight = canvas.height / scale;
 
         let isOutOfBounds = false;
-        // Check if the image is pannable and if the origin is outside the valid range
         if (imageWidth > viewWidth) {
             if (originX > 0 || originX < viewWidth - imageWidth) {
                 isOutOfBounds = true;
@@ -672,20 +668,13 @@ window.smoozoo = (imageUrl, settings) => {
                 isOutOfBounds = true;
             }
         }
-
-        // Always render the new position for this frame
+        
         render();
 
-        // --- The Crucial Logic ---
         if (isOutOfBounds) {
-            // We've crossed a boundary. Stop the inertia glide immediately.
             inertiaAnimationId = null;
-            
-            // Now, call checkEdges. It will see the out-of-bounds state
-            // and trigger the elasticMove animation to snap it back.
             checkEdges(); 
         } else {
-            // We are still within the boundaries, so continue the glide.
             inertiaAnimationId = requestAnimationFrame(() => inertiaLoop(newVx, newVy, friction));
         }
     }
@@ -937,13 +926,26 @@ window.smoozoo = (imageUrl, settings) => {
         
         if (panVelocityX !== 0 || panVelocityY !== 0) {
             cancelAllAnimations();
-            // Pass the final velocity directly to the animation loop
-            inertiaLoop(panVelocityX, panVelocityY, settings.mouseInertiaFriction);
+
+            // --- THIS IS THE FIX ---
+            const { width: imageWidth, height: imageHeight } = getCurrentImageSize();
+            const viewWidth = canvas.width / scale;
+            const viewHeight = canvas.height / scale;
+
+            // Only start the glide if the image is actually larger than the screen.
+            if (imageWidth > viewWidth || imageHeight > viewHeight) {
+                inertiaLoop(panVelocityX, panVelocityY, settings.mouseInertiaFriction);
+            } else {
+                // Otherwise, just snap it back to center immediately.
+                checkEdges();
+            }
+
         } else {
             checkEdges();
         }
         panning = false;
     }
+
 
     // ------------------------------------
     // --- Touch Event Wrappers -----------
@@ -1055,10 +1057,21 @@ window.smoozoo = (imageUrl, settings) => {
 
         } else {
             // --- This was a PAN or FLICK gesture ---
-            // A flick is not a tap, so we do NOT update lastTap here.
-            if (panVelocityX !== 0 || panVelocityY !== 0) {
-                inertiaLoop(panVelocityX, panVelocityY, settings.touchInertiaFriction);
+            cancelAllAnimations(); // Moved from inside the if statement
+
+            const { width: imageWidth, height: imageHeight } = getCurrentImageSize();
+            const viewWidth = canvas.width / scale;
+            const viewHeight = canvas.height / scale;
+
+            // Only start the glide if the image is actually larger than the screen.
+            if (imageWidth > viewWidth || imageHeight > viewHeight) {
+                if (panVelocityX !== 0 || panVelocityY !== 0) {
+                    inertiaLoop(panVelocityX, panVelocityY, settings.touchInertiaFriction);
+                } else {
+                    checkEdges();
+                }
             } else {
+                // Otherwise, just snap it back to center immediately.
                 checkEdges();
             }
         }
@@ -1067,6 +1080,7 @@ window.smoozoo = (imageUrl, settings) => {
         panning = false;
         isTouching = false;
     }
+
 
     function handleDoubleTap(e)
     {
