@@ -1,12 +1,18 @@
 ## This is Smoozoo
 A super-smooth, performant and modern image viewer for the web.  
-Made for very large images that require fast navigation and scaling.
+Made for very large images that require fast navigation and scaling.  
+
+Inspired by Windows 10/11's default image viewer. For a different  
+project I needed something that felt like that viewer, but in a browser.  
+
+Thus, Smoozoo was burn; and I must say, it actually feels _better_ than  
+Windows Native one now!
 
 ### Major Features
-- Sexy
+- Sexy and feels nice
 - WebGL
 - GPU scaling with mipmapping and frustum culling
-- No dependencies
+- No third party dependencies
 - ...
 
 ### Other features
