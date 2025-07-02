@@ -3,12 +3,13 @@ A super-smooth, performant and modern image viewer for the web.
 Made for very large images that require fast navigation and scaling.  
 
 Inspired by Windows 10/11's default image viewer. For a different  
-project I needed something that felt like that viewer, but in a browser.  
+project I needed something that felt and worked like that but in a  
+web browser.  
 
-Thus, Smoozoo was burn; and I must say, it actually feels _better_ than  
-Windows Native one now!
+So, Smoozoo was born. Not quite done yet, but, Smoozoo actually
+feels _better_ than Windows Native one now!
 
-### Major Features
+### Bigger Features
 - Sexy and feels nice
 - WebGL
 - GPU scaling with mipmapping and frustum culling
@@ -50,19 +51,14 @@ Windows Native one now!
 
 
 ### TODO
-	- FIX: 'r' to rotate image in steps of 90 degrees
+	- FIX (or ditch): 'r' to rotate image in steps of 90 degrees
 	- we lose all state variables of position/scale if window size changes which is 
 	  particularly annoying if you are in fullscreen and accidentally show the browser
 	  url/navigation bar.
 
-	- would be nice with some interactivity so that i can associate some pixels/circle/point w/ radius
-	  with, on hover, showing more information (e.g. tweet on a chart). There would need to be a meta
-	  data array next to this all that associates a point+radius with entries in that data structure.
-	  I would like to be able to display text and/or picture on hover. I am not sure what is most efficient,
-	  doing it all on canvas or just listen for position in html and show a html "popup" around the area?
-
-	- also in the same vein, depending on position of original (that is in view) it should show/pin 
-	  messages to that pixel as we pan/zoom around it
+	- we already support some meta-data via plugin but I'd like to extend that so that
+      depending on position of viewport it should show/pin messages to that pixel as we
+      pan/zoom around it
 
 	- 3. (Visual Bug) Jarring "Snap" at the End of a Zoom
 	  seems to have made "stay at fixed pixel under pointer when zooming" a bit worse -- if I zoom in
