@@ -64,10 +64,25 @@ yet, but, Smoozoo actually already feels _better_ than Windows native one!
       depending on position of viewport it should show/pin messages to that pixel as we
       pan/zoom around it
 
-	- 3. (Visual Bug) Jarring "Snap" at the End of a Zoom
+    - be able to set a title of an image (through some meta data)
+
+	- Visual Bug: Jarring "Snap" at the End of a Zoom
 	  seems to have made "stay at fixed pixel under pointer when zooming" a bit worse -- if I zoom in
 	  very fast, it loses track of where I am zooming to. Maybe there needs to be some kind of prediction
-	  or so? Not sure what is wrong myself
+	  or so? Not sure what is wrong
 
     - not for in here, but I would like chartjs to generate base64-encoded images for the
       inline'd minute-charts
+
+    - Check screenwidth and decide based on that if we should load a smaller version of the image.
+
+    - Change cursor to grab by default, when panning: grabbing
+
+    - drag/drop image / filepicker
+
+    - smart conversion of image to dark mode / brightness / contrast / saturation
+
+    - annotation on a separate canvas
+
+    - "Tiled pyramid" format (like DZI - Deep Zoom Image). Support for pre-sliced tiles at
+      different scales from back-end (low priority as it needs server side code).

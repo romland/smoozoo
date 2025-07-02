@@ -632,77 +632,64 @@ window.smoozoo = (imageUrl, settings) => {
         }
     }
 
-
+    
     /**
-     * Simulates inertial movement. This version is stateless; it is given
-     * an initial velocity and handles its own lifecycle recursively.
+     * Simulates inertial movement, but stops and hands off to checkEdges
+     * as soon as a boundary is crossed.
      */
-    function inertiaLoop(vx, vy, friction) {
+    function inertiaLoop(vx, vy, friction)
+    {
         const newVx = vx * friction;
         const newVy = vy * friction;
 
         const stopThreshold = settings.inertiaStopThreshold || 0.1;
 
+        // Condition to stop the loop naturally if it fades out within bounds
         if (Math.abs(newVx) < stopThreshold && Math.abs(newVy) < stopThreshold) {
-            checkEdges();
+            inertiaAnimationId = null; // Stop the animation
+            checkEdges(); // Final check, just in case
             return;
         }
 
+        // Apply the velocity for this frame
         originX += newVx / scale;
         originY += newVy / scale;
 
-        // This performs boundary checks inside the loop
+        // --- Boundary Check ---
         const { width: imageWidth, height: imageHeight } = getCurrentImageSize();
         const viewWidth = canvas.width / scale;
         const viewHeight = canvas.height / scale;
-        let bounced = false;
 
-        if (imageHeight <= viewHeight) {
-            originY = (viewHeight - imageHeight) / 2;
-        } else if (originY > 0 || originY < viewHeight - imageHeight) {
-            originY = Math.max(viewHeight - imageHeight, Math.min(0, originY));
-            bounced = true;
+        let isOutOfBounds = false;
+        // Check if the image is pannable and if the origin is outside the valid range
+        if (imageWidth > viewWidth) {
+            if (originX > 0 || originX < viewWidth - imageWidth) {
+                isOutOfBounds = true;
+            }
+        }
+        if (imageHeight > viewHeight) {
+            if (originY > 0 || originY < viewHeight - imageHeight) {
+                isOutOfBounds = true;
+            }
         }
 
-        if (imageWidth <= viewWidth) {
-            originX = (viewWidth - imageWidth) / 2;
-        } else if (originX > 0 || originX < viewWidth - imageWidth) {
-            originX = Math.max(viewWidth - imageWidth, Math.min(0, originX));
-            bounced = true;
-        }
-        
+        // Always render the new position for this frame
         render();
 
-        // If the edge was hit, stop. Otherwise, continue the animation.
-        if (!bounced) {
-            inertiaAnimationId = requestAnimationFrame(() => inertiaLoop(newVx, newVy, friction));
-        } else {
+        // --- The Crucial Logic ---
+        if (isOutOfBounds) {
+            // We've crossed a boundary. Stop the inertia glide immediately.
             inertiaAnimationId = null;
+            
+            // Now, call checkEdges. It will see the out-of-bounds state
+            // and trigger the elasticMove animation to snap it back.
+            checkEdges(); 
+        } else {
+            // We are still within the boundaries, so continue the glide.
+            inertiaAnimationId = requestAnimationFrame(() => inertiaLoop(newVx, newVy, friction));
         }
     }
 
-
-    /**
-     * Checks if the image is panned out of its boundaries.
-     */
-    function isOutOfBounds()
-    {
-        const { width: imageWidth, height: imageHeight } = getCurrentImageSize();
-        const viewWidth = canvas.width / scale;
-        const viewHeight = canvas.height / scale;
-
-        if (imageWidth > viewWidth) {
-            const minOriginX = viewWidth - imageWidth;
-            if (originX > 0 || originX < minOriginX) return true;
-        }
-
-        if (imageHeight > viewHeight) {
-            const minOriginY = viewHeight - imageHeight;
-            if (originY > 0 || originY < minOriginY) return true;
-        }
-
-        return false;
-    }
 
     function debounce(func, timeout = 100)
     {
@@ -902,95 +889,6 @@ window.smoozoo = (imageUrl, settings) => {
     // ----------------------
     // --- Event Handlers ---
     // ----------------------
-
-    // ------------------------------------
-    // --- Unified Pan/Zoom/Tap Logic -----
-    // ------------------------------------
-
-    function handlePanStart(e, isTouch = false) {
-        cancelAllAnimations();
-        panning = true;
-        
-        const pointer = isTouch ? e.touches[0] : e;
-        startX = (pointer.clientX / scale) - originX;
-        startY = (pointer.clientY / scale) - originY;
-        
-        // For tap vs drag detection
-        touchStartX = pointer.clientX;
-        touchStartY = pointer.clientY;
-        
-        // Reset velocity for the new gesture
-        panVelocityX = 0;
-        panVelocityY = 0;
-    }
-
-    function handlePanMove(e, isTouch = false) {
-        if (!panning) return;
-
-        const pointer = isTouch ? e.touches[0] : e;
-
-        // --- Calculate Velocity ---
-        const deltaX = pointer.clientX - lastMouseX;
-        const deltaY = pointer.clientY - lastMouseY;
-        if (Math.abs(deltaX) > 0 || Math.abs(deltaY) > 0) {
-            panVelocityX = deltaX;
-            panVelocityY = deltaY;
-        }
-
-        // --- Update Pan Position ---
-        originX = (pointer.clientX / scale) - startX;
-        let newOriginY = (pointer.clientY / scale) - startY;
-
-        // --- Vertical Clamping Logic ---
-        const { height: imageHeight } = getCurrentImageSize();
-        const viewHeight = canvas.height / scale;
-        if (imageHeight < viewHeight) {
-            newOriginY = (viewHeight - imageHeight) / 2;
-        }
-        originY = newOriginY;
-
-        // --- Update reference points for next move event ---
-        lastMouseX = pointer.clientX;
-        lastMouseY = pointer.clientY;
-        
-        render();
-    }
-
-    function handlePanEnd(e, inputType) {
-        if (!panning) return;
-
-        const pointer = (inputType === 'touch') ? e.changedTouches[0] : e;
-
-        // --- Analyze the completed gesture ---
-        const now = performance.now();
-        const timesince = now - lastTap;
-        lastTap = now;
-
-        const deltaX = pointer.clientX - touchStartX;
-        const deltaY = pointer.clientY - touchStartY;
-        const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
-
-        const MOVEMENT_THRESHOLD = 15;
-        const TAP_DURATION_THRESHOLD = 250;
-        
-        // --- Decision 1: Was it a TAP? ---
-        if (distance < MOVEMENT_THRESHOLD && timesince < TAP_DURATION_THRESHOLD) {
-            document.body.classList.toggle('ui-hidden');
-        }
-        // --- Decision 2: Was it a FLING? ---
-        else if (panVelocityX !== 0 || panVelocityY !== 0) {
-            cancelAllAnimations();
-            currentInertiaFriction = (inputType === 'touch') ? settings.touchInertiaFriction : settings.mouseInertiaFriction;
-            inertiaAnimationId = requestAnimationFrame(inertiaLoop);
-        }
-        // --- Decision 3: It was a SLOW DRAG ---
-        else {
-            checkEdges();
-        }
-
-        // Reset state
-        panning = false;
-    }
 
     // ------------------------------------
     // --- Mouse Event Wrappers -----------

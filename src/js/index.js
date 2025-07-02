@@ -7,7 +7,7 @@ window.addEventListener('load', async () => {
         elasticMoveDuration:    200,
         zoomSmoothing:          0.075,
         mouseInertiaFriction:   0.95,
-        touchInertiaFriction:   0.98,   // A slightly higher value for touch 'flings'
+        touchInertiaFriction:   0.98,
         inertiaStopThreshold:   0.1,
         initialScale:           0.9,
         initialPosition:        { x: 0.5, y: 0.5 },
@@ -25,21 +25,11 @@ window.addEventListener('load', async () => {
         */
     };
 
-    /*
-    // We do not yet support different image sizes, but should be pretty high on TODO.
-    const screenWidth = window.screen.width * window.devicePixelRatio;
-
-    if (screenWidth <= 800) {
-        imageUrl += '?size=small';
-    } else if (screenWidth <= 1600) {
-        imageUrl += '?size=medium';
-    }
-    */
-
-    // const url = new URL(`../assets/xanadu-reconstruction.png`, import.meta.url);
+    const url = new URL(`../assets/xanadu-reconstruction.png`, import.meta.url);
     // const url = new URL(`../assets/ignoreBlackMarble_2016_928m_mediterranean_labeled.png`, import.meta.url);
     // const url = new URL(`../assets/BTCUSDT.png`, import.meta.url);
-    const url = new URL(`../assets/32k-wide-image.png`, import.meta.url);
+    // const url = new URL(`../assets/32k-wide-image.png`, import.meta.url);
+
     console.log("Loading image", url.toString(), "...");
     smoozoo(url.toString(), settings);
 });
