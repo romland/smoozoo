@@ -101,3 +101,39 @@ p.wide {
     background-color: rgba(255, 85, 85, 0.25);
     pointer-events: none;
 }
+
+body.ui-hidden #status-display,
+body.ui-hidden #control-display,
+body.ui-hidden #minimap-container {
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s ease;
+}
+
+@media (max-width: 600px) {
+    /* Make status display stack vertically and take less space */
+    #status-display {
+        bottom: auto;
+        top: 10px;
+        right: 10px;
+        left: 10px;
+        width: auto;
+        text-align: right;
+    }
+
+    #status-display p {
+        display: block; /* Stack the <p> tags */
+        margin: 2px 0;
+    }
+
+    /* Hide the pan slider, as touch panning is the primary method */
+    #control-display {
+        display: none;
+    }
+
+    /* Make touch targets on the minimap bigger */
+    #minimap-container {
+        transform: scale(1.2);
+        transform-origin: top right;
+    }
+}

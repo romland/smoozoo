@@ -37,6 +37,7 @@ window.smoozoo = (imageUrl, settings) => {
     let targetScale = 1.0;
     let targetOriginX = 0;
     let targetOriginY = 0;
+
     let isZooming = false;
     let lastMouseX = 0;
     let lastMouseY = 0;
@@ -45,6 +46,16 @@ window.smoozoo = (imageUrl, settings) => {
     let panVelocityX = 0;
     let panVelocityY = 0;
     let lastPanTime = 0;
+    let currentInertiaFriction = settings.mouseInertiaFriction;
+
+    // Variables for touch interaction
+    let initialPinchDistance = 0;
+    let initialScale = 1.0;
+    let isTouching = false;    
+    let lastTap = 0;
+    let tapTimeout;
+    let touchStartX = 0;
+    let touchStartY = 0;
 
     // Image properties
     let orgImgWidth = 0;
@@ -473,7 +484,7 @@ window.smoozoo = (imageUrl, settings) => {
             }
         }
     }
-    
+
 
     // ---------------------------
     // --- Animation Functions ---
@@ -627,8 +638,9 @@ window.smoozoo = (imageUrl, settings) => {
      */
     function inertiaLoop()
     {
-        const friction = settings.inertiaFriction;
-        // const stopThreshold = setInitialView.inertiaStopThreshold;
+        // const friction = settings.inertiaFriction;
+        const friction = currentInertiaFriction;
+
         const stopThreshold = settings.inertiaStopThreshold;
 
         panVelocityX *= friction;
@@ -651,6 +663,7 @@ window.smoozoo = (imageUrl, settings) => {
         const { width: imageWidth, height: imageHeight } = getCurrentImageSize();
         const viewWidth = canvas.width / scale;
         const viewHeight = canvas.height / scale;
+
         originX += panVelocityX / scale;
         originY += panVelocityY / scale;
 
@@ -915,7 +928,187 @@ window.smoozoo = (imageUrl, settings) => {
     // --- Event Handlers ---
     // ----------------------
 
-    function handleCanvasWheel(e) {
+    /**
+     * Handles the start of a touch event for panning and zooming.
+     */
+    function handleTouchStart(e)
+    {
+        e.preventDefault();
+        cancelAllAnimations();
+        isTouching = true;
+
+        // NEW: Record the starting position of the primary touch
+        // This helps distinguish a tap from a pan/fling.
+        const primaryTouch = e.touches[0];
+        touchStartX = primaryTouch.clientX;
+        touchStartY = primaryTouch.clientY;
+
+        // Reset the lastTap timer to prevent a tap from firing after a pan.
+        lastTap = 0;
+
+        // --- One-finger pan ---
+        if (e.touches.length === 1) {
+            panning = true; // Use the existing panning flag
+            const touch = e.touches[0];
+            startX = (touch.clientX / scale) - originX;
+            startY = (touch.clientY / scale) - originY;
+            panVelocityX = 0;
+            panVelocityY = 0;
+            lastPanTime = performance.now();
+            lastMouseX = touch.clientX; // Re-use mouse vars for velocity tracking
+            lastMouseY = touch.clientY;
+        }
+        // --- Two-finger pinch-to-zoom ---
+        else if (e.touches.length === 2) {
+            panning = false; // Disable one-finger panning
+            const t1 = e.touches[0];
+            const t2 = e.touches[1];
+            const dx = t1.clientX - t2.clientX;
+            const dy = t1.clientY - t2.clientY;
+            initialPinchDistance = Math.sqrt(dx * dx + dy * dy);
+            initialScale = scale;
+
+            // Set start point to the midpoint of the two fingers for panning while zooming
+            const midpointX = (t1.clientX + t2.clientX) / 2;
+            const midpointY = (t1.clientY + t2.clientY) / 2;
+            startX = (midpointX / scale) - originX;
+            startY = (midpointY / scale) - originY;
+        }
+    }
+
+
+    /**
+     * Handles the move event during a touch for panning and zooming.
+     */
+    function handleTouchMove(e)
+    {
+        e.preventDefault();
+
+        // --- One-finger pan ---
+        if (e.touches.length === 1 && panning) {
+            const touch = e.touches[0];
+            const now = performance.now();
+            if (now - lastPanTime > 0) {
+                panVelocityX = (touch.clientX - lastMouseX);
+                panVelocityY = (touch.clientY - lastMouseY);
+            }
+            lastPanTime = now;
+            lastMouseX = touch.clientX;
+            lastMouseY = touch.clientY;
+
+            originX = (touch.clientX / scale) - startX;
+            originY = (touch.clientY / scale) - startY;
+        }
+        // --- Two-finger pinch-to-zoom ---
+        else if (e.touches.length === 2) {
+            const t1 = e.touches[0];
+            const t2 = e.touches[1];
+            const dx = t1.clientX - t2.clientX;
+            const dy = t1.clientY - t2.clientY;
+            const currentPinchDistance = Math.sqrt(dx * dx + dy * dy);
+
+            if (initialPinchDistance > 0) {
+                const scaleFactor = currentPinchDistance / initialPinchDistance;
+                let newScale = initialScale * scaleFactor;
+                scale = targetScale = Math.max(minScale, Math.min(newScale, 20));
+            }
+
+            // Pan based on the movement of the midpoint
+            const midpointX = (t1.clientX + t2.clientX) / 2;
+            const midpointY = (t1.clientY + t2.clientY) / 2;
+            originX = targetOriginX = (midpointX / scale) - startX;
+            originY = targetOriginY = (midpointY / scale) - startY;
+        }
+
+        render();
+    }
+
+
+    /**
+     * Handles the end of a touch event.
+     */
+    function handleTouchEnd(e)
+    {
+        e.preventDefault();
+
+        // Check for tap-to-toggle UI, but only if it wasn't a pan/fling
+        if (isTouching && !panning && e.touches.length === 0) {
+            const now = new Date().getTime();
+            const timesince = now - lastTap;
+
+            // Get the final touch position
+            const endTouch = e.changedTouches[0];
+            const deltaX = endTouch.clientX - touchStartX;
+            const deltaY = endTouch.clientY - touchStartY;
+            const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+            
+            const TAP_MOVEMENT_THRESHOLD = 10; // Max pixels moved to be a "tap"
+
+            // A tap is a brief touch with minimal movement.
+            if (timesince < 250 && timesince > 0 && distance < TAP_MOVEMENT_THRESHOLD) {
+                document.body.classList.toggle('ui-hidden');
+            }
+            lastTap = now;
+        }
+        
+        isTouching = false;
+        initialPinchDistance = 0;
+
+        // If the last finger is lifted, handle inertia or edge checking.
+        if (e.touches.length === 0) {
+            if (panning) {
+                panning = false;
+                if (isOutOfBounds()) {
+                    checkEdges();
+                } else if (panVelocityX !== 0 || panVelocityY !== 0) {
+                    cancelAllAnimations();
+                    currentInertiaFriction = settings.touchInertiaFriction;
+                    inertiaAnimationId = requestAnimationFrame(inertiaLoop);
+                }
+            } else {
+                checkEdges();
+            }
+        }
+        // If one finger is lifted from a two-finger gesture, transition to one-finger pan.
+        else if (e.touches.length === 1) {
+            handleTouchStart(e);
+        }
+    }
+
+
+    function handleDoubleTap(e)
+    {
+        // This reuses a lot of logic from your dblclick handler
+        cancelAllAnimations();
+
+        // Find the tap coordinates. Use changedTouches for the 'up' event.
+        const touch = e.changedTouches[0];
+        lastMouseX = touch.clientX;
+        lastMouseY = touch.clientY;
+
+        // Toggle between fit-to-screen scale and a deeper zoom level
+        const { width: imageWidth, height: imageHeight } = getCurrentImageSize();
+        const fitScale = Math.min(canvas.width / imageWidth, canvas.height / imageHeight);
+        const isFit = Math.abs(scale - fitScale) < 0.01;
+        
+        targetScale = isFit ? 1.5 : fitScale; // Zoom to 150% or back to fit
+
+        // --- The rest of the logic is the same as handleCanvasDoubleClick ---
+        // Calculate world coordinates and new origin to zoom to the tapped point
+        const worldMouseX = (lastMouseX / scale) - originX;
+        const worldMouseY = (lastMouseY / scale) - originY;
+        targetOriginX = (lastMouseX / targetScale) - worldMouseX;
+        targetOriginY = (lastMouseY / targetScale) - worldMouseY;
+
+        // Trigger the smooth zoom animation
+        if (!isZooming) {
+            smoothZoomAnimationId = requestAnimationFrame(smoothZoomLoop);
+        }
+    }
+
+
+    function handleCanvasWheel(e)
+    {
         e.preventDefault();
         cancelAllAnimations();
 
@@ -1096,6 +1289,9 @@ window.smoozoo = (imageUrl, settings) => {
     {
         cancelAllAnimations();
 
+        // Reset the lastTap timer to prevent a tap from firing after a pan.
+        lastTap = 0;
+
         panning = true;
         startX = (e.clientX / scale) - originX;
         startY = (e.clientY / scale) - originY;
@@ -1120,6 +1316,7 @@ window.smoozoo = (imageUrl, settings) => {
                 checkEdges();
             } else if (panVelocityX !== 0 || panVelocityY !== 0) {
                 cancelAllAnimations();
+                currentInertiaFriction = settings.mouseInertiaFriction; // Set for mouse
                 inertiaAnimationId = requestAnimationFrame(inertiaLoop);
             }
         }
@@ -1223,6 +1420,23 @@ window.smoozoo = (imageUrl, settings) => {
         window.addEventListener('mouseup', onDragEnd);
     }
 
+    function handleHideMobileUI(e)
+    {
+        const now = new Date().getTime();
+        const timesince = now - lastTap;
+
+        if (timesince < 300 && timesince > 0) {
+            // Double tap
+            clearTimeout(tapTimeout);
+            handleDoubleTap(e);
+        } else {
+            // Single tap
+            tapTimeout = setTimeout(() => {
+                document.body.classList.toggle('ui-hidden');
+            }, 300);
+        }
+        lastTap = now;
+    }
 
     // ------------------------------------------------------------
     // --- Main, this is where we start executing code for real ---
@@ -1264,6 +1478,12 @@ window.smoozoo = (imageUrl, settings) => {
     canvas.addEventListener('mousedown', handleCanvasMouseDown);
     canvas.addEventListener('dblclick',  handleCanvasDoubleClick);
     canvas.addEventListener('wheel',     handleCanvasWheel, { passive: false });
+
+    // touch event listeners for mobile/tablet support
+    canvas.addEventListener('touchstart', handleTouchStart, { passive: false });
+    canvas.addEventListener('touchmove', handleTouchMove, { passive: false });
+    canvas.addEventListener('touchend', handleTouchEnd, { passive: false });
+    canvas.addEventListener('touchend', handleHideMobileUI, false);
 
     panSlider.addEventListener('input',  handleSliderInput);
     panSlider.addEventListener('mousedown', (e) => e.stopPropagation());

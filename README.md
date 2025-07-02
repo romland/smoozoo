@@ -5,13 +5,14 @@ Made for very large images that require fast navigation and scaling.
 ### Major Features
 - Sexy
 - WebGL
-- Scaling on GPU
-- No 3rd party dependencies
+- GPU scaling with mipmapping and frustum culling
+- No dependencies
 - ...
 
 ### Other features
 - Kinetic/inertial/elastic panning
-- Minimap navigation
+- Minimap navigator
+- Plugin support
 - ...
 
 ### Help
