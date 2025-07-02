@@ -3,6 +3,8 @@
     <head>
         <meta charset="UTF-8">
         <title>Smoozoo - Image Viewer</title>
+
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
         
         <script type="module" src="./plugins/smoozoo-plugin-hotspot.js?cb=2"></script>
         <link rel="stylesheet" href="./plugins/smoozoo-plugin-hotspot.css?cb=2" />
@@ -30,7 +32,7 @@
 
         <div id="status-display" class="display">
             <p class="narrow"><strong>🔍 </strong><span id="zoom-level">1.00</span>x</p>
-            <p class="wide"><strong>⌖ </strong><span id="mouse-coords">0, 0</span></p>
+            <p class="largedisplayonly wide"><strong>⌖ </strong><span id="mouse-coords">0, 0</span></p>
             <p class="wide"><strong>🗎 </strong><span id="image-size-pixels">0x0</span></p>
             <p class="narrow"><strong></strong><span id="image-size-bytes">0 B</span></p>
             <p><span id="image-file-name"></span></p>

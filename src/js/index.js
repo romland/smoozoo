@@ -1,8 +1,6 @@
 import { HotspotPlugin } from "../plugins/smoozoo-plugin-hotspot.js";
 
 window.addEventListener('load', async () => {
-    const cacheBust = `cb=${Date.now()}`;
-
     const settings = {
         minimapMaxSize:         200,
         minimapMinSize:         8,
@@ -38,9 +36,10 @@ window.addEventListener('load', async () => {
     }
     */
 
-
-    smoozoo(`./assets/32k-wide-image.png`, settings);
-    // smoozoo(`./assets/xanadu-reconstruction.png`, settings);
-    // smoozoo(`./assets/ignoreBlackMarble_2016_928m_mediterranean_labeled.png`, settings);
-    // smoozoo(`./assets/BTCUSDT.png?${cacheBust}`, settings);
+    // const url = new URL(`../assets/xanadu-reconstruction.png`, import.meta.url);
+    // const url = new URL(`../assets/ignoreBlackMarble_2016_928m_mediterranean_labeled.png`, import.meta.url);
+    // const url = new URL(`../assets/BTCUSDT.png`, import.meta.url);
+    const url = new URL(`../assets/32k-wide-image.png`, import.meta.url);
+    console.log("Loading image", url.toString(), "...");
+    smoozoo(url.toString(), settings);
 });

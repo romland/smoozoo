@@ -682,7 +682,6 @@ window.smoozoo = (imageUrl, settings) => {
     }
 
 
-
     /**
      * Checks if the image is panned out of its boundaries.
      */
@@ -715,20 +714,6 @@ window.smoozoo = (imageUrl, settings) => {
                 func.apply(this, args);
             }, timeout);
         };
-    }
-
-
-    function initMinimap()
-    {
-        const minimap = document.getElementById('minimap-container');
-
-        if (minimap) {
-            minimap.style.setProperty('position', 'fixed', 'important');
-            minimap.style.setProperty('top', '20px', 'important');
-            minimap.style.setProperty('right', '20px', 'important');
-            minimap.style.setProperty('bottom', null);
-            minimap.style.setProperty('left', null);
-        }
     }
 
 
@@ -1507,8 +1492,6 @@ window.smoozoo = (imageUrl, settings) => {
 
     minimapContainer.addEventListener('mousedown', handleMinimapMouseDown);
 
-    initMinimap();
-
     // Really start stuff up, load image and initialize us
     loadImageAndCreateTextureInfo(`${imageUrl}`, async () => {
         setInitialView();
@@ -1518,7 +1501,6 @@ window.smoozoo = (imageUrl, settings) => {
         imageSizeBytesSpan.textContent = formatBytes(orgImgBytes);
         updatePanSlider();
 
-        // -----------------
         // The plugin system
         // -----------------
         const viewerApi = {
@@ -1534,6 +1516,5 @@ window.smoozoo = (imageUrl, settings) => {
         for(const plugin of plugins) {
             plugin.instance?.update();
         }
-
-    });
+   });
 }

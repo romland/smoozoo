@@ -2,13 +2,14 @@
   "name": "smoozoo",
   "version": "1.0.0",
   "description": "This is Smoozoo - a super-smooth, performant and modern image viewer for the web",
-  "main": "index.html",
   "scripts": {
-    "test": "http-server src/"
+    "start": "parcel src/index.html",
+    "build": "parcel build src/index.html --no-source-maps --public-url ./",
+    "deploy": "npm run build && scripts/deploy.sh"
   },
   "author": "Joakim Romland",
   "license": "MIT",
-  "dependencies": {
-    "http-server": "^14.1.1"
+  "devDependencies": {
+    "parcel": "^2.15.4"
   }
 }

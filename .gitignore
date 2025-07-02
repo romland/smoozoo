@@ -3,3 +3,5 @@ dist
 .env
 tmp/
 src/assets/ignore*
+.parcel-cache/
+package-lock.json
