@@ -634,63 +634,53 @@ window.smoozoo = (imageUrl, settings) => {
 
 
     /**
-     * Simulates inertial movement after a pan, gradually slowing down.
+     * Simulates inertial movement. This version is stateless; it is given
+     * an initial velocity and handles its own lifecycle recursively.
      */
-    function inertiaLoop()
-    {
-        // const friction = settings.inertiaFriction;
-        const friction = currentInertiaFriction;
+    function inertiaLoop(vx, vy, friction) {
+        const newVx = vx * friction;
+        const newVy = vy * friction;
 
-        const stopThreshold = settings.inertiaStopThreshold;
+        const stopThreshold = settings.inertiaStopThreshold || 0.1;
 
-        panVelocityX *= friction;
-        panVelocityY *= friction;
-
-        if (Math.abs(panVelocityX) < stopThreshold) {
-            panVelocityX = 0;
-        }
-
-        if (Math.abs(panVelocityY) < stopThreshold) {
-            panVelocityY = 0;
-        }
-
-        if (panVelocityX === 0 && panVelocityY === 0) {
-            inertiaAnimationId = null;
+        if (Math.abs(newVx) < stopThreshold && Math.abs(newVy) < stopThreshold) {
             checkEdges();
             return;
         }
 
+        originX += newVx / scale;
+        originY += newVy / scale;
+
+        // This performs boundary checks inside the loop
         const { width: imageWidth, height: imageHeight } = getCurrentImageSize();
         const viewWidth = canvas.width / scale;
         const viewHeight = canvas.height / scale;
+        let bounced = false;
 
-        originX += panVelocityX / scale;
-        originY += panVelocityY / scale;
-
-        if (imageWidth > viewWidth) {
-            const minOriginX = viewWidth - imageWidth;
-            if (originX > 0 || originX < minOriginX) {
-                originX = Math.max(minOriginX, Math.min(0, originX));
-                panVelocityX = 0;
-            }
-        } else {
-            originX = (viewWidth - imageWidth) / 2;
-            panVelocityX = 0;
-        }
-
-        if (imageHeight > viewHeight) {
-            const minOriginY = viewHeight - imageHeight;
-            if (originY > 0 || originY < minOriginY) {
-                originY = Math.max(minOriginY, Math.min(0, originY));
-                panVelocityY = 0;
-            }
-        } else {
+        if (imageHeight <= viewHeight) {
             originY = (viewHeight - imageHeight) / 2;
-            panVelocityY = 0;
+        } else if (originY > 0 || originY < viewHeight - imageHeight) {
+            originY = Math.max(viewHeight - imageHeight, Math.min(0, originY));
+            bounced = true;
         }
+
+        if (imageWidth <= viewWidth) {
+            originX = (viewWidth - imageWidth) / 2;
+        } else if (originX > 0 || originX < viewWidth - imageWidth) {
+            originX = Math.max(viewWidth - imageWidth, Math.min(0, originX));
+            bounced = true;
+        }
+        
         render();
-        inertiaAnimationId = requestAnimationFrame(inertiaLoop);
+
+        // If the edge was hit, stop. Otherwise, continue the animation.
+        if (!bounced) {
+            inertiaAnimationId = requestAnimationFrame(() => inertiaLoop(newVx, newVy, friction));
+        } else {
+            inertiaAnimationId = null;
+        }
     }
+
 
 
     /**
@@ -1022,19 +1012,54 @@ window.smoozoo = (imageUrl, settings) => {
     // ------------------------------------
 
     function handleCanvasMouseDown(e) {
-        handlePanStart(e, false);
+        cancelAllAnimations();
+        panning = true;
+        panVelocityX = 0;
+        panVelocityY = 0;
+        startX = (e.clientX / scale) - originX;
+        startY = (e.clientY / scale) - originY;
+        touchStartX = e.clientX;
+        touchStartY = e.clientY;
+        lastMouseX = e.clientX;
+        lastMouseY = e.clientY;
         window.addEventListener('mousemove', handleCanvasMouseMove);
         window.addEventListener('mouseup', handleCanvasMouseUp);
     }
 
     function handleCanvasMouseMove(e) {
-        handlePanMove(e, false);
+        if (!panning) return;
+        const deltaX = e.clientX - lastMouseX;
+        const deltaY = e.clientY - lastMouseY;
+        if (Math.abs(deltaX) > 0 || Math.abs(deltaY) > 0) {
+            panVelocityX = deltaX;
+            panVelocityY = deltaY;
+        }
+        originX = (e.clientX / scale) - startX;
+        let newOriginY = (e.clientY / scale) - startY;
+        const { height: imageHeight } = getCurrentImageSize();
+        const viewHeight = canvas.height / scale;
+        if (imageHeight < viewHeight) {
+            newOriginY = (viewHeight - imageHeight) / 2;
+        }
+        originY = newOriginY;
+        lastMouseX = e.clientX;
+        lastMouseY = e.clientY;
+        render();
     }
 
     function handleCanvasMouseUp(e) {
+        if (!panning) return;
         window.removeEventListener('mousemove', handleCanvasMouseMove);
         window.removeEventListener('mouseup', handleCanvasMouseUp);
-        handlePanEnd(e, 'mouse');
+        
+        if (panVelocityX !== 0 || panVelocityY !== 0) {
+            cancelAllAnimations();
+            // Pass the final velocity directly to the animation loop
+            inertiaLoop(panVelocityX, panVelocityY, settings.mouseInertiaFriction);
+        } else {
+            checkEdges();
+        }
+        panning = false;
     }
 
     // ------------------------------------
@@ -1043,37 +1068,95 @@ window.smoozoo = (imageUrl, settings) => {
 
     function handleTouchStart(e) {
         e.preventDefault();
-        
+        cancelAllAnimations();
+        isTouching = true;
+
         if (e.touches.length === 1) {
-            isTouching = true;
-            handlePanStart(e, true);
-        }
-        else if (e.touches.length === 2) {
-            // Your existing two-finger pinch-zoom start logic can go here
-            // For now, we'll just stop any panning.
+            panning = true;
+            const touch = e.touches[0];
+            panVelocityX = 0;
+            panVelocityY = 0;
+            startX = (touch.clientX / scale) - originX;
+            startY = (touch.clientY / scale) - originY;
+            touchStartX = touch.clientX;
+            touchStartY = touch.clientY;
+            lastMouseX = touch.clientX;
+            lastMouseY = touch.clientY;
+        } else if (e.touches.length === 2) {
             panning = false;
-            isTouching = true;
+            const t1 = e.touches[0], t2 = e.touches[1];
+            initialPinchDistance = Math.sqrt(Math.pow(t1.clientX - t2.clientX, 2) + Math.pow(t1.clientY - t2.clientY, 2));
+            initialScale = scale;
+            const midpointX = (t1.clientX + t2.clientX) / 2;
+            const midpointY = (t1.clientY + t2.clientY) / 2;
+            startX = (midpointX / scale) - originX;
+            startY = (midpointY / scale) - originY;
         }
     }
 
     function handleTouchMove(e) {
         e.preventDefault();
-        if (e.touches.length === 1) {
-            handlePanMove(e, true);
-        }
-        else if (e.touches.length === 2) {
-            // Your existing two-finger pinch-zoom move logic can go here
+        if (e.touches.length === 1 && panning) {
+            const touch = e.touches[0];
+            const deltaX = touch.clientX - lastMouseX;
+            const deltaY = touch.clientY - lastMouseY;
+            if (Math.abs(deltaX) > 0 || Math.abs(deltaY) > 0) {
+                panVelocityX = deltaX;
+                panVelocityY = deltaY;
+            }
+            originX = (touch.clientX / scale) - startX;
+            let newOriginY = (touch.clientY / scale) - startY;
+            const { height: imageHeight } = getCurrentImageSize();
+            const viewHeight = canvas.height / scale;
+            if (imageHeight < viewHeight) {
+                newOriginY = (viewHeight - imageHeight) / 2;
+            }
+            originY = newOriginY;
+            lastMouseX = touch.clientX;
+            lastMouseY = touch.clientY;
+            render();
+        } else if (e.touches.length === 2 && isTouching) {
+            const t1 = e.touches[0], t2 = e.touches[1];
+            const currentPinchDistance = Math.sqrt(Math.pow(t1.clientX - t2.clientX, 2) + Math.pow(t1.clientY - t2.clientY, 2));
+            if (initialPinchDistance > 0) {
+                scale = Math.max(minScale, Math.min(initialScale * (currentPinchDistance / initialPinchDistance), 20));
+            }
+            const midpointX = (t1.clientX + t2.clientX) / 2;
+            const midpointY = (t1.clientY + t2.clientY) / 2;
+            originX = (midpointX / scale) - startX;
+            originY = (midpointY / scale) - startY;
+            render();
         }
     }
 
     function handleTouchEnd(e) {
         e.preventDefault();
         if (e.touches.length > 0) {
-            // If fingers remain, re-init the gesture
             handleTouchStart(e);
             return;
         }
-        handlePanEnd(e, 'touch');
+
+        if (panning) {
+            const now = performance.now();
+            const timesince = now - lastTap;
+            lastTap = now;
+            const endTouch = e.changedTouches[0];
+            const distance = Math.sqrt(Math.pow(endTouch.clientX - touchStartX, 2) + Math.pow(endTouch.clientY - touchStartY, 2));
+
+            if (distance < 15 && timesince < 250) {
+                document.body.classList.toggle('ui-hidden');
+            } else if (panVelocityX !== 0 || panVelocityY !== 0) {
+                cancelAllAnimations();
+                // Pass the final velocity directly to the animation loop
+                inertiaLoop(panVelocityX, panVelocityY, settings.touchInertiaFriction);
+            } else {
+                checkEdges();
+            }
+        } else if (isTouching) {
+            checkEdges();
+        }
+        
+        panning = false;
         isTouching = false;
     }
 
