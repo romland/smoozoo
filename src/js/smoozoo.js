@@ -1144,23 +1144,44 @@ window.smoozoo = (imageUrl, settings) => {
     }
 
 
+    /**
+     * Keeping focus on the pixel under the pointer would always be a tough
+     * thing to pull off with the acceleration/momentum/snapback. But I think
+     * this does the best of both worlds -- it's fast and _somewhat_ keeps
+     * focus in place.
+     * 
+     * Check if an animation is running. If NOT, it's the start of a new
+     * zoom sequence, so we must sync the targets with the current state to
+     * account for any panning. If an animation IS running, we don't sync,
+     * which preserves the zoom's momentum and makes it feel fast.
+     * 
+     * @param {*} e 
+     */
     function handleCanvasWheel(e)
     {
         e.preventDefault();
-        cancelAllAnimations();
+
+        if (!isZooming) {
+            cancelAllAnimations();
+            targetScale = scale;
+            targetOriginX = originX;
+            targetOriginY = originY;
+        }
 
         const zoomFactor = 1.1;
         const scaleAmount = e.deltaY > 0 ? 1 / zoomFactor : zoomFactor;
         lastMouseX = e.clientX;
         lastMouseY = e.clientY;
 
+        // Calculate world coordinates based on the TARGET values.
+        const worldMouseX = (lastMouseX / targetScale) - targetOriginX;
+        const worldMouseY = (lastMouseY / targetScale) - targetOriginY;
+
+        // Calculate the new target scale and clamp it.
         const newTargetScale = targetScale * scaleAmount;
-        // Clamp the target scale
         targetScale = Math.max(minScale, Math.min(newTargetScale, 20));
 
-        // Calculate the raw target origin based on mouse position
-        const worldMouseX = (lastMouseX / scale) - originX;
-        const worldMouseY = (lastMouseY / scale) - originY;
+        // Calculate the new raw target origin to keep the world point under the mouse.
         const rawTargetOriginX = (lastMouseX / targetScale) - worldMouseX;
         const rawTargetOriginY = (lastMouseY / targetScale) - worldMouseY;
 
@@ -1170,23 +1191,20 @@ window.smoozoo = (imageUrl, settings) => {
         const viewHeightAtTarget = canvas.height / targetScale;
 
         if (imageWidth < viewWidthAtTarget) {
-            // If image is narrower than viewport, center it
             targetOriginX = (viewWidthAtTarget - imageWidth) / 2;
         } else {
-            // Otherwise, clamp it within the horizontal bounds
             const minOriginX = viewWidthAtTarget - imageWidth;
             targetOriginX = Math.max(minOriginX, Math.min(0, rawTargetOriginX));
         }
 
         if (imageHeight < viewHeightAtTarget) {
-            // If image is shorter than viewport, center it
             targetOriginY = (viewHeightAtTarget - imageHeight) / 2;
         } else {
-            // Otherwise, clamp it within the vertical bounds
             const minOriginY = viewHeightAtTarget - imageHeight;
             targetOriginY = Math.max(minOriginY, Math.min(0, rawTargetOriginY));
         }
 
+        // Start the animation loop if it's not already running.
         if (!isZooming) {
             smoothZoomAnimationId = requestAnimationFrame(smoothZoomLoop);
         }

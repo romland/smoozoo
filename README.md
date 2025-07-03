@@ -75,9 +75,6 @@ quite done yet, but, this actually already feels _better_ than Windows
 native one (I humbly opine)!
 
 ## TODO
-	- There seems to be a loss of position (pixel) for mouse pointer in real-world 
-      coordinates when we zoom in/out -- especially if we do it fast.
-
     - drag/drop image / filepicker
 
     - Let Smoozoo create its own HTML elements instead of requiring all those HTML tags; 
