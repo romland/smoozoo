@@ -176,6 +176,22 @@ export class YourSmoozooPlugin
     {
         // ... your code
     }
+
+    /**
+     * Called by Smoozoo on every render(), and 
+     * once right after instnantiating the plugin.
+     */
+    update()
+    {
+    }
+
+    /**
+     * Called when mouse moves over canvas
+     */
+    onMouseMove(e)
+    {
+    }
+
 }
 ```
 
@@ -205,8 +221,9 @@ smoozoo(url.toString(), settings);
 ```
 
 ### Plugin API
-This is the API you get access via `viewer` in your plugin. As stated before, it is
-very sparse at the moment. More will come as needed, feel free to expand it.
+This is the API you get access to via `viewer` in your plugin's constructor. As
+stated before, it is very sparse at the moment. More will come as needed, feel
+free to expand it.
 
 This is how the API that is passed to plugins is instantiated at the moment:
 ```javascript
