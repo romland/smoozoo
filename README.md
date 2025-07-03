@@ -38,7 +38,7 @@ Made for very large images that require fast navigation and scaling.
     - `Left mouse button on marker/circle`  
         Sticky the popup  
 
-- Fingers
+- Mobile
     - `Single tap`  
         Toggle visibility of UI  
     - `Pinch`  
