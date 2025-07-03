@@ -175,22 +175,22 @@ window.smoozoo = (imageUrl, settings) => {
         // Sets the default floating point precision for performance. 'mediump' is a good balance.
         precision mediump float;
 
-        // --- Varyings (Input) ---
+        // Varyings (Input)
         // This receives the interpolated texture coordinate from the vertex shader. For a pixel in the middle
         // of our rectangle, this value might be (0.5, 0.5), for example.
         varying vec2 v_texcoord;
 
-        // --- Uniforms (Input) ---
+        // Uniforms (Input)
         // This represents the actual texture (our image tile) we want to draw.
         // 'sampler2D' is the GLSL type for a 2D texture.
         uniform sampler2D u_image;
 
         void main() {
-            // --- Step 1: Sample the Texture ---
+            // Step 1: Sample the Texture
             // The texture2D function looks up a color from the texture (u_image) at a specific
             // coordinate (v_texcoord).
             
-            // --- Step 2: Set Final Color ---
+            // Step 2: Set Final Color
             // gl_FragColor is a special built-in variable that the fragment shader MUST set.
             // It determines the final color of the pixel as a RGBA (Red, Green, Blue, Alpha) vector.
             gl_FragColor = texture2D(u_image, v_texcoord);
@@ -1049,7 +1049,7 @@ window.smoozoo = (imageUrl, settings) => {
         // We also check the `panning` flag. After a pinch, `panning` will be
         // false, which prevents this block from running and incorrectly toggling the UI.
         if (panning && distance < 15) {
-            // --- This was a TAP gesture ---
+            // This was a tap gesture
             const timesince = now - lastTap;
 
             // Check if this tap happened quickly after the last one.
@@ -1110,7 +1110,7 @@ window.smoozoo = (imageUrl, settings) => {
         
         targetScale = isFit ? 1.5 : fitScale; // Zoom to 150% or back to fit
 
-        // --- The rest of the logic is the same as handleCanvasDoubleClick ---
+        // The rest of the logic is the same as handleCanvasDoubleClick
         // Calculate world coordinates and new origin to zoom to the tapped point
         const worldMouseX = (lastMouseX / scale) - originX;
         const worldMouseY = (lastMouseY / scale) - originY;
@@ -1380,7 +1380,7 @@ window.smoozoo = (imageUrl, settings) => {
         console.log("whut handleMinimapTouchStart called")
 
         e.stopPropagation(); // Prevents the event from reaching the canvas listener.
-                
+
         e.preventDefault(); // Prevent the page from scrolling
 
         // Use the first touch point to calculate the position
