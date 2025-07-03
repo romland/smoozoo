@@ -45,7 +45,7 @@ Made for very large images that require fast navigation and scaling.
         Zoom  
     - `Flick`  
         Moves with a glide
-    - `Move`
+    - `Move`  
         Pan
 
 - Navigation misc  
