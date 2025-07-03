@@ -1472,7 +1472,6 @@ window.smoozoo = (imageUrl, settings) => {
         }
 
         if(canvas.width < 600) {
-            console.log("Toggling UI!")
             document.body.classList.toggle('ui-hidden');
         }
    });
