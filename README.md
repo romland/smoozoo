@@ -25,8 +25,7 @@ The feel is inspired by Windows 10/11's default image viewer. We're not
 quite done yet, but, this actually already feels _better_ than Windows
 native one (I humbly opine)!
 
-
-### Help
+### Help on use
 - Keyboard
     - `Home`  
         Quickly go to left part of image  
@@ -89,6 +88,37 @@ native one (I humbly opine)!
     - "Tiled pyramid" format (like DZI - Deep Zoom Image). Support for pre-sliced tiles at
       different scales from back-end (low priority as it needs server side code).
 
+    - Let Smoozoo create its own HTML elements instead of requiring all those HTML tags; 
+      we just want to pass in a container to Smoozoo.
+
+## Use in your own projects
+See `index.html` on what elements are needed.
+
+Then start Smoozoo like this:
+```javascript
+window.addEventListener('load', async () => {
+    const settings = {
+        minimapMaxSize:         200,
+        minimapMinSize:         8,
+        elasticMoveDuration:    200,
+        zoomSmoothing:          0.075,
+        mouseInertiaFriction:   0.95,
+        touchInertiaFriction:   0.98,
+        inertiaStopThreshold:   0.1,
+        initialScale:           0.9,
+        initialPosition:        { x: 0.5, y: 0.5 },
+        canvas:                 document.getElementById('glcanvas'),
+        plugins: [
+            // any plugins you might have -- see below for more information.
+        ]
+    };
+
+    // URL object is used so that Parcel can easily find the asset.
+    const url = new URL(`../assets/some-image.png`, import.meta.url);
+    smoozoo(url.toString(), settings);
+});
+```
+
 
 ## Plugins
 Support is very sparse at the moment, it was expanded with what I needed, as I needed it.
@@ -99,8 +129,9 @@ Your plugin consists of two files (or one if no css), include them in your HTML 
 <link rel="stylesheet" href="./plugins/smoozoo-plugin-yours.css" />
 ```
 
-The .js file should export a class which will be instantiated by the Smoozoo on startup.
+The .js file should export a class which will be instantiated by Smoozoo on startup.
 
+For example:
 ```javascript
 export class YourSmoozooPlugin
 {
@@ -114,8 +145,12 @@ export class YourSmoozooPlugin
 }
 ```
 
-So, to make it all come together. When you instantiate smoozoo, give it your plugin:
+So, to make it all come together. When you configure Smoozoo, give it your plugin.
+
+Like so:
 ```javascript
+import { YourSmoozooPlugin } from "../plugins/smoozoo-plugin-yours.js";
+
 const settings = {
     ...other smoozoo settings here...,
     plugins: [
@@ -130,6 +165,9 @@ const settings = {
         }
     ]
 };
+
+const url = new URL(`../assets/some-image.png`, import.meta.url);
+smoozoo(url.toString(), settings);
 ```
 
 ### Plugin API
