@@ -137,11 +137,15 @@ For example:
 export class YourSmoozooPlugin
 {
     /**
-     * viewer is your proxy to the API of Smoozoo
-     * options is an object you pass in via settings when you instantiate smoozoo
+     * viewer 
+     * is your proxy to the API of Smoozoo
+     * 
+     * options
+     * is an object you pass in via settings when you instantiate Smoozoo
      */
     constructor(viewer, options)
     {
+        // ... your code
     }
 }
 ```
