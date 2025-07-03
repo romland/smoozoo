@@ -8,6 +8,7 @@ Made for very large images that require fast navigation and scaling.
 - No third party dependencies
 
 ### Other features
+- Plain Javascript, no nonsense (hi Giel)
 - Minimap navigator
 - Plugin support
 - Desktop-first but very mobile-friendly
