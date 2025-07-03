@@ -179,7 +179,7 @@ export class YourSmoozooPlugin
 
     /**
      * Called by Smoozoo on every render(), and 
-     * once right after instnantiating the plugin.
+     * once right after instantiating the plugin.
      */
     update()
     {
