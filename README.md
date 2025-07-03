@@ -175,8 +175,7 @@ const settings = {
     ...other smoozoo settings here...,
     plugins: [
         {
-            name:     YourSmoozooPlugin,
-            instance: null,
+            name:    YourSmoozooPlugin,
             options: {
                 anything: await (await fetch(`./assets/BTCUSDT.json`)).json(),
                 youwant: true,
