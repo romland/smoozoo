@@ -13,6 +13,8 @@ Made for very large images that require fast navigation and scaling.
 - Plugin support
 - Desktop-first but very mobile-friendly
 
+![Mobile screenshot](/.github/mobile-screenshot.png?raw=true "Mobile Screenshot")
+
 ### Usage
 - Keyboard
     - `Home`  
@@ -44,9 +46,7 @@ Made for very large images that require fast navigation and scaling.
 
 ### Demo
 https://oobabooga.com/smoozoo/  
-(it's a very low-end host, image will take a few seconds to load)
-
-![Mobile screenshot](/.github/mobile-screenshot.png?raw=true "Mobile Screenshot")
+Note: it's a very low-end host, image will take a few seconds to load.
 
 ### About
 I originally built Smoozoo (it did not have a name) for another project 
