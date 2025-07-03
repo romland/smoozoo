@@ -1025,8 +1025,16 @@ window.smoozoo = (imageUrl, settings) => {
     {
         e.preventDefault();
         
-        // If other fingers are still on the screen, reset the gesture.
+        // If other fingers are still on the screen...
         if (e.touches.length > 0) {
+            // If the gesture was a pinch (`panning` is false), don't
+            // start a new pan. Just ignore this event and wait for the
+            // final finger to be lifted off the screen.
+            if (!panning) {
+                return;
+            }
+
+            // If it was some other multi-touch event (like a 3-finger pan), reset it.
             handleTouchStart(e);
             return;
         }
@@ -1038,17 +1046,19 @@ window.smoozoo = (imageUrl, settings) => {
         const distance = Math.sqrt(Math.pow(endTouch.clientX - touchStartX, 2) + Math.pow(endTouch.clientY - touchStartY, 2));
 
         // A "tap" is a touch that moved less than 15px.
-        if (distance < 15) {
+        // We also check the `panning` flag. After a pinch, `panning` will be
+        // false, which prevents this block from running and incorrectly toggling the UI.
+        if (panning && distance < 15) {
             // --- This was a TAP gesture ---
             const timesince = now - lastTap;
 
             // Check if this tap happened quickly after the last one.
             if (timesince > 0 && timesince < 300) {
-                // DOUBLE TAP: Cancel the pending single tap and handle as a double tap.
+                // Double tap: Cancel the pending single tap and handle as a double tap.
                 clearTimeout(tapTimeout);
                 handleDoubleTap(e);
             } else {
-                // SINGLE TAP: Wait to see if another tap follows.
+                // Single tap: Wait to see if another tap follows.
                 tapTimeout = setTimeout(() => {
                     document.body.classList.toggle('ui-hidden');
                 }, 300);
@@ -1057,8 +1067,8 @@ window.smoozoo = (imageUrl, settings) => {
             lastTap = now;
 
         } else {
-            // --- This was a PAN or FLICK gesture ---
-            cancelAllAnimations(); // Moved from inside the if statement
+            // This was a pan, flick, or the end of a pinch gesture
+            cancelAllAnimations(); 
 
             const { width: imageWidth, height: imageHeight } = getCurrentImageSize();
             const viewWidth = canvas.width / scale;

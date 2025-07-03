@@ -75,8 +75,6 @@ quite done yet, but, this actually already feels _better_ than Windows
 native one (I humbly opine)!
 
 ## TODO
-	- Pinch/zoom triggers UI visibility on mobile (it should not)
-
     - some "Loading..." animation in case on slow network
     
     - FIX (or ditch): 'r' to rotate image in steps of 90 degrees
