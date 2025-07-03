@@ -50,9 +50,9 @@ Made for very large images that require fast navigation and scaling.
 
 - Navigation misc  
     - `Slider`  
-        Sideway navigation only  
+        Sideway navigation only (useful for very wide and not very tall images)  
     - `Minimap`  
-        Use mouse to move viewport horizontally and vertically (depending on zoom level)  
+        Use mouse/finger on minimap to move viewport in all directions (depending on zoom level)  
 
 ### Demo
 For some odd reason, Smoozoo is a lot smoother in Firefox than in Chrome. That's good!  
