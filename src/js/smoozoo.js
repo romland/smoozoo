@@ -1348,10 +1348,33 @@ window.smoozoo = (imageUrl, settings) => {
 
     function handleWindowResize()
     {
+        // Capture the state
+        const oldWidth = canvas.width;
+        const oldHeight = canvas.height;
+
+        // Find what world coordinate is currently at the center of the viewport.
+        // This is the point we want to keep centered after the resize.
+        const centerWorldX = (oldWidth / (2 * scale)) - originX;
+        const centerWorldY = (oldHeight / (2 * scale)) - originY;
+
+        // Perform the actual resize ---
         canvas.width = window.innerWidth;
         canvas.height = window.innerHeight;
         gl.viewport(0, 0, canvas.width, canvas.height);
-        setInitialView();
+
+        // Recalculate the origin to re-center the view ---
+        // We use our saved world coordinate and the new canvas size to find the
+        // new originX/Y needed to keep that point in the middle of the screen.
+        originX = (canvas.width / (2 * scale)) - centerWorldX;
+        originY = (canvas.height / (2 * scale)) - centerWorldY;
+        
+        // Also update the target origins for the smooth zoom animation state to avoid conflicts.
+        targetOriginX = originX;
+        targetOriginY = originY;
+
+        // Snap to edges and re-render the scene ---
+        // Snap immediately without animation.
+        checkEdges(false); 
         render();
     }
 

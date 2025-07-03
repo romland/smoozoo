@@ -75,12 +75,6 @@ quite done yet, but, this actually already feels _better_ than Windows
 native one (I humbly opine)!
 
 ## TODO
-    - FIX (or ditch): 'r' to rotate image in steps of 90 degrees
-
-	- we lose all state variables of position/scale if window size changes which is 
-	  particularly annoying if you are in fullscreen and accidentally show the browser
-	  url/navigation bar.
-
 	- we already support some meta-data via plugin but I'd like to extend that so that
       depending on position of viewport it should show/pin messages to that pixel as we
       pan/zoom around it
@@ -116,6 +110,8 @@ native one (I humbly opine)!
     
     - Code is in one large file now. It used to be a small file. Split things up a bit.
       Although personally, I am a fan of a single large file!
+
+    - FIX (or ditch): 'r' to rotate image in steps of 90 degrees
 
 ## Use in your own projects
 See `index.html` on what elements are needed.
