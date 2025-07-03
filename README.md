@@ -2,28 +2,27 @@
 A super-smooth, performant and modern image viewer for the web.  
 Made for very large images that require fast navigation and scaling.  
 
-### Bigger Features
-- Sexy and feels nice
+### Bigger features
+- Sexy look and feel
 - GPU scaling using WebGL with mipmapping and frustum culling
 - No third party dependencies
 
 ### Other features
 - Minimap navigator
-- Kinetic/inertial/elastic transforming/scaling
 - Plugin support
 
 ### About
-For a different project I needed something that felt smooth and worked
-very well with huge images in a web browser. So, Smoozoo was born, but was
-initially quite modest, using just a plain 2d canvas. It was never meant to
-be a separate project, but as you can imagine with huge images: it was
-obnoxiously slow if wanting good navigation and scaling, sooo, here we are.
+I originally built Smoozoo (it did not have a name) for another project 
+using a basic 2D canvas and simple scaling — it started small and wasn’t
+meant to become a ... project, but handling large images quickly became
+painfully slow. And now we're here.
 
 You'll be surprised how much code is needed to make a user experience that
 feels this way. I know I am.
 
-The feel is inspired by Windows 10/11's default image viewer. Not quite done
-yet, but, Smoozoo actually already feels _better_ than Windows native one!
+The feel is inspired by Windows 10/11's default image viewer. We're not
+quite done yet, but, this actually already feels _better_ than Windows
+native one (I humbly opine)!
 
 
 ### Help
