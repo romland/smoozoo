@@ -36,6 +36,8 @@ yet, but, Smoozoo actually already feels _better_ than Windows native one!
         Quickly go to top  
     - `Page Down`  
         Quickly go to bottom  
+    - `m`  
+        Toggle UI visibility  
 
 - Mouse  
     - `Double-click with a mouse`  

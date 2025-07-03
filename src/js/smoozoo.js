@@ -1024,6 +1024,7 @@ window.smoozoo = (imageUrl, settings) => {
     function handleTouchEnd(e)
     {
         e.preventDefault();
+        
         // If other fingers are still on the screen, reset the gesture.
         if (e.touches.length > 0) {
             handleTouchStart(e);
@@ -1052,7 +1053,7 @@ window.smoozoo = (imageUrl, settings) => {
                     document.body.classList.toggle('ui-hidden');
                 }, 300);
             }
-            // **THE FIX**: Only update the timestamp for the last tap if the gesture was a tap.
+
             lastTap = now;
 
         } else {
@@ -1237,6 +1238,11 @@ window.smoozoo = (imageUrl, settings) => {
                     targetY = viewHeight - imageHeight;
                     needsMove = true;
                 }
+                break;
+
+            case 'm':
+                e.preventDefault();
+                document.body.classList.toggle('ui-hidden');
                 break;
 
             case 'r':
@@ -1463,6 +1469,11 @@ window.smoozoo = (imageUrl, settings) => {
 
         for(const plugin of plugins) {
             plugin.instance?.update();
+        }
+
+        if(canvas.width < 600) {
+            console.log("Toggling UI!")
+            document.body.classList.toggle('ui-hidden');
         }
    });
 }
