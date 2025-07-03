@@ -1,4 +1,4 @@
-## This is Smoozoo
+## ✨ This is Smoozoo
 A super-smooth, performant and modern image viewer for the web.  
 Made for very large images that require fast navigation and scaling.  
 
