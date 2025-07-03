@@ -13,20 +13,7 @@ Made for very large images that require fast navigation and scaling.
 - Plugin support
 - Desktop-first but very mobile-friendly
 
-### About
-I originally built Smoozoo (it did not have a name) for another project 
-using a basic 2D canvas and simple scaling — it started small and wasn’t
-meant to become a ... project, but handling large images quickly became
-painfully slow. And now we're here.
-
-You'll be surprised how much code is needed to make a user experience that
-feels this way. I know I am.
-
-The feel is inspired by Windows 10/11's default image viewer. We're not
-quite done yet, but, this actually already feels _better_ than Windows
-native one (I humbly opine)!
-
-### Help on use
+### Usage
 - Keyboard
     - `Home`  
         Quickly go to left part of image  
@@ -55,6 +42,18 @@ native one (I humbly opine)!
     - `Minimap`  
         Use mouse to move viewport horizontally and vertically (depending on zoom level)  
 
+### About
+I originally built Smoozoo (it did not have a name) for another project 
+using a basic 2D canvas and simple scaling — it started small and wasn’t
+meant to become a ... project, but handling large images quickly became
+painfully slow. And now we're here.
+
+You'll be surprised how much code is needed to make a user experience that
+feels this way. I know I am.
+
+The feel is inspired by Windows 10/11's default image viewer. We're not
+quite done yet, but, this actually already feels _better_ than Windows
+native one (I humbly opine)!
 
 ## TODO
 	- FIX (or ditch): 'r' to rotate image in steps of 90 degrees
