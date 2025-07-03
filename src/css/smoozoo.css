@@ -1,171 +1,285 @@
 html {
-    background-color: #0e0422;
+	background-color: #0e0422;
 }
 
 body {
-    overflow: hidden;
-    margin: 0;
+	overflow: hidden;
+	margin: 0;
 }
 
 canvas {
-    display: block;
+	display: block;
 }
 
 .display {
-    z-index: 2;
-    position: fixed;
-    background-color: rgba(0, 0, 0, 0.65);
-    color: #ffffff;
-    padding: 5px 15px;
-    border-radius: 5px;
-    border: 1px solid #444;
-    font-family: Consolas, "Andale Mono", "Lucida Console", monospace;
-    font-size: 14px;
-    pointer-events: none;
-    user-select: none;
+	z-index: 2;
+	position: fixed;
+	background-color: rgba(0, 0, 0, 0.65);
+	color: #ffffff;
+	padding: 5px 15px;
+	border-radius: 5px;
+	border: 1px solid #444;
+	font-family: Consolas, "Andale Mono", "Lucida Console", monospace;
+	font-size: 14px;
+	pointer-events: none;
+	user-select: none;
 }
 
 #status-display {
-    bottom: 5px;
-    right: 10px;
+	bottom: 5px;
+	right: 10px;
 }
 
 #status-display p {
-    margin: 4px 0;
-    display: inline-block;
-    white-space: nowrap;
+	margin: 4px 0;
+	display: inline-block;
+	white-space: nowrap;
 }
 
 .pan-slider-container {
-    pointer-events: auto !important;
+	pointer-events: auto !important;
 }
 
 p.narrow {
-    width: 70px;
+	width: 70px;
 }
 
 p.wide {
-    width: 120px !important;
+	width: 120px !important;
 }
 
 #status-display span {
-    color: #82eefd;
+	color: #82eefd;
 }
 
 #control-display {
-    position: fixed;
-    bottom: 40px;
-    width: 15%;
-    left: 50%;
-    transform: translateX(-50%);
+	position: fixed;
+	bottom: 40px;
+	width: 15%;
+	left: 50%;
+	transform: translateX(-50%);
 }
 
 #pan-slider {
-    background-color: rgba(0, 0, 0, 0.5);
-    border: 3px solid rgba(255, 255, 255, 1);
-    border-radius: 8px;
-    width: 100%;
-    -webkit-appearance: none;
-    appearance: none;
-    height: 8px;
-    pointer-events: auto;
+	background-color: rgba(0, 0, 0, 0.5);
+	border: 3px solid rgba(255, 255, 255, 1);
+	border-radius: 8px;
+	width: 100%;
+	-webkit-appearance: none;
+	appearance: none;
+	height: 8px;
+	pointer-events: auto;
 }
 
 #minimap-container {
-    position: fixed;
-    top: 20px;
-    right: 20px;
-    border: 1px solid rgba(255, 255, 255, 1);
-    border-radius: 4px;
-    background-color: rgba(14, 4, 34, 0.75);
-    backdrop-filter: blur(4px);
-    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5);
-    z-index: 100;
-    display: none;
-    cursor: pointer;
-    pointer-events: auto;
+	position: fixed;
+	top: 20px;
+	right: 20px;
+	border: 1px solid rgba(255, 255, 255, 1);
+	border-radius: 4px;
+	background-color: rgba(14, 4, 34, 0.75);
+	backdrop-filter: blur(4px);
+	box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5);
+	z-index: 100;
+	display: none;
+	cursor: pointer;
+	pointer-events: auto;
 }
 
 #minimap-image {
-    width: 100%;
-    height: 100%;
-    background-size: contain;
-    background-repeat: no-repeat;
-    background-position: center;
-    opacity: 0.7;
+	width: 100%;
+	height: 100%;
+	background-size: contain;
+	background-repeat: no-repeat;
+	background-position: center;
+	opacity: 0.7;
 }
 
 #minimap-viewport {
-    position: absolute;
-    border: 2px solid #ff5555;
-    background-color: rgba(255, 85, 85, 0.25);
-    pointer-events: none;
+	position: absolute;
+	border: 2px solid #ff5555;
+	background-color: rgba(255, 85, 85, 0.25);
+	pointer-events: none;
 }
 
 body.ui-hidden #status-display,
 body.ui-hidden #control-display,
 body.ui-hidden #minimap-container {
-    opacity: 0;
-    pointer-events: none;
-    transition: opacity 0.3s ease;
+	opacity: 0;
+	pointer-events: none;
+	transition: opacity 0.3s ease;
 }
 
 @media (max-width: 600px) {
-    #status-display {
-        bottom: auto;
-        top: 0px;
-        left: 10px;
-        right: 10px;
-        width: auto;
-        text-align: left; /* Align content to the left */
-    }
+	#status-display {
+		bottom: auto;
+		top: 0px;
+		left: 10px;
+		right: 10px;
+		width: auto;
+		text-align: left; /* Align content to the left */
+	}
+	
+	#status-display p {
+		margin: 5px 0;
+	}
+	
+	/*
+	Target zoom (1st), pixel size (3rd), AND file size (4th)
+	to appear on the same line.
+	*/
+	#status-display p:first-of-type,
+	#status-display p:nth-of-type(3),
+	#status-display p:nth-of-type(4) {
+		display: inline-block !important; /* !important to override .largedisplayonly */
+		width: 20%;
+		margin-right: 15px;
+	}
+	
+	/* Target the filename (the last p) to be on its own line */
+	#status-display p:last-of-type {
+		display: block;
+		width: 100%;
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		text-align: right;
+	}
+	
+	/* Position the minimap below the status bar */
+	#minimap-container {
+		top: 60px; /* Adjust this value for perfect spacing */
+		right: auto;
+		left: 50%;
+		transform: translateX(-50%) scale(1.5);
+		transform-origin: top center;
+	}
+	
+	#status-display p {
+		display: block;
+		margin: 2px 0;
+	}
+	
+	/* Hide the pan slider, as touch panning is the primary method */
+	#control-display {
+		display: none;
+	}
+	
+	.largedisplayonly {
+		display: none !important;
+	}
+}
 
-    #status-display p {
-        margin: 5px 0;
-    }
+/* --- Loader Styles --- */
+.loader-container {
+	/* Positioning & Visibility */
+	position: fixed;
+	top: 0;
+	left: 0;
+	width: 100%;
+	height: 100%;
+	z-index: 9999;
+	
+	/* Layout */
+	display: flex;
+	justify-content: center;
+	align-items: center;
+	
+	/* Style & Transition */
+	background-color: rgba(14, 4, 34, 0.85); /* Matches your canvas background */
+	backdrop-filter: blur(5px);
+	opacity: 1;
+	transition: opacity 0.5s ease;
+}
 
-    /*
-    Target zoom (1st), pixel size (3rd), AND file size (4th)
-    to appear on the same line.
-    */
-    #status-display p:first-of-type,
-    #status-display p:nth-of-type(3),
-    #status-display p:nth-of-type(4) {
-        display: inline-block !important; /* !important to override .largedisplayonly */
-        width: 20%;
-        margin-right: 15px;
-    }
+/* This class will be toggled by JavaScript to hide the loader */
+.loader-container.hidden {
+	opacity: 0;
+	pointer-events: none; /* Prevents interaction when hidden */
+}
 
-    /* Target the filename (the last p) to be on its own line */
-    #status-display p:last-of-type {
-        display: block;
-        width: 100%;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        text-align: right;
-    }
+.loader-blobs {
+	width: 150px;
+	height: 150px;
+	position: relative;
+	
+	/* * THE MAGIC TRICK! 🎩
+	* The blur() filter makes the edges of the blobs fuzzy, so they visually merge.
+	* The contrast() filter sharpens the edges back up. The high contrast makes
+	* the almost-transparent blurred edges completely transparent, while making
+	* the solid parts of the blob completely solid, creating a sharp outline
+	* around the merged shape.
+	*/
+	filter: blur(12px) contrast(24);
+}
 
-    /* Position the minimap below the status bar */
-    #minimap-container {
-        top: 60px; /* Adjust this value for perfect spacing */
-        right: auto;
-        left: 50%;
-        transform: translateX(-50%) scale(1.5);
-        transform-origin: top center;
-    }
+.blob {
+	position: absolute;
+	top: 50%;
+	left: 50%;
+	width: 50px;
+	height: 50px;
+	background-color: #fff;
+	border-radius: 50%;
+	
+	/* The animation is applied here */
+	animation: move 3s infinite ease-in-out;
+}
 
-    #status-display p {
-        display: block;
-        margin: 2px 0;
-    }
-    
-    /* Hide the pan slider, as touch panning is the primary method */
-    #control-display {
-        display: none;
-    }
+/* Use animation-delay to make the blobs move out of sync */
+.blob:nth-child(2) {
+	animation-delay: -1s;
+}
 
-    .largedisplayonly {
-        display: none !important;
-    }
+.blob:nth-child(3) {
+	animation-delay: -2s;
+}
+
+/* The Keyframe animation defining the blob's movement path */
+@keyframes move {
+	0%, 100% {
+		transform: translate(-50%, -50%) translate(-35px, 0);
+	}
+	25% {
+		transform: translate(-50%, -50%) translate(0, 35px);
+	}
+	50% {
+		transform: translate(-50%, -50%) translate(35px, 0);
+	}
+	75% {
+		transform: translate(-50%, -50%) translate(0, -35px);
+	}
+}
+
+.loader-text {
+	font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+	font-size: 2rem;
+	font-weight: bold;
+	letter-spacing: 0.2em;
+	color: rgba(255, 255, 255, 0.3);
+	position: relative;
+	overflow: hidden; /* Crucial for the effect */
+}
+
+/* The shimmer is a pseudo-element that wipes across the text */
+.loader-text::before {
+	content: '';
+	position: absolute;
+	top: 0;
+	left: 0;
+	width: 100%;
+	height: 100%;
+	background: linear-gradient(100deg, transparent 20%, rgba(128, 128, 128, 0.9) 50%, transparent 80%);
+	
+	/* Animate the transform property */
+	animation: shimmer 2.5s infinite;
+}
+
+@keyframes shimmer {
+	0% {
+		transform: translateX(-100%);
+	}
+	100% {
+		transform: translateX(100%);
+	}
 }

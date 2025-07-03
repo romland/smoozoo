@@ -13,6 +13,8 @@ window.smoozoo = (imageUrl, settings) => {
         throw new Error("WebGL not supported");
     }
 
+    const loader = document.getElementById('loader');
+
     const zoomLevelSpan = document.getElementById('zoom-level');
     const mouseCoordsSpan = document.getElementById('mouse-coords');
     const imageSizePixelsSpan = document.getElementById('image-size-pixels');
@@ -334,6 +336,8 @@ window.smoozoo = (imageUrl, settings) => {
      */
     async function loadImageAndCreateTextureInfo(url, callback)
     {
+        loader.classList.remove('hidden');
+
         try {
             const response = await fetch(url);
             if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
@@ -1484,5 +1488,7 @@ window.smoozoo = (imageUrl, settings) => {
         if(canvas.width < 600) {
             document.body.classList.toggle('ui-hidden');
         }
+
+        loader.classList.add('hidden');        
    });
 }
