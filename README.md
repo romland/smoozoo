@@ -45,8 +45,10 @@ Made for very large images that require fast navigation and scaling.
         Use mouse to move viewport horizontally and vertically (depending on zoom level)  
 
 ### Demo
-For some odd reason, Smoozoo is a lot smoother in Firefox than in Chrome. That's good!
+For some odd reason, Smoozoo is a lot smoother in Firefox than in Chrome. That's good!  
+
 https://oobabooga.com/smoozoo/  
+
 Note: it's a very low-end host, image will take a few seconds to load.
 
 ### About
