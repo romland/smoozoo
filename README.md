@@ -10,6 +10,7 @@ Made for very large images that require fast navigation and scaling.
 ### Other features
 - Minimap navigator
 - Plugin support
+- Desktop-first but very mobile-friendly
 
 ### About
 I originally built Smoozoo (it did not have a name) for another project 
@@ -55,7 +56,7 @@ native one (I humbly opine)!
         Use mouse to move viewport horizontally and vertically (depending on zoom level)  
 
 
-### TODO
+## TODO
 	- FIX (or ditch): 'r' to rotate image in steps of 90 degrees
 	- we lose all state variables of position/scale if window size changes which is 
 	  particularly annoying if you are in fullscreen and accidentally show the browser
@@ -87,3 +88,59 @@ native one (I humbly opine)!
 
     - "Tiled pyramid" format (like DZI - Deep Zoom Image). Support for pre-sliced tiles at
       different scales from back-end (low priority as it needs server side code).
+
+
+## Plugins
+Support is very sparse at the moment, it was expanded with what I needed, as I needed it.
+
+Your plugin consists of two files (or one if no css), include them in your HTML page:
+```html
+<script type="module" src="./plugins/smoozoo-plugin-yours.js"></script>
+<link rel="stylesheet" href="./plugins/smoozoo-plugin-yours.css" />
+```
+
+The .js file should export a class which will be instantiated by the Smoozoo on startup.
+
+```javascript
+export class YourSmoozooPlugin
+{
+    /**
+     * viewer is your proxy to the API of Smoozoo
+     * options is an object you pass in via settings when you instantiate smoozoo
+     */
+    constructor(viewer, options)
+    {
+    }
+}
+```
+
+So, to make it all come together. When you instantiate smoozoo, give it your plugin:
+```javascript
+const settings = {
+    ...other smoozoo settings here...,
+    plugins: [
+        {
+            name:     YourSmoozooPlugin,
+            instance: null,
+            options: {
+                anything: await (await fetch(`./assets/BTCUSDT.json`)).json(),
+                youwant: true,
+                goes: "here",
+            }
+        }
+    ]
+};
+```
+
+### Plugin API
+This is the API you get access via `viewer` in your plugin. As stated before, it is
+very sparse at the moment. More will come as needed, feel free to expand it.
+
+This is how the API that is passed to plugins is instantiated at the moment:
+```javascript
+    const viewerApi = {
+        getTransform: () => ({ scale, originX, originY }),
+        getCanvas: () => canvas,
+        requestRender: render
+    };
+```
