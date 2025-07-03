@@ -38,6 +38,16 @@ Made for very large images that require fast navigation and scaling.
     - `Left mouse button on marker/circle`  
         Sticky the popup  
 
+- Fingers
+    - `Single tap`  
+        Toggle visibility of UI  
+    - `Pinch`  
+        Zoom  
+    - `Flick`  
+        Moves with a glide
+    - `Move`
+        Pan
+
 - Navigation misc  
     - `Slider`  
         Sideway navigation only  
@@ -65,7 +75,10 @@ quite done yet, but, this actually already feels _better_ than Windows
 native one (I humbly opine)!
 
 ## TODO
-	- FIX (or ditch): 'r' to rotate image in steps of 90 degrees
+	- Pinch/zoom triggers UI visibility on mobile (it should not)
+    
+    - FIX (or ditch): 'r' to rotate image in steps of 90 degrees
+
 	- we lose all state variables of position/scale if window size changes which is 
 	  particularly annoying if you are in fullscreen and accidentally show the browser
 	  url/navigation bar.
@@ -75,6 +88,9 @@ native one (I humbly opine)!
       pan/zoom around it
 
     - be able to set a title of an image (through some meta data)
+
+    - get rid of slider and just use minimap? Or possibly, only show slider when we have
+      really wide images?
 
 	- Visual Bug: Jarring "Snap" at the End of a Zoom
 	  seems to have made "stay at fixed pixel under pointer when zooming" a bit worse -- if I zoom in
