@@ -75,33 +75,10 @@ quite done yet, but, this actually already feels _better_ than Windows
 native one (I humbly opine)!
 
 ## TODO
-	- we already support some meta-data via plugin but I'd like to extend that so that
-      depending on position of viewport it should show/pin messages to that pixel as we
-      pan/zoom around it
-
-    - be able to set a title of an image (through some meta data)
-
-    - get rid of slider and just use minimap? Or possibly, only show slider when we have
-      really wide images?
-
-	- Visual Bug: Jarring "Snap" at the End of a Zoom
-	  seems to have made "stay at fixed pixel under pointer when zooming" a bit worse -- if I zoom in
-	  very fast, it loses track of where I am zooming to. Maybe there needs to be some kind of prediction
-	  or so? Not sure what is wrong
-
-    - not for in here, but I would like chartjs to generate base64-encoded images for the
-      inline'd minute-charts
-
-    - Check screenwidth and decide based on that if we should load a smaller version of the image.
+	- There seems to be a loss of position (pixel) for mouse pointer in real-world 
+      coordinates when we zoom in/out -- especially if we do it fast.
 
     - drag/drop image / filepicker
-
-    - smart conversion of image to dark mode / brightness / contrast / saturation
-
-    - annotation on a separate canvas
-
-    - "Tiled pyramid" format (like DZI - Deep Zoom Image). Support for pre-sliced tiles at
-      different scales from back-end (low priority as it needs server side code).
 
     - Let Smoozoo create its own HTML elements instead of requiring all those HTML tags; 
       we just want to pass in a container to Smoozoo.
@@ -223,3 +200,34 @@ This is how the API that is passed to plugins is instantiated at the moment:
         requestRender: render
     };
 ```
+
+
+## Maybe TODO
+    - "Tiled pyramid" format (like DZI - Deep Zoom Image). Support for pre-sliced tiles at
+      different scales from back-end (low priority as it needs server side code).
+
+    - Check screenwidth and decide based on that if we should load a smaller version of the image.
+      (would need server-side code, not currently interested)
+
+
+## Maybe future plugins
+    - smart conversion of image to dark mode
+    
+    - ability to set brightness / contrast / saturation - maybe other adjustments
+
+    - not for in here, but I would like chartjs to generate base64-encoded images for the
+      inline'd minute-charts
+
+    - annotation on a separate canvas
+
+	- we already support some meta-data via plugin but I'd like to extend that so that
+      depending on position of viewport it should show/pin messages to that pixel as we
+      pan/zoom around it
+
+    - be able to set a title of an image (through some meta data)
+
+    - get rid of slider and just use minimap? Or possibly, only show slider when we have
+      really wide images?
+
+    - save image; incl. whatever plugins did -- would need some way to say which elements
+      are part of the image (in the case of overlay canvases and similar.
