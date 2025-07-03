@@ -91,6 +91,9 @@ native one (I humbly opine)!
 
     - Let Smoozoo create its own HTML elements instead of requiring all those HTML tags; 
       we just want to pass in a container to Smoozoo.
+    
+    - Code is in one large file now. It used to be a small file. Split things up a bit.
+      Although personally, I am a fan of a single large file!
 
 ## Use in your own projects
 See `index.html` on what elements are needed.
