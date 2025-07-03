@@ -118,7 +118,10 @@ window.addEventListener('load', async () => {
 
 
 ## Plugins
-Support is very sparse at the moment, it was expanded with what I needed, as I needed it.
+The breadth of the API is very sparse at the moment, it was expanded with what I needed,
+as I needed it. 
+
+That said ...
 
 Your plugin consists of two files (or one if no css), include them in your HTML page:
 ```html
