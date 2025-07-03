@@ -42,6 +42,10 @@ Made for very large images that require fast navigation and scaling.
     - `Minimap`  
         Use mouse to move viewport horizontally and vertically (depending on zoom level)  
 
+### Demo
+https://oobabooga.com/smoozoo/  
+(it's a very low-end host, image will take a few seconds to load)
+
 ### About
 I originally built Smoozoo (it did not have a name) for another project 
 using a basic 2D canvas and simple scaling — it started small and wasn’t
