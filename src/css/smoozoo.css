@@ -170,6 +170,15 @@ body.ui-hidden #minimap-container {
 	}
 }
 
+canvas {
+  cursor: grab;
+}
+
+canvas.panning {
+  cursor: grabbing;
+}
+
+
 /* --- Loader Styles --- */
 .loader-container {
 	/* Positioning & Visibility */

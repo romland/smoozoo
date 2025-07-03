@@ -94,8 +94,6 @@ native one (I humbly opine)!
 
     - Check screenwidth and decide based on that if we should load a smaller version of the image.
 
-    - Change cursor to grab by default, when panning: grabbing
-
     - drag/drop image / filepicker
 
     - smart conversion of image to dark mode / brightness / contrast / saturation

@@ -886,9 +886,13 @@ window.smoozoo = (imageUrl, settings) => {
     // ------------------------------------
     // --- Mouse Event Wrappers -----------
     // ------------------------------------
+    
+    function handleCanvasMouseDown(e)
+    {
+        canvas.classList.add('panning');
 
-    function handleCanvasMouseDown(e) {
         cancelAllAnimations();
+
         panning = true;
         panVelocityX = 0;
         panVelocityY = 0;
@@ -902,8 +906,13 @@ window.smoozoo = (imageUrl, settings) => {
         window.addEventListener('mouseup', handleCanvasMouseUp);
     }
 
-    function handleCanvasMouseMove(e) {
-        if (!panning) return;
+
+    function handleCanvasMouseMove(e)
+    {
+        if (!panning) {
+            return;
+        }
+
         const deltaX = e.clientX - lastMouseX;
         const deltaY = e.clientY - lastMouseY;
         if (Math.abs(deltaX) > 0 || Math.abs(deltaY) > 0) {
@@ -923,8 +932,15 @@ window.smoozoo = (imageUrl, settings) => {
         render();
     }
 
-    function handleCanvasMouseUp(e) {
-        if (!panning) return;
+
+    function handleCanvasMouseUp(e)
+    {
+        canvas.classList.remove('panning');
+
+        if (!panning) {
+            return;
+        }
+
         window.removeEventListener('mousemove', handleCanvasMouseMove);
         window.removeEventListener('mouseup', handleCanvasMouseUp);
         
