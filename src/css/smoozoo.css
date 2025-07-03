@@ -211,14 +211,6 @@ canvas.panning {
 	width: 150px;
 	height: 150px;
 	position: relative;
-	
-	/* * THE MAGIC TRICK! 🎩
-	* The blur() filter makes the edges of the blobs fuzzy, so they visually merge.
-	* The contrast() filter sharpens the edges back up. The high contrast makes
-	* the almost-transparent blurred edges completely transparent, while making
-	* the solid parts of the blob completely solid, creating a sharp outline
-	* around the merged shape.
-	*/
 	filter: blur(12px) contrast(24);
 }
 
@@ -230,8 +222,6 @@ canvas.panning {
 	height: 50px;
 	background-color: #fff;
 	border-radius: 50%;
-	
-	/* The animation is applied here */
 	animation: move 3s infinite ease-in-out;
 }
 
@@ -261,10 +251,9 @@ canvas.panning {
 }
 
 .loader-text {
-	font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+	font-family: Helvetica, Arial, sans-serif;
 	font-size: 2rem;
-	font-weight: bold;
-	letter-spacing: 0.2em;
+	letter-spacing: 0.1em;
 	color: rgba(255, 255, 255, 0.3);
 	position: relative;
 	overflow: hidden; /* Crucial for the effect */
