@@ -203,6 +203,52 @@ This is how the API that is passed to plugins is instantiated at the moment:
     };
 ```
 
+## Existing plugins
+At the moment I only made one.
+
+### Hotspot plugin
+This enables associating additional information in a popup with a pixel position in the underlying image.  
+
+E.g. with a radius of 20 at position 150,210, show this popup when hovered.  
+
+It supports clustering so that, e.g. 100 markers will become one if zoomed out.  
+
+Enable it in settings:
+```javascript
+    const settings = {
+        ...,
+        plugins: [
+            {
+                name:     HotspotPlugin,
+                instance: null,
+                options: {
+                    hotspots: await (await fetch(`./assets/BTCUSDT.json`)).json()
+                }
+            }
+        ]
+    }
+```
+
+The format of the `JSON` is this:
+
+```json
+[
+    {
+        "id": "at-1746277307000",
+        "x": 1358,
+        "y": 1060,
+        "radius": 2,
+        "content": {
+            "title": "Some title",
+            "subtitle": "actually shows up in footer of popup",
+            "text": "text content of popup",
+            "image": null
+        }
+    },
+    ... more entries ...
+]
+```
+
 
 ## Maybe TODO
     - "Tiled pyramid" format (like DZI - Deep Zoom Image). Support for pre-sliced tiles at
