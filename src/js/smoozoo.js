@@ -34,8 +34,13 @@ window.smoozoo = (imageUrl, settings) => {
     let startX = 0,
         startY = 0;
 
-    // Default setting for pixelatedZoom if not provided
+    // To keep track of current position for deep linking
+    let lastMouseRealX = 0,
+        lastMouseRealY = 0;
+
+    // Default settings if not provided
     settings.pixelatedZoom = settings.pixelatedZoom ?? false;
+    settings.allowDeepLinks = settings.allowDeepLinks ?? false;
 
     // Variables for smooth zooming
     let targetScale = 1.0;
@@ -51,6 +56,7 @@ window.smoozoo = (imageUrl, settings) => {
     let panVelocityY = 0;
     let lastPanTime = 0;
     let currentInertiaFriction = settings.mouseInertiaFriction;
+
 
     // Variables for touch interaction
     let initialPinchDistance = 0;
@@ -88,6 +94,26 @@ window.smoozoo = (imageUrl, settings) => {
     // --- General utility functions ---
     // ---------------------------------
 
+    /**
+     * Parses x, y, and scale from the URL query string.
+     * @returns {object|null} An object with x, y, and scale, or null if not present.
+     */
+    function parseUrlParams()
+    {
+        const params = new URLSearchParams(window.location.search);
+    
+        const x = parseFloat(params.get('x'));
+        const y = parseFloat(params.get('y'));
+        const scale = parseFloat(params.get('scale'));
+
+        if (!isNaN(x) && !isNaN(y) && !isNaN(scale)) {
+            return { x, y, scale };
+        }
+
+        return null;
+    }
+    
+    
     /**
      * Gets the current image dimensions, accounting for rotation.
      */
@@ -894,38 +920,64 @@ window.smoozoo = (imageUrl, settings) => {
         }
 
         const { width: imageWidth, height: imageHeight } = getCurrentImageSize();
-        const scaleToFitWidth = canvas.width / imageWidth;
-        const scaleToFitHeight = canvas.height / imageHeight;
-        const fitScale = Math.min(scaleToFitWidth, scaleToFitHeight);
 
-        scale = targetScale = Math.min(1.0, fitScale);
+        let urlParams = null;
+        let didDeepLink = false;
 
-        minScale = Math.min(scale, 0.1);
+        // Check if deep linking is allowed and if valid parameters are in the URL.
+        if (settings.allowDeepLinks) {
+            urlParams = parseUrlParams();
+            if (urlParams) {
+                // Set scale from URL param
+                scale = targetScale = urlParams.scale;
+                minScale = Math.min(scale, 0.1);
 
-        if(settings.initialScale) {
-            scale = targetScale = settings.initialScale;
+                // Calculate origin to center the view on the deep-linked coordinates
+                originX = (canvas.width / (2 * scale)) - urlParams.x;
+                originY = (canvas.height / (2 * scale)) - urlParams.y;
+
+                // Also set the target origin for the smooth zoom animation state
+                targetOriginX = originX;
+                targetOriginY = originY;
+
+                didDeepLink = true; // Flag that we've used the URL params
+            }
         }
 
-        
-        if (settings.initialPosition && typeof settings.initialPosition.x === 'number' && typeof settings.initialPosition.y === 'number') {
-            let targetX = settings.initialPosition.x;
-            let targetY = settings.initialPosition.y;
+        // If we didn't get a deep link, proceed with the original logic and obey settings.
+        if (!didDeepLink) {
+            const scaleToFitWidth = canvas.width / imageWidth;
+            const scaleToFitHeight = canvas.height / imageHeight;
+            const fitScale = Math.min(scaleToFitWidth, scaleToFitHeight);
 
-            // If coordinates are between 0 and 1, treat them as percentages
-            if (targetX >= 0 && targetX <= 1 && targetY >= 0 && targetY <= 1) {
-                targetX = imageWidth * targetX;
-                targetY = imageHeight * targetY;
+            scale = targetScale = Math.min(1.0, fitScale);
+            minScale = Math.min(scale, 0.1);
+
+            if (settings.initialScale) {
+                scale = targetScale = settings.initialScale;
             }
 
-            // Calculate origin to center the view on the target coordinates
-            originX = (canvas.width / (2 * scale)) - targetX;
-            originY = (canvas.height / (2 * scale)) - targetY;
+            if (settings.initialPosition && typeof settings.initialPosition.x === 'number' && typeof settings.initialPosition.y === 'number') {
+                let targetX = settings.initialPosition.x;
+                let targetY = settings.initialPosition.y;
 
-            // Also set the target origin for the smooth zoom animation state
-            targetOriginX = originX;
-            targetOriginY = originY;
+                // If coordinates are between 0 and 1, treat them as percentages
+                if (targetX >= 0 && targetX <= 1 && targetY >= 0 && targetY <= 1) {
+                    targetX = imageWidth * targetX;
+                    targetY = imageHeight * targetY;
+                }
+
+                // Calculate origin to center the view on the target coordinates
+                originX = (canvas.width / (2 * scale)) - targetX;
+                originY = (canvas.height / (2 * scale)) - targetY;
+
+                // Also set the target origin for the smooth zoom animation state
+                targetOriginX = originX;
+                targetOriginY = originY;
+            }
         }
 
+        // Ensure the final position is valid and within image boundaries (no snapback).
         checkEdges(false);
     }
 
@@ -1335,7 +1387,7 @@ window.smoozoo = (imageUrl, settings) => {
     }
 
 
-    function handleWindowKeyDown(e)
+    async function handleWindowKeyDown(e)
     {
         const { width: imageWidth, height: imageHeight } = getCurrentImageSize();
         const viewWidth = canvas.width / scale;
@@ -1371,6 +1423,34 @@ window.smoozoo = (imageUrl, settings) => {
                 if (imageHeight > viewHeight) {
                     targetY = viewHeight - imageHeight;
                     needsMove = true;
+                }
+                break;
+
+            case 'c':
+                if (e.ctrlKey) {
+                    break;
+                }
+
+                e.preventDefault();
+
+                const path = `${window.location.protocol}//${window.location.host}${window.location.pathname}`;
+                const search = `?x=${lastMouseRealX}&y=${lastMouseRealY}&scale=${scale.toFixed(6)}`;
+
+                if(true) {
+                    // Throw in clipboard
+                    const type = "text/plain";
+                    const clipboardItemData = {
+                        [type]: `${path}${search}`,
+                    };
+
+                    const clipboardItem = new ClipboardItem(clipboardItemData);
+                    await navigator.clipboard.write([clipboardItem]);
+                }
+
+                console.log("Generated deep link:", `${path}${search}`)
+
+                if(history.pushState) {
+                    window.history.pushState({ path : `${path}${search}` }, '', `${path}${search}`);
                 }
                 break;
 
@@ -1462,7 +1542,11 @@ window.smoozoo = (imageUrl, settings) => {
     {
         const { width: iw, height: ih } = getCurrentImageSize();
         const x = Math.max(0, Math.min(iw, Math.floor((e.clientX / scale) - originX))),
-                y = Math.max(0, Math.min(ih, Math.floor((e.clientY / scale) - originY)));
+              y = Math.max(0, Math.min(ih, Math.floor((e.clientY / scale) - originY)));
+
+        lastMouseRealX = x;
+        lastMouseRealY = y;
+
         mouseCoordsSpan.textContent = `${x},${y}`;
         
         // --- PLUGIN HOOK ---

@@ -314,7 +314,6 @@ export class HotspotPlugin
             }
             const finalPlacement = bestPlacement || placements.left;
 
-            // SMOOTHING FIX
             // Calculate distance from the last rendered position
             const dist = Math.hypot(finalPlacement.left - this.lastPopupPosition.x, finalPlacement.top - this.lastPopupPosition.y);
 

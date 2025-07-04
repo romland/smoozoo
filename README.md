@@ -29,6 +29,10 @@ Made for very large images that require fast navigation and scaling.
         Toggle UI visibility  
     - `p`  
         Toggle texture filtering (don't blur my pixels)  
+    - `c`  
+        Copy a link that leads to location currently under 
+        mouse pointer. E.g. http://localhost:1234?x=20000&y=0&scale=5
+
 
 - Mouse  
     - `Double-click with a mouse`  

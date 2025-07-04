@@ -15,6 +15,7 @@ window.addEventListener('load', async () => {
         initialScale:           0.3,
         initialPosition:        { x: 0.0, y: 0.5 },
         pixelatedZoom:          true,
+        allowDeepLinks:         true,
         canvas:                 document.getElementById('glcanvas'),
         plugins: [
             {
