@@ -9,7 +9,7 @@
     "deploy": "npm run build && scripts/deploy.sh"
   },
   "author": "Joakim Romland",
-  "license": "MIT",
+  "license": "AGPL",
   "devDependencies": {
     "parcel": "^2.15.4"
   }
