@@ -1539,6 +1539,12 @@ window.smoozoo = (imageUrl, settings) => {
     minimapContainer.addEventListener('mousedown', handleMinimapMouseDown);
     minimapContainer.addEventListener('touchstart', handleMinimapTouchStart, { passive: false });
 
+    if(false) {
+        // Test loader animation (important stuff!)
+        loader.classList.toggle('hidden');        
+        return;
+    }
+
     // Really start stuff up, load image and initialize us
     loadImageAndCreateTextureInfo(`${imageUrl}`, async () => {
         setInitialView();
