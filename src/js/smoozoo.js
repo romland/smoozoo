@@ -35,6 +35,9 @@ window.smoozoo = (imageUrl, settings) => {
     let startX = 0,
         startY = 0;
 
+    // Default setting for pixelatedZoom if not provided
+    settings.pixelatedZoom = settings.pixelatedZoom ?? false;
+
     // Variables for smooth zooming
     let targetScale = 1.0;
     let targetOriginX = 0;
@@ -320,7 +323,8 @@ window.smoozoo = (imageUrl, settings) => {
      * Calculates the next highest power of two for a given number.
      * e.g., nextPowerOf2(600) will return 1024.
      */
-    function nextPowerOf2(n) {
+    function nextPowerOf2(n)
+    {
         if (n > 0 && (n & (n - 1)) === 0) {
             return n; // Already a power of two
         }
@@ -329,6 +333,23 @@ window.smoozoo = (imageUrl, settings) => {
             p <<= 1; // Bitwise left shift (p = p * 2)
         }
         return p;
+    }
+
+
+    /**
+     * Updates the magnification filter on all loaded textures based on the current setting.
+     * This allows toggling between "pixelated" and "blurry" when zoomed in.
+     */
+    function updateTextureFiltering() {
+        const filter = settings.pixelatedZoom ? gl.NEAREST : gl.LINEAR;
+        
+        tiles.forEach(tile => {
+            gl.bindTexture(gl.TEXTURE_2D, tile.texture);
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, filter);
+        });
+
+        // Unbind the texture to be safe
+        gl.bindTexture(gl.TEXTURE_2D, null);
     }
 
 
@@ -365,38 +386,37 @@ window.smoozoo = (imageUrl, settings) => {
                               sw = Math.min(maxTextureSize, img.width - sx),
                               sh = Math.min(maxTextureSize, img.height - sy);
 
-                        // 1. Create a canvas with the tile's actual dimensions
+                        // ... (your canvas tiling and POT padding logic remains the same)
                         const tileCanvas = document.createElement('canvas');
                         tileCanvas.width = sw;
                         tileCanvas.height = sh;
                         const tileCtx = tileCanvas.getContext('2d');
                         tileCtx.drawImage(img, sx, sy, sw, sh, 0, 0, sw, sh);
 
-                        // 2. Create a new canvas with power-of-two dimensions
                         const potCanvas = document.createElement('canvas');
                         potCanvas.width = nextPowerOf2(sw);
                         potCanvas.height = nextPowerOf2(sh);
                         const potCtx = potCanvas.getContext('2d');
-                        potCtx.drawImage(tileCanvas, 0, 0); // Draw the tile onto the larger canvas
+                        potCtx.drawImage(tileCanvas, 0, 0);
 
-                        // 3. Calculate the texture coordinate scaling factor
                         const texCoordScaleX = sw / potCanvas.width;
                         const texCoordScaleY = sh / potCanvas.height;
 
-                        // --- WebGL Texture Creation ---
                         const texture = gl.createTexture();
                         gl.bindTexture(gl.TEXTURE_2D, texture);
-
-                        // 4. Use the padded, power-of-two canvas to create the texture
+                        
                         gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, potCanvas);
                         gl.generateMipmap(gl.TEXTURE_2D);
 
+                        // We set MIN_FILTER for mipmapping when zoomed out.
                         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
-                        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+                        
+                        // We will set MAG_FILTER later using our new function.
+                        // gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR); // This line is now handled by updateTextureFiltering
+                        
                         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
                         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
 
-                        // 5. Store the scaling factors with the tile data
                         tiles.push({
                             texture,
                             x: sx,
@@ -408,6 +428,9 @@ window.smoozoo = (imageUrl, settings) => {
                         });
                     }
                 }
+
+                // Apply the initial texture filtering setting once all tiles are created.
+                updateTextureFiltering();
 
                 imageFilenameSpan.textContent = url.split('/').pop();
                 URL.revokeObjectURL(objectURL);
@@ -1545,6 +1568,15 @@ window.smoozoo = (imageUrl, settings) => {
         return;
     }
 
+    // The plugin system
+    // -----------------
+    const viewerApi = {
+        getTransform: () => ({ scale, originX, originY }),
+        getCanvas: () => canvas,
+        requestRender: render
+    };
+
+
     // Really start stuff up, load image and initialize us
     loadImageAndCreateTextureInfo(`${imageUrl}`, async () => {
         setInitialView();
@@ -1553,14 +1585,6 @@ window.smoozoo = (imageUrl, settings) => {
         imageSizePixelsSpan.textContent = `${orgImgWidth}x${orgImgHeight}`;
         imageSizeBytesSpan.textContent = formatBytes(orgImgBytes);
         updatePanSlider();
-
-        // The plugin system
-        // -----------------
-        const viewerApi = {
-            getTransform: () => ({ scale, originX, originY }),
-            getCanvas: () => canvas,
-            requestRender: render
-        };
 
         for(const plugin of plugins) {
             plugin.instance = createPluginInstance(plugin.name, viewerApi, plugin.options);
@@ -1576,4 +1600,6 @@ window.smoozoo = (imageUrl, settings) => {
 
         loader.classList.add('hidden');        
    });
+
+   return viewerApi;
 }

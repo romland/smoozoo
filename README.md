@@ -99,6 +99,7 @@ window.addEventListener('load', async () => {
         inertiaStopThreshold:   0.1,
         initialScale:           0.9,
         initialPosition:        { x: 0.5, y: 0.5 },
+        pixelatedZoom:          false,
         canvas:                 document.getElementById('glcanvas'),
         plugins: [
             // any plugins you might have -- see below for more information.
