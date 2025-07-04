@@ -84,6 +84,88 @@ window.smoozoo = (imageUrl, settings) => {
     let plugins = settings.plugins || [];
 
 
+    // ---------------------------------
+    // --- General utility functions ---
+    // ---------------------------------
+
+    /**
+     * Gets the current image dimensions, accounting for rotation.
+     */
+    function getCurrentImageSize()
+    {
+        const i = rotation === 90 || rotation === 270;
+        return {
+            width: i ? orgImgHeight : orgImgWidth,
+            height: i ? orgImgWidth : orgImgHeight
+        };
+    }
+
+
+    /**
+     * Linear interpolation
+     */
+    function lerp(s, e, a)
+    {
+        return (1 - a) * s + a * e;
+    }
+
+
+    function debounce(func, timeout = 100)
+    {
+        let timer;
+
+        return (...args) => {
+            clearTimeout(timer);
+            timer = setTimeout(() => {
+                func.apply(this, args);
+            }, timeout);
+        };
+    }
+
+
+    function createPluginInstance(ClassName, api, options)
+    {
+        return new ClassName(api, options);
+    }
+
+
+    /**
+     * Formats a number of bytes into a human-readable string (KB, MB, GB, etc.).
+     */
+    function formatBytes(bytes, d = 2)
+    {
+        if (bytes === 0)
+            return '0 B';
+
+        const k = 1024,
+                dm = d < 0 ? 0 : d,
+                s = ['B', 'KB', 'MB', 'GB', 'TB'],
+                i = Math.floor(Math.log(bytes) / Math.log(k));
+
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + s[i];
+    }
+
+
+    /**
+     * Calculates the next highest power of two for a given number.
+     */
+    function nextPowerOf2(n)
+    {
+        if (n > 0 && (n & (n - 1)) === 0) {
+            // Already a power of two
+            return n;
+        }
+
+        let p = 1;
+        while (p < n) {
+            // Bitwise left shift (p = p * 2)
+            p <<= 1;
+        }
+        
+        return p;
+    }
+
+
     // ------------------------
     // --- Matrix Utilities ---
     // ------------------------
@@ -301,45 +383,13 @@ window.smoozoo = (imageUrl, settings) => {
         return [ m0, 0, 0, 0, m4, 0, m6, m7, 1 ];
     }
 
-    /**
-     * Formats a number of bytes into a human-readable string (KB, MB, GB, etc.).
-     */
-    function formatBytes(bytes, d = 2)
-    {
-        if (bytes === 0)
-            return '0 B';
-
-        const k = 1024,
-                dm = d < 0 ? 0 : d,
-                s = ['B', 'KB', 'MB', 'GB', 'TB'],
-                i = Math.floor(Math.log(bytes) / Math.log(k));
-
-        return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + s[i];
-    }
-
-
-    /**
-     * Calculates the next highest power of two for a given number.
-     * e.g., nextPowerOf2(600) will return 1024.
-     */
-    function nextPowerOf2(n)
-    {
-        if (n > 0 && (n & (n - 1)) === 0) {
-            return n; // Already a power of two
-        }
-        let p = 1;
-        while (p < n) {
-            p <<= 1; // Bitwise left shift (p = p * 2)
-        }
-        return p;
-    }
-
 
     /**
      * Updates the magnification filter on all loaded textures based on the current setting.
      * This allows toggling between "pixelated" and "blurry" when zoomed in.
      */
-    function updateTextureFiltering() {
+    function updateTextureFiltering()
+    {
         const filter = settings.pixelatedZoom ? gl.NEAREST : gl.LINEAR;
         
         tiles.forEach(tile => {
@@ -486,10 +536,8 @@ window.smoozoo = (imageUrl, settings) => {
             // It works by checking if the tile's rectangle and the view's rectangle overlap.
             // We don't need to account for rotation here, as the culling is done on the original
             // tile positions before they are rotated by the vertex shader on the GPU.
-            if (tile.x < viewX + viewWidth &&
-                tile.x + tile.width > viewX &&
-                tile.y < viewY + viewHeight &&
-                tile.y + tile.height > viewY)
+            if (tile.x < viewX + viewWidth && tile.x + tile.width > viewX &&
+                tile.y < viewY + viewHeight && tile.y + tile.height > viewY)
             {
                 gl.bindTexture(gl.TEXTURE_2D, tile.texture);
                 
@@ -534,7 +582,6 @@ window.smoozoo = (imageUrl, settings) => {
             smoothZoomAnimationId = null;
         }
         
-        // Add this line to reset the zoom animation timer
         lastAnimationTime = 0;
 
         isZooming = false;
@@ -568,19 +615,6 @@ window.smoozoo = (imageUrl, settings) => {
         }
 
         elasticMoveAnimationId = requestAnimationFrame(animate);
-    }
-
-
-    /**
-     * Gets the current image dimensions, accounting for rotation.
-     */
-    function getCurrentImageSize()
-    {
-        const i = rotation === 90 || rotation === 270;
-        return {
-            width: i ? orgImgHeight : orgImgWidth,
-            height: i ? orgImgWidth : orgImgHeight
-        };
     }
 
 
@@ -621,14 +655,6 @@ window.smoozoo = (imageUrl, settings) => {
                 render();
             }
         }
-    }
-
-    /**
-     * Linear interpolation
-     */
-    function lerp(s, e, a)
-    {
-        return (1 - a) * s + a * e;
     }
 
 
@@ -725,19 +751,6 @@ window.smoozoo = (imageUrl, settings) => {
         } else {
             inertiaAnimationId = requestAnimationFrame(() => inertiaLoop(newVx, newVy, friction));
         }
-    }
-
-
-    function debounce(func, timeout = 100)
-    {
-        let timer;
-
-        return (...args) => {
-            clearTimeout(timer);
-            timer = setTimeout(() => {
-                func.apply(this, args);
-            }, timeout);
-        };
     }
 
 
@@ -917,12 +930,6 @@ window.smoozoo = (imageUrl, settings) => {
     }
 
 
-    function createPluginInstance(ClassName, api, options)
-    {
-        return new ClassName(api, options);
-    }
-
-
     // ----------------------
     // --- Event Handlers ---
     // ----------------------
@@ -991,7 +998,6 @@ window.smoozoo = (imageUrl, settings) => {
         if (panVelocityX !== 0 || panVelocityY !== 0) {
             cancelAllAnimations();
 
-            // --- THIS IS THE FIX ---
             const { width: imageWidth, height: imageHeight } = getCurrentImageSize();
             const viewWidth = canvas.width / scale;
             const viewHeight = canvas.height / scale;
