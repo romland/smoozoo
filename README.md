@@ -81,6 +81,10 @@ quite done yet, but, this actually already feels _better_ than Windows
 native one (I humbly opine)!
 
 ## TODO
+    - When I deep-link to a position, I end up ignoring what is allowed to be 
+      maximum zoomed-out. I will want to still do that calculation even if we
+      are not using it initially (basically, I cannot zoom out as far as I want)
+
     - I think I introduced some zoom-jitter when attempting a fix to stay locked
       on a pixel when animating in/out zoom
 
