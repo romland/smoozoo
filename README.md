@@ -75,6 +75,10 @@ quite done yet, but, this actually already feels _better_ than Windows
 native one (I humbly opine)!
 
 ## TODO
+    - There seems to be some kind of acceleration/momentum issue when you flick
+      the view with mouse. Perhaps it happens when you flick and we are already
+      gliding?
+
     - Let Smoozoo create its own HTML elements instead of requiring all those HTML tags; 
       we just want to pass in a container to Smoozoo.
     
