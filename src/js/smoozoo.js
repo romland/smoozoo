@@ -41,6 +41,8 @@ window.smoozoo = (imageUrl, settings) => {
     // Default settings if not provided
     settings.pixelatedZoom = settings.pixelatedZoom ?? false;
     settings.allowDeepLinks = settings.allowDeepLinks ?? false;
+    settings.dynamicTextureFiltering = settings.dynamicTextureFiltering ?? false;
+    settings.dynamicFilteringThreshold = settings.dynamicFilteringThreshold ?? 2.0;    
 
     // Variables for smooth zooming
     let targetScale = 1.0;
@@ -54,9 +56,6 @@ window.smoozoo = (imageUrl, settings) => {
     // Variables for inertial panning
     let panVelocityX = 0;
     let panVelocityY = 0;
-    let lastPanTime = 0;
-    let currentInertiaFriction = settings.mouseInertiaFriction;
-
 
     // Variables for touch interaction
     let initialPinchDistance = 0;
@@ -79,6 +78,7 @@ window.smoozoo = (imageUrl, settings) => {
     let elasticMoveAnimationId = null;
     let smoothZoomAnimationId = null;
     let lastAnimationTime = 0;
+    let currentMagFilter = null;
 
     // Get the maximum dimension (width or height) for a texture that the user's GPU can handle.
     // This is a hardware limitation. If an image is larger than this size, we can't load it as a single
@@ -505,7 +505,8 @@ window.smoozoo = (imageUrl, settings) => {
                 }
 
                 // Apply the initial texture filtering setting once all tiles are created.
-                updateTextureFiltering();
+                // NOTE: Not any more, we have dynamic filtering
+                // updateTextureFiltering();
 
                 imageFilenameSpan.textContent = url.split('/').pop();
                 URL.revokeObjectURL(objectURL);
@@ -526,6 +527,31 @@ window.smoozoo = (imageUrl, settings) => {
     {
         if (!tiles.length) {
             return;
+        }
+
+        // DYNAMIC TEXTURE FILTERING
+        // Determine which magnification filter should be used based on settings.
+        let targetMagFilter;
+
+        if (settings.dynamicTextureFiltering) {
+            // Dynamic mode: Choose filter based on the current zoom scale.
+            targetMagFilter = scale >= settings.dynamicFilteringThreshold ? gl.NEAREST : gl.LINEAR;
+        } else {
+            // Static mode: Fall back to the manual pixelatedZoom setting.
+            targetMagFilter = settings.pixelatedZoom ? gl.NEAREST : gl.LINEAR;
+        }
+
+        // If the required filter is different from the one currently applied, update all textures.
+        // This check prevents expensive WebGL calls on every single frame.
+        if (targetMagFilter !== currentMagFilter) {
+            currentMagFilter = targetMagFilter;
+            tiles.forEach(tile => {
+                gl.bindTexture(gl.TEXTURE_2D, tile.texture);
+                gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, currentMagFilter);
+            });
+
+            // Unbind texture to be safe
+            gl.bindTexture(gl.TEXTURE_2D, null);
         }
 
         gl.clearColor(0.055, 0.016, 0.133, 1.0);

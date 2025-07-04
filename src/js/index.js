@@ -5,18 +5,20 @@ import { HotspotPlugin } from "../plugins/smoozoo-plugin-hotspot.js";
 
 window.addEventListener('load', async () => {
     const settings = {
-        minimapMaxSize:         200,
-        minimapMinSize:         8,
-        elasticMoveDuration:    200,
-        zoomSmoothing:          0.075,
-        mouseInertiaFriction:   0.95,
-        touchInertiaFriction:   0.98,
-        inertiaStopThreshold:   0.1,
-        initialScale:           0.3,
-        initialPosition:        { x: 0.0, y: 0.5 },
-        pixelatedZoom:          true,
-        allowDeepLinks:         true,
-        canvas:                 document.getElementById('glcanvas'),
+        minimapMaxSize:             200,
+        minimapMinSize:             8,
+        elasticMoveDuration:        200,
+        zoomSmoothing:              0.075,
+        mouseInertiaFriction:       0.95,
+        touchInertiaFriction:       0.98,
+        inertiaStopThreshold:       0.1,
+        initialScale:               0.3,
+        initialPosition:            { x: 0.0, y: 0.5 },
+        allowDeepLinks:             true,
+        pixelatedZoom:              true,
+        dynamicTextureFiltering:    true,
+        dynamicFilteringThreshold:  2.0,
+        canvas:                     document.getElementById('glcanvas'),
         plugins: [
             {
                 name:     HotspotPlugin,

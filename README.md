@@ -96,6 +96,9 @@ native one (I humbly opine)!
 
     - FIX (or ditch): 'r' to rotate image in steps of 90 degrees
 
+    - Cosmetics:  
+        - make GL clear color configurable  
+
 ## Use in your own projects
 See `index.html` on what elements are needed.
 
@@ -103,17 +106,21 @@ Then start Smoozoo like this:
 ```javascript
 window.addEventListener('load', async () => {
     const settings = {
-        minimapMaxSize:         200,
-        minimapMinSize:         8,
-        elasticMoveDuration:    200,
-        zoomSmoothing:          0.075,
-        mouseInertiaFriction:   0.95,
-        touchInertiaFriction:   0.98,
-        inertiaStopThreshold:   0.1,
-        initialScale:           0.9,
-        initialPosition:        { x: 0.5, y: 0.5 },
-        pixelatedZoom:          false,
-        canvas:                 document.getElementById('glcanvas'),
+        minimapMaxSize:             200,
+        minimapMinSize:             8,
+        elasticMoveDuration:        200,
+        zoomSmoothing:              0.075,
+        mouseInertiaFriction:       0.95,
+        touchInertiaFriction:       0.98,
+        inertiaStopThreshold:       0.1,
+        initialScale:               0.9,
+        initialPosition:            { x: 0.5, y: 0.5 },
+        allowDeepLinks:             true,   // allow going to e.g. ?x=2777&y=1879&scale=20.000000
+        pixelatedZoom:              true,   // can also be toggled with p, or overridden with dynamic
+        dynamicFilteringThreshold:  2.0,
+        dynamicTextureFiltering:    true,   // if greater or less than filteringThreshold,
+                                            // automatically toggle texture filtering (pixelated or not)
+        canvas:                     document.getElementById('glcanvas'),
         plugins: [
             // any plugins you might have -- see below for more information.
         ]
