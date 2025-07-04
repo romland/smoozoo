@@ -4,6 +4,8 @@ export class HotspotPlugin
     {
         this.viewer = viewer;
         this.hotspots = options.hotspots || [];
+        this.objectType = options.objectType || "";
+
         this.container = document.getElementById('hotspot-layer');
         this.activeHotspots = [];
         this.stickyHotspots = [];
@@ -238,7 +240,7 @@ export class HotspotPlugin
             let markerData;
             if (item.isCluster) {
                 marker.className = 'hotspot-cluster-marker';
-                marker.innerHTML = "<br/>" + item.count + "<br/><small>tweets</small>";
+                marker.innerHTML = "<br/>" + item.count + "<br/><small>" + this.objectType + "</small>";
                 const diameter = 30 + Math.log2(item.count) * 5;
                 marker.style.width = `${diameter}px`;
                 marker.style.height = `${diameter}px`;

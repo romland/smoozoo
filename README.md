@@ -75,6 +75,12 @@ quite done yet, but, this actually already feels _better_ than Windows
 native one (I humbly opine)!
 
 ## TODO
+    - I think I introduced some zoom-jitter when attempting to fix "stay focused on
+      pixel under pointer"
+
+    - The snapback if you have both vertical edges in view waits for glide to stop
+      before snapping back (not good)
+
     - There seems to be some kind of acceleration/momentum issue when you flick
       the view with mouse. Perhaps it happens when you flick and we are already
       gliding?
