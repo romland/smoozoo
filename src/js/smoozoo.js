@@ -1,6 +1,5 @@
 window.smoozoo = (imageUrl, settings) => {
     // DOM Element Selection & Initial Setup
-    // (rest of setup is at the bottom of this file)
     const canvas = settings.canvas;
     canvas.width = window.innerWidth;
     canvas.height = window.innerHeight;
@@ -386,10 +385,10 @@ window.smoozoo = (imageUrl, settings) => {
                               sw = Math.min(maxTextureSize, img.width - sx),
                               sh = Math.min(maxTextureSize, img.height - sy);
 
-                        // ... (your canvas tiling and POT padding logic remains the same)
                         const tileCanvas = document.createElement('canvas');
                         tileCanvas.width = sw;
                         tileCanvas.height = sh;
+
                         const tileCtx = tileCanvas.getContext('2d');
                         tileCtx.drawImage(img, sx, sy, sw, sh, 0, 0, sw, sh);
 
@@ -1561,12 +1560,6 @@ window.smoozoo = (imageUrl, settings) => {
 
     minimapContainer.addEventListener('mousedown', handleMinimapMouseDown);
     minimapContainer.addEventListener('touchstart', handleMinimapTouchStart, { passive: false });
-
-    if(false) {
-        // Test loader animation (important stuff!)
-        loader.classList.toggle('hidden');        
-        return;
-    }
 
     // The plugin system
     // -----------------
