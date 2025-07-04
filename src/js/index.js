@@ -1,4 +1,4 @@
-import { HotspotPlugin } from "../plugins/smoozoo-plugin-hotspot.js";
+// import { HotspotPlugin } from "../plugins/smoozoo-plugin-hotspot.js";
 import { ExampleOverlayPlugin } from "../plugins/smoozoo-plugin-example-overlay.js";
 
 window.addEventListener('load', async () => {
@@ -18,14 +18,14 @@ window.addEventListener('load', async () => {
         dynamicTextureFiltering:    true,
         dynamicFilteringThreshold:  2.0,
         plugins: [
-            {
-                name:     HotspotPlugin,
-                options: {
-                    // Ah, a bit of ugliness to get Parcel to pick up the asset.
-                    hotspots: await (await fetch( new URL(`../assets/ETHUSDT-ath.json`, import.meta.url).toString() )).json(),
-                    objectType: "ATHs"
-                }
-            },
+            // {
+            //     name:     HotspotPlugin,
+            //     options: {
+            //         // Ah, a bit of ugliness to get Parcel to pick up the asset.
+            //         hotspots: await (await fetch( new URL(`../assets/ETHUSDT-ath.json`, import.meta.url).toString() )).json(),
+            //         objectType: "ATHs"
+            //     }
+            // },
             {
                 name:     ExampleOverlayPlugin,
                 options: {
@@ -36,7 +36,8 @@ window.addEventListener('load', async () => {
 
     // const url = new URL(`../assets/xanadu-reconstruction.png`, import.meta.url);
     // const url = new URL(`../assets/BTCUSDT.png`, import.meta.url);
-    const url = new URL(`../assets/ETHUSDT-ath.png`, import.meta.url);
+    // const url = new URL(`../assets/ETHUSDT-ath.png`, import.meta.url);
+    const url = new URL(`../assets/ara-map.png`, import.meta.url);
 
     console.log("Loading image", url.toString(), "...");
     smoozoo(url.toString(), settings);
