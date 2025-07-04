@@ -139,15 +139,15 @@ as I needed it.
 
 That said ...
 
-Your plugin consists of two files (or one if no css), include them in your HTML page:
+Your plugin consists of two files, if you have extra CSS, include the file in your HTML page:
 ```html
-<script type="module" src="./plugins/smoozoo-plugin-yours.js"></script>
 <link rel="stylesheet" href="./plugins/smoozoo-plugin-yours.css" />
 ```
 
-The .js file should export a class which will be instantiated by Smoozoo on startup.
+Then you need to have the code somewhere. So, this .js file should export a class which will
+be instantiated by Smoozoo on startup.
 
-For example:
+As a brief example:
 ```javascript
 export class YourSmoozooPlugin
 {
@@ -299,3 +299,5 @@ The format of the `JSON` is this:
       are part of the image (in the case of overlay canvases and similar.
 
     - drag/drop image / filepicker
+
+    - set up an intermediate layer to allow MiniPaint to be used for drawing on overlay

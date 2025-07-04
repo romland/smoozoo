@@ -1,7 +1,5 @@
 import { HotspotPlugin } from "../plugins/smoozoo-plugin-hotspot.js";
-
-// This is Parcel hackery so that it's included in the build
-// import externalJsonFile from 'url://./src/assets/ETHUSDT-ath.json';
+import { ExampleOverlayPlugin } from "../plugins/smoozoo-plugin-example-overlay.js";
 
 window.addEventListener('load', async () => {
     const settings = {
@@ -22,13 +20,18 @@ window.addEventListener('load', async () => {
         plugins: [
             {
                 name:     HotspotPlugin,
-                instance: null,
                 options: {
                     // Ah, a bit of ugliness to get Parcel to pick up the asset.
                     hotspots: await (await fetch( new URL(`../assets/ETHUSDT-ath.json`, import.meta.url).toString() )).json(),
                     objectType: "ATHs"
                 }
+            },
+            {
+                name:     ExampleOverlayPlugin,
+                options: {
+                }
             }
+
         ]
     };
 
