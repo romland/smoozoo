@@ -212,17 +212,17 @@ free to expand it.
 
 This is how the API that is passed to plugins is instantiated at the moment:
 ```javascript
-    const viewerApi = {
-        getTransform: () => ({ scale, originX, originY }),
-        getCanvas: () => canvas,
-        requestRender: render
-    };
+const viewerApi = {
+    getTransform: () => ({ scale, originX, originY }),
+    getCanvas: () => canvas,
+    requestRender: render
+};
 ```
 
 ## Existing plugins
-At the moment I only made one.
+At the moment there are two.
 
-### Hotspot plugin
+### 1. Hotspot plugin
 This enables associating additional information in a popup with a pixel position in the underlying image.  
 
 E.g. with a radius of 20 at position 150,210, show this popup when hovered.  
@@ -231,20 +231,20 @@ It supports clustering so that, e.g. 100 markers will become one if zoomed out.
 
 Enable it in settings:
 ```javascript
-    const settings = {
-        ...,
-        plugins: [
-            {
-                name:     HotspotPlugin,
-                instance: null,
-                options: {
-                    // A bit of ugliness to get Parcel to pick up the asset.
-                    hotspots: await (await fetch( new URL(`../assets/ETHUSDT-ath.json`, import.meta.url).toString() )).json(),
-                    objectType: "ATHs"  // Just a name of your choice, can be left empty too
-                }
+const settings = {
+    ...,
+    plugins: [
+        {
+            name:     HotspotPlugin,
+            instance: null,
+            options: {
+                // A bit of ugliness to get Parcel to pick up the asset.
+                hotspots: await (await fetch( new URL(`../assets/ETHUSDT-ath.json`, import.meta.url).toString() )).json(),
+                objectType: "ATHs"  // Just a name of your choice, can be left empty too
             }
-        ]
-    }
+        }
+    ]
+}
 ```
 
 The format of the `JSON` is this:
@@ -265,6 +265,25 @@ The format of the `JSON` is this:
     },
     ... more entries ...
 ]
+```
+
+### 2. Overlay Example plugin
+It is meant for you to base your own plugins on.
+
+Include it in Smoozoo like so:
+```javascript
+import { ExampleOverlayPlugin } from "../plugins/smoozoo-plugin-example-overlay.js";
+
+const settings = {
+    ...,
+    plugins: [
+        {
+            name:    ExampleOverlayPlugin,
+            options: {
+            }
+        }
+    ]
+}
 ```
 
 
@@ -301,3 +320,4 @@ The format of the `JSON` is this:
     - drag/drop image / filepicker
 
     - set up an intermediate layer to allow MiniPaint to be used for drawing on overlay
+      file:///K:/development/2023/miniPaint/index.html

@@ -31,7 +31,6 @@ window.addEventListener('load', async () => {
                 options: {
                 }
             }
-
         ]
     };
 
