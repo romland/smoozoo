@@ -106,6 +106,7 @@ Then start Smoozoo like this:
 ```javascript
 window.addEventListener('load', async () => {
     const settings = {
+        canvas:                     document.getElementById('glcanvas'),
         minimapMaxSize:             200,
         minimapMinSize:             8,
         elasticMoveDuration:        200,
@@ -120,7 +121,6 @@ window.addEventListener('load', async () => {
         dynamicFilteringThreshold:  2.0,
         dynamicTextureFiltering:    true,   // if greater or less than filteringThreshold,
                                             // automatically toggle texture filtering (pixelated or not)
-        canvas:                     document.getElementById('glcanvas'),
         plugins: [
             // any plugins you might have -- see below for more information.
         ]

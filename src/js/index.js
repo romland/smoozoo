@@ -5,6 +5,7 @@ import { HotspotPlugin } from "../plugins/smoozoo-plugin-hotspot.js";
 
 window.addEventListener('load', async () => {
     const settings = {
+        canvas:                     document.getElementById('glcanvas'),
         minimapMaxSize:             200,
         minimapMinSize:             8,
         elasticMoveDuration:        200,
@@ -18,7 +19,6 @@ window.addEventListener('load', async () => {
         pixelatedZoom:              true,
         dynamicTextureFiltering:    true,
         dynamicFilteringThreshold:  2.0,
-        canvas:                     document.getElementById('glcanvas'),
         plugins: [
             {
                 name:     HotspotPlugin,
