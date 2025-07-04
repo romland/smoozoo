@@ -57,12 +57,23 @@ export class ExampleOverlayPlugin
             {
                 id: 'text1',
                 type: 'text',
-                x: 500, y: 700,
+                x: 600, y: 600,
                 fillStyle: 'yellow',
                 font: '48px sans-serif',
+                text: '!',
+                tooltip: 'This is a resizable text label.',
+            },
+            {
+                id: 'text2',
+                type: 'text',
+                x: 500, y: 700,
+                fillStyle: 'yellow',
+                font: '14px sans-serif',
                 text: 'Hello from Example Plugin!',
-                tooltip: 'This is a text label.'
+                tooltip: 'This is a fixed size text label.',
+                fixedSize: true
             }
+
         ];
         this.hoveredShape = null;
 
@@ -87,73 +98,94 @@ export class ExampleOverlayPlugin
     update() {
         const { scale, originX, originY } = this.viewerApi.getTransform();
 
-        // 1. Reset the transform to the identity matrix. This ensures that
-        //    clearRect operates in the screen's coordinate space, not the
-        //    transformed space from the previous frame.
+        // 1. Prepare for rendering: Reset transform and clear the whole canvas.
         this.ctx.setTransform(1, 0, 0, 1, 0, 0);
-
-        // 2. Now that the transform is reset, clear the entire canvas.
         this.ctx.clearRect(0, 0, this.overlayCanvas.width, this.overlayCanvas.height);
-        
-        // 3. Apply the new pan/zoom transform for the current frame's drawing.
+
+        // 2. FIRST PASS: Draw all scalable items in world space.
         this.ctx.setTransform(scale, 0, 0, scale, originX * scale, originY * scale);
-        
-        // Draw all shapes
         this.shapes.forEach(shape => {
-            this.ctx.save();
+            if (shape.fixedSize) return; // Skip fixed-size items for now.
+            
+            // Draw the shape and its highlight (if hovered).
+            this.drawShape(shape, this.hoveredShape === shape);
+        });
 
-            // Apply shape-specific styles
-            this.ctx.fillStyle = shape.fillStyle;
-            this.ctx.strokeStyle = shape.strokeStyle || 'transparent';
-            this.ctx.lineWidth = shape.lineWidth || 1;
-            this.ctx.font = shape.font;
+        // 3. SECOND PASS: Draw all fixed-size items in screen space.
+        this.ctx.setTransform(1, 0, 0, 1, 0, 0); // Reset to screen space.
+        this.shapes.forEach(shape => {
+            if (!shape.fixedSize) return; // Skip scalable items.
 
-            // Draw the shape based on its type
+            // Calculate the shape's position on the screen.
+            const screenX = (shape.x + originX) * scale;
+            const screenY = (shape.y + originY) * scale;
+            
+            // Draw the shape and its highlight, providing the calculated screen coordinates.
+            this.drawShape(shape, this.hoveredShape === shape, screenX, screenY);
+        });
+        
+        // 4. TOOLTIP PASS: Draw the tooltip for the hovered shape (if any).
+        if (this.hoveredShape) {
+            // Calculate the anchor position for the tooltip on the screen.
+            const anchorX = (this.hoveredShape.x + originX) * scale;
+            const anchorY = (this.hoveredShape.y + originY) * scale;
+            this.drawTooltip(this.hoveredShape, anchorX, anchorY);
+        }
+    }
+
+    drawShape(shape, isHovered, screenX, screenY) {
+        this.ctx.save();
+
+        // If drawing in screen space, we need to translate to the correct position.
+        if (shape.fixedSize && screenX !== undefined) {
+            this.ctx.translate(screenX, screenY);
+        }
+
+        // Apply shape-specific styles.
+        this.ctx.fillStyle = shape.fillStyle;
+        this.ctx.strokeStyle = shape.strokeStyle || 'transparent';
+        this.ctx.lineWidth = shape.lineWidth || 1;
+        this.ctx.font = shape.font;
+
+        // Use 0,0 for coordinates if in screen space, as we've already translated the context.
+        const x = shape.fixedSize ? 0 : shape.x;
+        const y = shape.fixedSize ? 0 : shape.y;
+
+        // Draw the shape based on its type.
+        switch (shape.type) {
+            case 'circle':
+                this.ctx.beginPath();
+                this.ctx.arc(x, y, shape.radius, 0, Math.PI * 2);
+                this.ctx.fill();
+                this.ctx.stroke();
+                break;
+            case 'rect':
+                this.ctx.fillRect(x, y, shape.width, shape.height);
+                this.ctx.strokeRect(x, y, shape.width, shape.height);
+                break;
+            case 'text':
+                this.ctx.fillText(shape.text, x, y);
+                break;
+        }
+
+        // Draw hover highlight.
+        if (isHovered) {
+            this.ctx.strokeStyle = 'yellow';
+            this.ctx.lineWidth = shape.fixedSize ? 2 : 6; // Thinner line for fixed-size items.
             switch (shape.type) {
                 case 'circle':
                     this.ctx.beginPath();
-                    this.ctx.arc(shape.x, shape.y, shape.radius, 0, Math.PI * 2);
-                    this.ctx.fill();
+                    this.ctx.arc(x, y, shape.radius, 0, Math.PI * 2);
                     this.ctx.stroke();
                     break;
-
                 case 'rect':
-                    this.ctx.fillRect(shape.x, shape.y, shape.width, shape.height);
-                    this.ctx.strokeRect(shape.x, shape.y, shape.width, shape.height);
+                    this.ctx.strokeRect(x, y, shape.width, shape.height);
                     break;
-
-                case 'text':
-                     this.ctx.fillText(shape.text, shape.x, shape.y);
-                     break;
             }
-
-            // Draw hover highlight
-            if (this.hoveredShape === shape) {
-                this.ctx.strokeStyle = 'yellow';
-                this.ctx.lineWidth = 6;
-
-                // Redraw the path for the stroke
-                switch (shape.type) {
-                    case 'circle':
-                        this.ctx.beginPath();
-                        this.ctx.arc(shape.x, shape.y, shape.radius, 0, Math.PI * 2);
-                        this.ctx.stroke();
-                        break;
-
-                    case 'rect':
-                        this.ctx.strokeRect(shape.x, shape.y, shape.width, shape.height);
-                        break;
-                }
-            }
-
-            this.ctx.restore();
-        });
-
-        // Draw tooltip
-        if (this.hoveredShape) {
-            this.drawTooltip(this.hoveredShape);
         }
+        this.ctx.restore();
     }
+
 
     /**
      * onMouseMove is called by the viewer when the mouse moves over the main canvas.
@@ -210,36 +242,28 @@ export class ExampleOverlayPlugin
     /**
      * Draws a tooltip for a given shape.
      */
-    drawTooltip(shape)
+    drawTooltip(shape, anchorX, anchorY)
     {
-        const { scale } = this.viewerApi.getTransform();
-        
-        // Make font size smaller as you zoom out, but with a minimum size.
-        // This makes the tooltip readable at different zoom levels.
-        const fontSize = Math.max(12, 24 / scale);
+        const fontSize = 12; // Fixed font size for readability.
+        const padding = 8;   // Fixed padding.
         this.ctx.font = `${fontSize}px sans-serif`;
         
         const textMetrics = this.ctx.measureText(shape.tooltip);
-        const textWidth = textMetrics.width;
-        const textHeight = fontSize; // Approximate height
-
-        const padding = 10 / scale;
-        const boxWidth = textWidth + padding * 2;
-        const boxHeight = textHeight + padding * 2;
+        const boxWidth = textMetrics.width + padding * 2;
+        const boxHeight = fontSize + padding * 2;
         
-        // Position the tooltip above the shape
-        const boxX = (shape.x + (shape.width || 0) / 2) - (boxWidth / 2);
-        const boxY = shape.y - boxHeight - (20 / scale);
+        // Position the tooltip above the shape's anchor point.
+        const boxX = anchorX - boxWidth / 2;
+        const boxY = anchorY - boxHeight - (shape.fixedSize ? 10 : 20);
 
-        // Draw the tooltip box
-        this.ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+        // Draw the tooltip box.
+        this.ctx.fillStyle = 'rgba(0, 0, 0, 0.75)';
         this.ctx.fillRect(boxX, boxY, boxWidth, boxHeight);
 
-        // Draw the tooltip text
+        // Draw the tooltip text.
         this.ctx.fillStyle = 'white';
-        this.ctx.fillText(shape.tooltip, boxX + padding, boxY + textHeight + padding / 2);
+        this.ctx.fillText(shape.tooltip, boxX + padding, boxY + fontSize + padding / 2);
     }
-    
 
     // TODO: I need to call this? I need a destroy() in viewer too.
     destroy()
