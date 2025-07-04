@@ -75,11 +75,13 @@ quite done yet, but, this actually already feels _better_ than Windows
 native one (I humbly opine)!
 
 ## TODO
-    - I think I introduced some zoom-jitter when attempting to fix "stay focused on
-      pixel under pointer"
+    - I think I introduced some zoom-jitter when attempting a fix to stay locked
+      on a pixel when animating in/out zoom
 
     - The snapback if you have both vertical edges in view waits for glide to stop
-      before snapping back (not good)
+      before snapping back (not good). The bug seems to only manifest itself if
+      we are not at left/right edge. In fact, maybe it should not allow being 
+      dragged out of position at all if both top/left are in view
 
     - There seems to be some kind of acceleration/momentum issue when you flick
       the view with mouse. Perhaps it happens when you flick and we are already
@@ -228,7 +230,9 @@ Enable it in settings:
                 name:     HotspotPlugin,
                 instance: null,
                 options: {
-                    hotspots: await (await fetch(`./assets/BTCUSDT.json`)).json()
+                    // A bit of ugliness to get Parcel to pick up the asset.
+                    hotspots: await (await fetch( new URL(`../assets/ETHUSDT-ath.json`, import.meta.url).toString() )).json(),
+                    objectType: "ATHs"  // Just a name of your choice, can be left empty too
                 }
             }
         ]
