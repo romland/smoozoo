@@ -75,8 +75,6 @@ quite done yet, but, this actually already feels _better_ than Windows
 native one (I humbly opine)!
 
 ## TODO
-    - drag/drop image / filepicker
-
     - Let Smoozoo create its own HTML elements instead of requiring all those HTML tags; 
       we just want to pass in a container to Smoozoo.
     
@@ -230,3 +228,5 @@ This is how the API that is passed to plugins is instantiated at the moment:
 
     - save image; incl. whatever plugins did -- would need some way to say which elements
       are part of the image (in the case of overlay canvases and similar.
+
+    - drag/drop image / filepicker
