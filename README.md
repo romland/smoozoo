@@ -27,6 +27,8 @@ Made for very large images that require fast navigation and scaling.
         Quickly go to bottom  
     - `m`  
         Toggle UI visibility  
+    - `p`  
+        Toggle texture filtering (don't blur my pixels)  
 
 - Mouse  
     - `Double-click with a mouse`  

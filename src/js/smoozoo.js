@@ -1375,13 +1375,22 @@ window.smoozoo = (imageUrl, settings) => {
                 break;
 
             case 'm':
-                e.preventDefault();
                 document.body.classList.toggle('ui-hidden');
+                break;
+
+            case 'p':
+                settings.pixelatedZoom = !settings.pixelatedZoom;
+                updateTextureFiltering();
+                console.log("Show me pixels", settings.pixelatedZoom);
+                render();
                 break;
 
             case 'r':
             case 'R':
-                if (e.ctrlKey) break;
+                if (e.ctrlKey) {
+                    break;
+                }
+
                 e.preventDefault();
                 rotation = (rotation + 90) % 360;
                 checkEdges(false);
