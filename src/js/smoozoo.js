@@ -70,6 +70,7 @@ window.smoozoo = (imageUrl, settings) => {
     let inertiaAnimationId = null;
     let elasticMoveAnimationId = null;
     let smoothZoomAnimationId = null;
+    let lastAnimationTime = 0;
 
     // Get the maximum dimension (width or height) for a texture that the user's GPU can handle.
     // This is a hardware limitation. If an image is larger than this size, we can't load it as a single
@@ -510,6 +511,9 @@ window.smoozoo = (imageUrl, settings) => {
             cancelAnimationFrame(smoothZoomAnimationId);
             smoothZoomAnimationId = null;
         }
+        
+        // Add this line to reset the zoom animation timer
+        lastAnimationTime = 0;
 
         isZooming = false;
     }
@@ -607,28 +611,46 @@ window.smoozoo = (imageUrl, settings) => {
 
 
     /**
-     * Smoothly interpolates the scale and origin to their target values.
+     * Smoothly interpolates the scale and origin to their target values
+     * using a time-based, frame-rate independent method to prevent jitter.
      */
-    function smoothZoomLoop()
+    function smoothZoomLoop(currentTime)
     {
+        if (!lastAnimationTime) {
+            // Initialize timer on the first frame of the animation.
+            lastAnimationTime = currentTime;
+        }
+
+        // Calculate time elapsed in seconds since the last frame.
+        const deltaTime = (currentTime - lastAnimationTime) / 1000;
+        lastAnimationTime = currentTime;
+
         isZooming = true;
 
-        const smoothing = settings.zoomSmoothing;
-        scale = lerp(scale, targetScale, smoothing);
-        originX = lerp(originX, targetOriginX, smoothing);
-        originY = lerp(originY, targetOriginY, smoothing);
+        // A higher stiffness value results in a faster, more responsive zoom.
+        const stiffness = settings.zoomStiffness || 15;
+        const frameSmoothing = 1 - Math.exp(-stiffness * deltaTime);
+
+        scale = lerp(scale, targetScale, frameSmoothing);
+        originX = lerp(originX, targetOriginX, frameSmoothing);
+        originY = lerp(originY, targetOriginY, frameSmoothing);
+
         render();
 
         const scaleDiff = Math.abs(scale - targetScale);
         const originXDiff = Math.abs(originX - targetOriginX);
         const originYDiff = Math.abs(originY - targetOriginY);
 
+        // Stop the animation when we are very close to the target.
         if (scaleDiff < 0.001 && originXDiff < 0.001 && originYDiff < 0.001) {
             scale = targetScale;
             originX = targetOriginX;
             originY = targetOriginY;
+
             isZooming = false;
             smoothZoomAnimationId = null;
+            lastAnimationTime = 0; // Reset for the next animation sequence.
+            
             render();
             checkEdges(false);
         } else {
