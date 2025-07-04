@@ -39,14 +39,12 @@ export class ExampleOverlayPlugin
         // You likely want to load this in dynamically via a fetch() or so
         this.shapes = [
             {
-                id: 'circle1',
                 type: 'circle',
                 x: 500, y: 500, radius: 50,
                 fillStyle: 'rgba(255, 0, 0, 0.5)',
                 tooltip: 'Red Circle - An important area.'
             },
             {
-                id: 'rect1',
                 type: 'rect',
                 x: 800, y: 400, width: 150, height: 100,
                 fillStyle: 'rgba(0, 100, 255, 0.5)',
@@ -55,7 +53,22 @@ export class ExampleOverlayPlugin
                 tooltip: 'Blue Rectangle - A clickable zone.'
             },
             {
-                id: 'text1',
+                id: 'rect1',
+                type: 'rect',
+                x: 400, y: 400, width: 200, height: 50,
+                fillStyle: 'rgba(120, 100, 255, 0.5)',
+                strokeStyle: 'pink',
+                lineWidth: 4,
+                tooltip: 'This rectangle has a shadow!',
+                // Arbitrary commands passed to Canvas before drawing
+                beforeDraw: [
+                    { "prop": "shadowColor", "value": "rgba(0, 0, 0, 0.5)" },
+                    { "prop": "shadowBlur", "value": 15 },
+                    { "prop": "shadowOffsetX", "value": 10 },
+                    { "prop": "shadowOffsetY", "value": 10 }
+                ]
+            },
+            {
                 type: 'text',
                 x: 600, y: 600,
                 fillStyle: 'yellow',
@@ -64,11 +77,10 @@ export class ExampleOverlayPlugin
                 tooltip: 'This is a resizable text label.',
             },
             {
-                id: 'text2',
                 type: 'text',
                 x: 500, y: 700,
-                fillStyle: 'yellow',
-                font: '14px sans-serif',
+                fillStyle: 'white',
+                font: '10px sans-serif',
                 text: 'Hello from Example Plugin!',
                 tooltip: 'This is a fixed size text label.',
                 fixedSize: true
@@ -95,7 +107,8 @@ export class ExampleOverlayPlugin
     /**
      * update() is called on every frame by the viewer's render loop.
      */
-    update() {
+    update()
+    {
         const { scale, originX, originY } = this.viewerApi.getTransform();
 
         // 1. Prepare for rendering: Reset transform and clear the whole canvas.
@@ -133,7 +146,8 @@ export class ExampleOverlayPlugin
         }
     }
 
-    drawShape(shape, isHovered, screenX, screenY) {
+    drawShape(shape, isHovered, screenX, screenY)
+    {
         this.ctx.save();
 
         // If drawing in screen space, we need to translate to the correct position.
@@ -147,6 +161,24 @@ export class ExampleOverlayPlugin
         this.ctx.lineWidth = shape.lineWidth || 1;
         this.ctx.font = shape.font;
 
+        // Arbitrary command injection -- TODO: Security?
+        if (shape.beforeDraw && Array.isArray(shape.beforeDraw)) {
+            shape.beforeDraw.forEach(cmd => {
+                try {
+                    if (cmd.prop) {
+                        // Set a property, e.g., ctx.shadowColor = 'blue'
+                        this.ctx[cmd.prop] = cmd.value;
+                    } else if (cmd.method) {
+                        // Call a method, e.g., ctx.setLineDash([5, 15])
+                        this.ctx[cmd.method](...(cmd.args || []));
+                    }
+                } catch (e) {
+                    console.error("Error applying custom draw command:", e);
+                }
+            });
+        }
+
+
         // Use 0,0 for coordinates if in screen space, as we've already translated the context.
         const x = shape.fixedSize ? 0 : shape.x;
         const y = shape.fixedSize ? 0 : shape.y;
@@ -159,10 +191,12 @@ export class ExampleOverlayPlugin
                 this.ctx.fill();
                 this.ctx.stroke();
                 break;
+
             case 'rect':
                 this.ctx.fillRect(x, y, shape.width, shape.height);
                 this.ctx.strokeRect(x, y, shape.width, shape.height);
                 break;
+
             case 'text':
                 this.ctx.fillText(shape.text, x, y);
                 break;
@@ -178,6 +212,7 @@ export class ExampleOverlayPlugin
                     this.ctx.arc(x, y, shape.radius, 0, Math.PI * 2);
                     this.ctx.stroke();
                     break;
+
                 case 'rect':
                     this.ctx.strokeRect(x, y, shape.width, shape.height);
                     break;
@@ -191,7 +226,8 @@ export class ExampleOverlayPlugin
      * onMouseMove is called by the viewer when the mouse moves over the main canvas.
      * This is where we perform our hit detection.
      */
-    onMouseMove(e) {
+    onMouseMove(e)
+    {
         const { scale, originX, originY } = this.viewerApi.getTransform();
         const imageX = (e.clientX / scale) - originX;
         const imageY = (e.clientY / scale) - originY;
