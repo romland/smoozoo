@@ -161,7 +161,7 @@ window.smoozoo = (imageUrl, settings) => {
             // Bitwise left shift (p = p * 2)
             p <<= 1;
         }
-        
+
         return p;
     }
 
@@ -966,18 +966,35 @@ window.smoozoo = (imageUrl, settings) => {
 
         const deltaX = e.clientX - lastMouseX;
         const deltaY = e.clientY - lastMouseY;
-        if (Math.abs(deltaX) > 0 || Math.abs(deltaY) > 0) {
-            panVelocityX = deltaX;
-            panVelocityY = deltaY;
-        }
-        originX = (e.clientX / scale) - startX;
-        let newOriginY = (e.clientY / scale) - startY;
-        const { height: imageHeight } = getCurrentImageSize();
+
+        const { width: imageWidth, height: imageHeight } = getCurrentImageSize();
+        const viewWidth = canvas.width / scale;
         const viewHeight = canvas.height / scale;
+
+        let newOriginX = (e.clientX / scale) - startX;
+        let newOriginY = (e.clientY / scale) - startY;
+
+        // If image is narrower than the canvas, lock it to the center
+        // horizontally and prevent horizontal inertia.
+        if (imageWidth < viewWidth) {
+            newOriginX = (viewWidth - imageWidth) / 2;
+            panVelocityX = 0;
+        } else {
+            panVelocityX = deltaX;
+        }
+
+        // If image is shorter than the canvas, lock it to the center
+        // vertically and prevent vertical inertia.
         if (imageHeight < viewHeight) {
             newOriginY = (viewHeight - imageHeight) / 2;
+            panVelocityY = 0;
+        } else {
+            panVelocityY = deltaY;
         }
+
+        originX = newOriginX;
         originY = newOriginY;
+
         lastMouseX = e.clientX;
         lastMouseY = e.clientY;
         render();
@@ -1062,21 +1079,39 @@ window.smoozoo = (imageUrl, settings) => {
             const touch = e.touches[0];
             const deltaX = touch.clientX - lastMouseX;
             const deltaY = touch.clientY - lastMouseY;
-            if (Math.abs(deltaX) > 0 || Math.abs(deltaY) > 0) {
-                panVelocityX = deltaX;
-                panVelocityY = deltaY;
-            }
-            originX = (touch.clientX / scale) - startX;
-            let newOriginY = (touch.clientY / scale) - startY;
-            const { height: imageHeight } = getCurrentImageSize();
+
+            const { width: imageWidth, height: imageHeight } = getCurrentImageSize();
+            const viewWidth = canvas.width / scale;
             const viewHeight = canvas.height / scale;
+
+            let newOriginX = (touch.clientX / scale) - startX;
+            let newOriginY = (touch.clientY / scale) - startY;
+
+            // If image is narrower than the canvas, lock it to the center
+            // horizontally and prevent horizontal inertia.
+            if (imageWidth < viewWidth) {
+                newOriginX = (viewWidth - imageWidth) / 2;
+                panVelocityX = 0;
+            } else {
+                panVelocityX = deltaX;
+            }
+
+            // If image is shorter than the canvas, lock it to the center
+            // vertically and prevent vertical inertia.
             if (imageHeight < viewHeight) {
                 newOriginY = (viewHeight - imageHeight) / 2;
+                panVelocityY = 0;
+            } else {
+                panVelocityY = deltaY;
             }
+
+            originX = newOriginX;
             originY = newOriginY;
+
             lastMouseX = touch.clientX;
             lastMouseY = touch.clientY;
             render();
+
         } else if (e.touches.length === 2 && isTouching) {
             const t1 = e.touches[0], t2 = e.touches[1];
             const currentPinchDistance = Math.sqrt(Math.pow(t1.clientX - t2.clientX, 2) + Math.pow(t1.clientY - t2.clientY, 2));
@@ -1090,6 +1125,7 @@ window.smoozoo = (imageUrl, settings) => {
             render();
         }
     }
+
 
     function handleTouchEnd(e)
     {

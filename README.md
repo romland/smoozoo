@@ -78,11 +78,6 @@ native one (I humbly opine)!
     - I think I introduced some zoom-jitter when attempting a fix to stay locked
       on a pixel when animating in/out zoom
 
-    - The snapback if you have both vertical edges in view waits for glide to stop
-      before snapping back (not good). The bug seems to only manifest itself if
-      we are not at left/right edge. In fact, maybe it should not allow being 
-      dragged out of position at all if both top/left are in view
-
     - There seems to be some kind of acceleration/momentum issue when you flick
       the view with mouse. Perhaps it happens when you flick and we are already
       gliding?
