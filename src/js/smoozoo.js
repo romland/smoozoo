@@ -551,12 +551,12 @@ window.smoozoo = (imageUrl, settings) => {
 
         gl.useProgram(program);
 
-        // 1. Setup Position Attribute
+        // Setup Position Attribute
         gl.enableVertexAttribArray(positionLocation);
         gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
         gl.vertexAttribPointer(positionLocation, 2, gl.FLOAT, false, 0, 0);
 
-        // 2. Setup Texcoord Attribute
+        // Setup Texcoord Attribute
         gl.enableVertexAttribArray(texcoordLocation);
         gl.bindBuffer(gl.ARRAY_BUFFER, texcoordBuffer);
         gl.vertexAttribPointer(texcoordLocation, 2, gl.FLOAT, false, 0, 0);
@@ -627,7 +627,7 @@ window.smoozoo = (imageUrl, settings) => {
                 return;
             }
 
-            // --- Start of PBO logic ---
+            // Start of PBO logic
             const pbo = gl.createBuffer();
             const bufferSize = targetWidth * targetHeight * 4;
             gl.bindBuffer(gl.PIXEL_PACK_BUFFER, pbo);
@@ -693,7 +693,7 @@ window.smoozoo = (imageUrl, settings) => {
                     gl.bindBuffer(gl.PIXEL_PACK_BUFFER, pbo);
                     gl.getBufferSubData(gl.PIXEL_PACK_BUFFER, 0, pixels);
 
-                    // --- Cleanup ---
+                    // Cleanup
                     gl.bindBuffer(gl.PIXEL_PACK_BUFFER, null);
                     gl.deleteSync(sync);
                     gl.deleteBuffer(pbo);
@@ -766,7 +766,7 @@ window.smoozoo = (imageUrl, settings) => {
         const viewProjMtx = makeMatrix(originX, originY, scale);
         gl.uniformMatrix3fv(viewProjectionMatrixLocation, false, viewProjMtx);
 
-        // --- View Frustum Culling ---
+        // View Frustum Culling
         // Calculate the visible boundary of the viewport in world coordinates.
         // The origin is the top-left of the image, but originX/Y is how much we've panned the image
         // relative to the top-left of the canvas. So, the visible world area starts at -originX.
@@ -786,7 +786,7 @@ window.smoozoo = (imageUrl, settings) => {
             {
                 gl.bindTexture(gl.TEXTURE_2D, tile.texture);
                 
-                // --- Set the texture coordinate scale for this specific tile ---
+                // Set the texture coordinate scale for this specific tile
                 gl.uniform2f(texCoordScaleLocation, tile.texCoordScaleX, tile.texCoordScaleY);
 
                 setRectangle(gl, tile.x, tile.y, tile.width, tile.height);
@@ -1658,8 +1658,6 @@ window.smoozoo = (imageUrl, settings) => {
 
         mouseCoordsSpan.textContent = `${x},${y}`;
         
-        // --- PLUGIN HOOK ---
-        // Let the plugin know where the mouse is
         if(plugins.length) {
             for(const plugin of plugins) {
                 plugin.instance?.onMouseMove && plugin.instance?.onMouseMove(e);
@@ -1707,12 +1705,12 @@ window.smoozoo = (imageUrl, settings) => {
 
     // WebGL initialization
 
-    // 1. Compile and link the shaders into a single program.
+    // Compile and link the shaders into a single program.
     const vertexShader = createShader(gl, gl.VERTEX_SHADER, vertexShaderSource);
     const fragmentShader = createShader(gl, gl.FRAGMENT_SHADER, fragmentShaderSource);
     const program = createProgram(gl, vertexShader, fragmentShader);
 
-    // 2. Look up the memory locations of our shader's attributes and uniforms.
+    // Look up the memory locations of our shader's attributes and uniforms.
     // We need these locations to send data to the GPU.
     const positionLocation = gl.getAttribLocation(program, "a_position");
     const texcoordLocation = gl.getAttribLocation(program, "a_texcoord");
@@ -1720,11 +1718,11 @@ window.smoozoo = (imageUrl, settings) => {
     const viewProjectionMatrixLocation = gl.getUniformLocation(program, "u_viewProjectionMatrix");
     const rotationMatrixLocation = gl.getUniformLocation(program, "u_rotationMatrix");
 
-    // 3. Create WebGL Buffers. Buffers are chunks of memory on the GPU that hold our vertex data.
+    // Create WebGL Buffers. Buffers are chunks of memory on the GPU that hold our vertex data.
     const positionBuffer = gl.createBuffer();
     const texcoordBuffer = gl.createBuffer();
 
-    // 4. Fill the texture coordinate buffer. The texture coordinates for a rectangular tile are always the same
+    // Fill the texture coordinate buffer. The texture coordinates for a rectangular tile are always the same
     // (from top-left (0,0) to bottom-right (1,1)), so we can set this data once and never change it.    
     gl.bindBuffer(gl.ARRAY_BUFFER, texcoordBuffer);
 
@@ -1742,7 +1740,6 @@ window.smoozoo = (imageUrl, settings) => {
     canvas.addEventListener('dblclick',  handleCanvasDoubleClick);
     canvas.addEventListener('wheel',     handleCanvasWheel, { passive: false });
 
-    // touch event listeners for mobile/tablet support
     canvas.addEventListener('touchstart', handleTouchStart, { passive: false });
     canvas.addEventListener('touchmove', handleTouchMove, { passive: false });
     canvas.addEventListener('touchend', handleTouchEnd, { passive: false });

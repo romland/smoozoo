@@ -20,7 +20,7 @@ window.addEventListener('load', async () => {
         dynamicFilteringThreshold:  2.0,
         plugins: [
             {
-                name:     HotspotPlugin,
+                name: HotspotPlugin,
                 options: {
                     // Ah, a bit of ugliness to get Parcel to pick up the asset.
                     hotspots: await (await fetch( new URL(`../assets/ETHUSDT-ath.json`, import.meta.url).toString() )).json(),
@@ -28,7 +28,7 @@ window.addEventListener('load', async () => {
                 }
             },
             {
-                name:     ExampleOverlayPlugin,
+                name: ExampleOverlayPlugin,
                 options: {
                 }
             },

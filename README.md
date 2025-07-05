@@ -316,9 +316,6 @@ const settings = {
     ]
 }
 ```
-
-
-
 ## Maybe TODO
     - "Tiled pyramid" format (like DZI - Deep Zoom Image). Support for pre-sliced tiles at
       different scales from back-end (low priority as it needs server side code).
@@ -335,16 +332,13 @@ const settings = {
     - not for in here, but I would like chartjs to generate base64-encoded images for the
       inline'd minute-charts
 
-    - annotation on a separate canvas
+    - manual annotation on a separate canvas
 
 	- we already support some meta-data via plugin but I'd like to extend that so that
       depending on position of viewport it should show/pin messages to that pixel as we
       pan/zoom around it
 
     - be able to set a title of an image (through some meta data)
-
-    - get rid of slider and just use minimap? Or possibly, only show slider when we have
-      really wide images?
 
     - save image; incl. whatever plugins did -- would need some way to say which elements
       are part of the image (in the case of overlay canvases and similar.

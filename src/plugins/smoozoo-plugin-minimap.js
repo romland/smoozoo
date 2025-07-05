@@ -9,6 +9,7 @@ export class MinimapPlugin
         this.api = viewerApi;
         this.gl = this.api.getCanvas().getContext('webgl');
         this.settings = {
+            // Max/min size veritcally OR horizontally. The largest axis will decide.
             minimapMaxSize: 150,
             minimapMinSize: 50,
             ...options
@@ -34,14 +35,6 @@ export class MinimapPlugin
      */
     onImageLoaded()
     {
-        /*
-        console.time("MinimapPlugin::generateThumbnail");
-        this._generateThumbnailWebGL();
-        console.timeEnd("MinimapPlugin::generateThumbnail");
-        
-        this._attachEventListeners();
-        this.container.style.display = 'block';
-        */
         this._generateAndDisplayThumbnail();
     }
 
@@ -53,13 +46,14 @@ export class MinimapPlugin
     async _generateAndDisplayThumbnail()
     {
         this.container.style.display = 'block';
-        this.imageCanvas.style.opacity = 0; // Start with the canvas invisible
+        this.imageCanvas.style.opacity = 0;
 
         const { width: imageWidth, height: imageHeight } = this.api.getImageSize();
         
         // Calculate dimensions
         const aspect = imageWidth / imageHeight;
         let thumbWidth, thumbHeight;
+
         if (aspect > 1) {
             thumbWidth = this.settings.minimapMaxSize;
             thumbHeight = this.settings.minimapMaxSize / aspect;
@@ -67,20 +61,22 @@ export class MinimapPlugin
             thumbHeight = this.settings.minimapMaxSize;
             thumbWidth = this.settings.minimapMaxSize * aspect;
         }
+
         this.imageCanvas.width = Math.round(thumbWidth);
         this.imageCanvas.height = Math.round(thumbHeight);
 
-        // Call async API method and wait for the pixel data
-        console.time("minimap-thumbnail-generation");
+        // async call and wait for the pixel data
+        console.time("MinimapPlugin::api.renderToPixelsAsync");
         const pixels = await this.api.renderToPixelsAsync(this.imageCanvas.width, this.imageCanvas.height);
-        console.timeEnd("minimap-thumbnail-generation");
+        console.timeEnd("MinimapPlugin::api.renderToPixelsAsync");
 
         if (!pixels) {
             console.error("Failed to generate minimap thumbnail.");
-            this.container.style.display = 'none'; // Hide if it failed
+            this.container.style.display = 'none';
             return;
         }
 
+        // This is actually faster than you'd think...
         const thumbCtx = this.imageCanvas.getContext('2d');
         const imageData = new ImageData(new Uint8ClampedArray(pixels.buffer), this.imageCanvas.width, this.imageCanvas.height);
         thumbCtx.putImageData(imageData, 0, 0);
@@ -88,6 +84,7 @@ export class MinimapPlugin
         // Set container dimensions
         const containerWidth = Math.max(this.imageCanvas.width, this.settings.minimapMinSize);
         const containerHeight = Math.max(this.imageCanvas.height, this.settings.minimapMinSize);
+
         this.container.style.width = containerWidth + 'px';
         this.container.style.height = containerHeight + 'px';
 
