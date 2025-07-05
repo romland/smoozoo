@@ -5,7 +5,9 @@ window.smoozoo = (imageUrl, settings) => {
     canvas.height = window.innerHeight;
 
     // We're requesting a 'webgl' context, which is WebGL 1.
-    const gl = canvas.getContext('webgl');
+    // const gl = canvas.getContext('webgl');
+    // Alright, need webgl2 for async pixels reading
+    const gl = canvas.getContext('webgl2') || canvas.getContext('webgl');
 
     if (!gl) {
         alert("WebGL is not supported in your browser.");
@@ -21,9 +23,6 @@ window.smoozoo = (imageUrl, settings) => {
     const imageFilenameSpan = document.getElementById('image-file-name');
 
     const panSlider = document.getElementById('pan-slider');
-    const minimapContainer = document.getElementById('minimap-container');
-    const minimapImage = document.getElementById('minimap-image');
-    const minimapViewport = document.getElementById('minimap-viewport');
 
     // State Variables
     let scale = 1.0,
@@ -449,7 +448,6 @@ window.smoozoo = (imageUrl, settings) => {
             img.onload = function() {
                 orgImgWidth = img.width;
                 orgImgHeight = img.height;
-                generateMinimapThumbnail(img);
 
                 const numXTiles = Math.ceil(img.width / maxTextureSize);
                 const numYTiles = Math.ceil(img.height / maxTextureSize);
@@ -516,6 +514,201 @@ window.smoozoo = (imageUrl, settings) => {
             console.error("Failed to load image:", error);
             alert("Failed to load image.");
         }
+    }
+
+
+    /**
+     * Renders the entire scene to an off-screen Framebuffer Object (FBO)
+     * at a specified resolution and reads the raw pixel data back from the GPU.
+     * This is the core of the high-speed thumbnail generation.
+     * @param {number} targetWidth The desired width of the output image.
+     * @param {number} targetHeight The desired height of the output image.
+     * @returns {Uint8Array | null} A buffer with the RGBA pixel data, or null on failure.
+     */
+    function renderToPixels(targetWidth, targetHeight)
+    {
+        const fbo = gl.createFramebuffer();
+        gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
+
+        const fboTexture = gl.createTexture();
+        gl.bindTexture(gl.TEXTURE_2D, fboTexture);
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, targetWidth, targetHeight, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+        gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, fboTexture, 0);
+
+        if (gl.checkFramebufferStatus(gl.FRAMEBUFFER) !== gl.FRAMEBUFFER_COMPLETE) {
+            console.error("Render-to-texture framebuffer is not complete.");
+            gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+            gl.deleteTexture(fboTexture);
+            gl.deleteFramebuffer(fbo);
+            return null;
+        }
+
+        const originalViewport = gl.getParameter(gl.VIEWPORT);
+        gl.viewport(0, 0, targetWidth, targetHeight);
+        gl.clearColor(0.055, 0.016, 0.133, 1.0); // Background color
+        gl.clear(gl.COLOR_BUFFER_BIT);
+
+        gl.useProgram(program);
+
+        // 1. Setup Position Attribute
+        gl.enableVertexAttribArray(positionLocation);
+        gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
+        gl.vertexAttribPointer(positionLocation, 2, gl.FLOAT, false, 0, 0);
+
+        // 2. Setup Texcoord Attribute
+        gl.enableVertexAttribArray(texcoordLocation);
+        gl.bindBuffer(gl.ARRAY_BUFFER, texcoordBuffer);
+        gl.vertexAttribPointer(texcoordLocation, 2, gl.FLOAT, false, 0, 0);
+
+        // Create a special view-projection matrix that perfectly fits the entire
+        // un-rotated image into the target texture's viewport.
+        const { width: imgW, height: imgH } = getCurrentImageSize();
+        const fitMatrix = [2 / imgW, 0, 0, 0, -2 / imgH, 0, -1, 1, 1];
+        const identityMatrix = [1, 0, 0, 0, 1, 0, 0, 0, 1];
+
+        gl.uniformMatrix3fv(viewProjectionMatrixLocation, false, fitMatrix);
+        gl.uniformMatrix3fv(rotationMatrixLocation, false, identityMatrix);
+
+        // Draw all tiles to the FBO
+        tiles.forEach(tile => {
+            gl.bindTexture(gl.TEXTURE_2D, tile.texture);
+            gl.uniform2f(texCoordScaleLocation, tile.texCoordScaleX, tile.texCoordScaleY);
+            
+            // The setRectangle function internally binds the positionBuffer again, which is fine.
+            setRectangle(gl, tile.x, tile.y, tile.width, tile.height);
+            gl.drawArrays(gl.TRIANGLES, 0, 6);
+        });
+
+        // Read the pixels back from the FBO
+        const pixelData = new Uint8Array(targetWidth * targetHeight * 4);
+        gl.readPixels(0, 0, targetWidth, targetHeight, gl.RGBA, gl.UNSIGNED_BYTE, pixelData);
+
+        // Cleanup and restore the original rendering context
+        gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+        gl.viewport(originalViewport[0], originalViewport[1], originalViewport[2], originalViewport[3]);
+        gl.deleteTexture(fboTexture);
+        gl.deleteFramebuffer(fbo);
+
+        return pixelData;
+    }
+
+
+    /**
+     * Asynchronously renders the entire scene to an off-screen
+     * buffer and resolves a Promise with the pixel data when ready. This uses a
+     * Pixel Buffer Object (PBO) and a Sync object to prevent blocking the main thread.
+     * @param {number} targetWidth The desired width of the output image.
+     * @param {number} targetHeight The desired height of the output image.
+     * @returns {Promise<Uint8Array | null>} A Promise that resolves with the pixel data.
+     */
+    function renderToPixelsAsync(targetWidth, targetHeight)
+    {
+        return new Promise((resolve) => {
+            // This is a new feature; check for WebGL2 or the necessary extensions.
+            if (!gl.fenceSync) {
+                console.warn("Asynchronous pixel reading not supported. Falling back to synchronous method.");
+                resolve(renderToPixels(targetWidth, targetHeight));
+                return;
+            }
+
+            const fbo = gl.createFramebuffer();
+            gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
+
+            const fboTexture = gl.createTexture();
+            gl.bindTexture(gl.TEXTURE_2D, fboTexture);
+            gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, targetWidth, targetHeight, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+            gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, fboTexture, 0);
+
+            if (gl.checkFramebufferStatus(gl.FRAMEBUFFER) !== gl.FRAMEBUFFER_COMPLETE) {
+                console.error("Render-to-texture framebuffer is not complete.");
+                resolve(null);
+                return;
+            }
+
+            // --- Start of PBO logic ---
+            const pbo = gl.createBuffer();
+            const bufferSize = targetWidth * targetHeight * 4;
+            gl.bindBuffer(gl.PIXEL_PACK_BUFFER, pbo);
+            gl.bufferData(gl.PIXEL_PACK_BUFFER, bufferSize, gl.STREAM_READ);
+
+            // Render the scene
+            const originalViewport = gl.getParameter(gl.VIEWPORT);
+            gl.viewport(0, 0, targetWidth, targetHeight);
+            gl.useProgram(program);
+
+            gl.enableVertexAttribArray(positionLocation);
+            gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
+            gl.vertexAttribPointer(positionLocation, 2, gl.FLOAT, false, 0, 0);
+            gl.enableVertexAttribArray(texcoordLocation);
+            gl.bindBuffer(gl.ARRAY_BUFFER, texcoordBuffer);
+            gl.vertexAttribPointer(texcoordLocation, 2, gl.FLOAT, false, 0, 0);
+            
+            const { width: imgW, height: imgH } = getCurrentImageSize();
+            const fitMatrix = [2 / imgW, 0, 0, 0, -2 / imgH, 0, -1, 1, 1];
+            const identityMatrix = [1, 0, 0, 0, 1, 0, 0, 0, 1];
+            gl.uniformMatrix3fv(viewProjectionMatrixLocation, false, fitMatrix);
+            gl.uniformMatrix3fv(rotationMatrixLocation, false, identityMatrix);
+
+            // Calculate the ideal mip level to use. This selects a mipmap that
+            // is closest in size to our target thumbnail, saving huge amounts of texture fetching.
+            const scaleRatio = imgW / targetWidth;
+            const mipLevel = Math.max(0, Math.floor(Math.log2(scaleRatio)));
+            
+            tiles.forEach(tile => {
+                gl.bindTexture(gl.TEXTURE_2D, tile.texture);
+
+                // Tell WebGL to use our calculated mip level as the base texture
+                gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_BASE_LEVEL, mipLevel);
+                
+                gl.uniform2f(texCoordScaleLocation, tile.texCoordScaleX, tile.texCoordScaleY);
+                setRectangle(gl, tile.x, tile.y, tile.width, tile.height);
+                gl.drawArrays(gl.TRIANGLES, 0, 6);
+
+                // IMPORTANT: Reset the base level to 0 so the main renderer
+                // uses the highest quality texture.
+                gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_BASE_LEVEL, 0);
+            });
+
+            // Read pixels into the PBO. This call returns immediately.
+            gl.readPixels(0, 0, targetWidth, targetHeight, gl.RGBA, gl.UNSIGNED_BYTE, 0);
+            
+            // Unbind the PBO from the PIXEL_PACK target
+            gl.bindBuffer(gl.PIXEL_PACK_BUFFER, null);
+            
+            // Create a sync object to check for completion
+            const sync = gl.fenceSync(gl.SYNC_GPU_COMMANDS_COMPLETE, 0);
+
+            // Restore viewport and framebuffer for the main application
+            gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+            gl.viewport(originalViewport[0], originalViewport[1], originalViewport[2], originalViewport[3]);
+            
+            // Poll for completion without blocking
+            const checkCompletion = () => {
+                const status = gl.clientWaitSync(sync, 0, 0);
+                if (status === gl.ALREADY_SIGNALED || status === gl.CONDITION_SATISFIED) {
+                    // Data transfer is complete
+                    const pixels = new Uint8Array(bufferSize);
+                    gl.bindBuffer(gl.PIXEL_PACK_BUFFER, pbo);
+                    gl.getBufferSubData(gl.PIXEL_PACK_BUFFER, 0, pixels);
+
+                    // --- Cleanup ---
+                    gl.bindBuffer(gl.PIXEL_PACK_BUFFER, null);
+                    gl.deleteSync(sync);
+                    gl.deleteBuffer(pbo);
+                    gl.deleteTexture(fboTexture);
+                    gl.deleteFramebuffer(fbo);
+
+                    resolve(pixels);
+                } else {
+                    // Not ready yet, check again on the next frame
+                    requestAnimationFrame(checkCompletion);
+                }
+            };
+
+            requestAnimationFrame(checkCompletion);
+        });
     }
 
 
@@ -603,7 +796,6 @@ window.smoozoo = (imageUrl, settings) => {
 
         zoomLevelSpan.textContent = scale.toFixed(2);
         updatePanSlider();
-        updateMinimap();
 
         if(plugins.length) {
             for(const plugin of plugins) {
@@ -806,95 +998,6 @@ window.smoozoo = (imageUrl, settings) => {
     }
 
 
-    /**
-     * Generates a small thumbnail for the minimap from the full-sized image.
-     */
-    function generateMinimapThumbnail(image)
-    {
-        const MAX_SIZE = settings.minimapMaxSize;
-        const MIN_SIZE = settings.minimapMinSize;
-
-        const thumbCanvas = document.createElement('canvas');
-        const thumbCtx = thumbCanvas.getContext('2d');
-        const aspect = image.width / image.height;
-
-        if (aspect > 1) {
-            thumbCanvas.width = MAX_SIZE;
-            thumbCanvas.height = MAX_SIZE / aspect;
-        } else {
-            thumbCanvas.height = MAX_SIZE;
-            thumbCanvas.width = MAX_SIZE * aspect;
-        }
-
-        thumbCtx.drawImage(image, 0, 0, thumbCanvas.width, thumbCanvas.height);
-        const dataUrl = thumbCanvas.toDataURL('image/jpeg', 0.8);
-        minimapImage.style.backgroundImage = `url(${dataUrl})`;
-
-        let containerWidth, containerHeight;
-        if (aspect > 1) {
-            containerWidth = MAX_SIZE;
-            containerHeight = containerWidth / aspect;
-        } else {
-            containerHeight = MAX_SIZE;
-            containerWidth = containerHeight * aspect;
-        }
-
-        containerWidth = Math.max(containerWidth, MIN_SIZE);
-        containerHeight = Math.max(containerHeight, MIN_SIZE);
-        minimapContainer.style.width = containerWidth + 'px';
-        minimapContainer.style.height = containerHeight + 'px';
-        minimapContainer.style.display = 'block';
-    }
-
-
-    /**
-     * Updates the position and size of the viewport indicator on the minimap.
-     */
-    function updateMinimap()
-    {
-        if (!orgImgWidth) {
-            return;
-        }
-
-        const { width: imageWidth, height: imageHeight } = getCurrentImageSize();
-        const viewWidth = canvas.width / scale;
-        const viewHeight = canvas.height / scale;
-
-        const imgRect = {
-            x: 0,
-            y: 0,
-            width: imageWidth,
-            height: imageHeight
-        };
-
-        const viewRect = {
-            x: -originX,
-            y: -originY,
-            width: viewWidth,
-            height: viewHeight
-        };
-
-        const intersectX = Math.max(imgRect.x, viewRect.x);
-        const intersectY = Math.max(imgRect.y, viewRect.y);
-        const intersectRight = Math.min(imgRect.x + imgRect.width, viewRect.x + viewRect.width);
-        const intersectBottom = Math.min(imgRect.y + imgRect.height, viewRect.y + viewRect.height);
-        const intersectWidth = intersectRight - intersectX;
-        const intersectHeight = intersectBottom - intersectY;
-
-        if (intersectWidth < 0 || intersectHeight < 0) {
-            minimapViewport.style.width = '0px';
-            minimapViewport.style.height = '0px';
-            return;
-        }
-
-        const ratio = minimapContainer.clientWidth / imageWidth;
-        minimapViewport.style.left = `${intersectX * ratio}px`;
-        minimapViewport.style.top = `${intersectY * ratio}px`;
-        minimapViewport.style.width = `${intersectWidth * ratio}px`;
-        minimapViewport.style.height = `${intersectHeight * ratio}px`;
-    }
-
-
     function jumpToOrigin(targetOriginX, targetOriginY)
     {
         cancelAllAnimations();
@@ -916,26 +1019,6 @@ window.smoozoo = (imageUrl, settings) => {
         }
 
         render();
-    }
-
-
-    function calculateTargetOriginForMinimapEvent(e)
-    {
-        const { width: imageWidth, height: imageHeight } = getCurrentImageSize();
-        const rect = minimapContainer.getBoundingClientRect();
-        const clickX = e.clientX - rect.left;
-        const clickY = e.clientY - rect.top;
-        const targetWorldX = (clickX / rect.width) * imageWidth;
-        const targetWorldY = (clickY / rect.height) * imageHeight;
-        const viewWidth = canvas.width / scale;
-        const viewHeight = canvas.height / scale;
-        const targetOriginX = (viewWidth / 2) - targetWorldX;
-        const targetOriginY = (viewHeight / 2) - targetWorldY;
-
-        return {
-            targetOriginX,
-            targetOriginY
-        };
     }
 
 
@@ -1579,7 +1662,7 @@ window.smoozoo = (imageUrl, settings) => {
         // Let the plugin know where the mouse is
         if(plugins.length) {
             for(const plugin of plugins) {
-                plugin.instance?.onMouseMove(e);
+                plugin.instance?.onMouseMove && plugin.instance?.onMouseMove(e);
             }
         }
     }
@@ -1617,58 +1700,6 @@ window.smoozoo = (imageUrl, settings) => {
         render();
     }
 
-
-    function handleMinimapMouseDown(e)
-    {
-        e.preventDefault();
-        const { targetOriginX, targetOriginY } = calculateTargetOriginForMinimapEvent(e);
-
-        jumpToOrigin(targetOriginX, targetOriginY);
-
-        const onDrag = (moveEvent) => {
-            const { targetOriginX, targetOriginY } = calculateTargetOriginForMinimapEvent(moveEvent);
-
-            jumpToOrigin(targetOriginX, targetOriginY);
-        };
-
-        const onDragEnd = () => {
-            window.removeEventListener('mousemove', onDrag);
-            window.removeEventListener('mouseup', onDragEnd);
-        };
-
-        window.addEventListener('mousemove', onDrag);
-        window.addEventListener('mouseup', onDragEnd);
-    }
-
-
-    function handleMinimapTouchStart(e)
-    {
-        console.log("whut handleMinimapTouchStart called")
-
-        e.stopPropagation(); // Prevents the event from reaching the canvas listener.
-
-        e.preventDefault(); // Prevent the page from scrolling
-
-        // Use the first touch point to calculate the position
-        const { targetOriginX, targetOriginY } = calculateTargetOriginForMinimapEvent(e.touches[0]);
-        jumpToOrigin(targetOriginX, targetOriginY);
-
-        const onTouchDrag = (moveEvent) => {
-            // Use the first touch point from the 'move' event
-            const { targetOriginX, targetOriginY } = calculateTargetOriginForMinimapEvent(moveEvent.touches[0]);
-            jumpToOrigin(targetOriginX, targetOriginY);
-        };
-
-        const onTouchDragEnd = () => {
-            // Stop listening when the finger is lifted
-            minimapContainer.removeEventListener('touchmove', onTouchDrag);
-            window.removeEventListener('touchend', onTouchDragEnd);
-        };
-
-        // Add the listeners for dragging and for ending the drag
-        minimapContainer.addEventListener('touchmove', onTouchDrag);
-        window.addEventListener('touchend', onTouchDragEnd);
-    }
 
     // ------------------------------------------------------------
     // --- Main, this is where we start executing code for real ---
@@ -1719,22 +1750,24 @@ window.smoozoo = (imageUrl, settings) => {
     panSlider.addEventListener('input',  handleSliderInput);
     panSlider.addEventListener('mousedown', (e) => e.stopPropagation());
 
-    minimapContainer.addEventListener('mousedown', handleMinimapMouseDown);
-    minimapContainer.addEventListener('touchstart', handleMinimapTouchStart, { passive: false });
-
     // The plugin system
     // -----------------
     const viewerApi = {
         getTransform: () => ({ scale, originX, originY }),
         getCanvas: () => canvas,
-        requestRender: render
+        getTiles: () => tiles,
+        getImageSize: getCurrentImageSize,
+        requestRender: render,
+        jumpToOrigin: jumpToOrigin,
+        cancelAllAnimations: cancelAllAnimations,
+        renderToPixels: renderToPixels,
+        renderToPixelsAsync: renderToPixelsAsync
     };
 
 
     // Really start stuff up, load image and initialize us
     loadImageAndCreateTextureInfo(`${imageUrl}`, async () => {
         setInitialView();
-        render();
 
         imageSizePixelsSpan.textContent = `${orgImgWidth}x${orgImgHeight}`;
         imageSizeBytesSpan.textContent = formatBytes(orgImgBytes);
@@ -1744,9 +1777,18 @@ window.smoozoo = (imageUrl, settings) => {
             plugin.instance = createPluginInstance(plugin.name, viewerApi, plugin.options);
         }
 
+        // Plugin lifecycle hook for e.g. minimap to generate its thumbnail.
+        for (const plugin of plugins) {
+            if (typeof plugin.instance?.onImageLoaded === 'function') {
+                plugin.instance.onImageLoaded();
+            }
+        }        
+
         for(const plugin of plugins) {
             plugin.instance?.update();
         }
+
+        render();
 
         if(canvas.width < 600) {
             document.body.classList.toggle('ui-hidden');

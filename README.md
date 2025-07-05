@@ -81,6 +81,9 @@ quite done yet, but, this actually already feels _better_ than Windows
 native one (I humbly opine)!
 
 ## TODO
+    - Make overlay example plugin pull data remotely and make it able to redraw
+      itself (live) if there are changes
+
     - When I deep-link to a position, I end up ignoring what is allowed to be 
       maximum zoomed-out. I will want to still do that calculation even if we
       are not using it initially (basically, I cannot zoom out as far as I want)
@@ -219,12 +222,18 @@ This is how the API that is passed to plugins is instantiated at the moment:
 const viewerApi = {
     getTransform: () => ({ scale, originX, originY }),
     getCanvas: () => canvas,
-    requestRender: render
+    getTiles: () => tiles,
+    getImageSize: getCurrentImageSize,
+    requestRender: render,
+    jumpToOrigin: jumpToOrigin,
+    cancelAllAnimations: cancelAllAnimations,
+    renderToPixels: renderToPixels,
+    renderToPixelsAsync: renderToPixelsAsync
 };
 ```
 
 ## Existing plugins
-At the moment there are two.
+There are a few.
 
 ### 1. Hotspot plugin
 This enables associating additional information in a popup with a pixel position in the underlying image.  
@@ -289,6 +298,25 @@ const settings = {
     ]
 }
 ```
+
+### 3. Minimap plugin
+```javascript
+import { MinimapPlugin } from "../plugins/smoozoo-plugin-minimap.js";
+
+const settings = {
+    ...,
+    plugins: [
+        {
+            name: MinimapPlugin,
+            options: {
+                minimapMinSize: 0,
+                minimapMaxSize: 200
+            }
+        }
+    ]
+}
+```
+
 
 
 ## Maybe TODO

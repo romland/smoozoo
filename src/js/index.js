@@ -1,5 +1,6 @@
 import { HotspotPlugin } from "../plugins/smoozoo-plugin-hotspot.js";
 import { ExampleOverlayPlugin } from "../plugins/smoozoo-plugin-example-overlay.js";
+import { MinimapPlugin } from "../plugins/smoozoo-plugin-minimap.js";
 
 window.addEventListener('load', async () => {
     const settings = {
@@ -29,6 +30,13 @@ window.addEventListener('load', async () => {
             {
                 name:     ExampleOverlayPlugin,
                 options: {
+                }
+            },
+            {
+                name: MinimapPlugin,
+                options: {
+                    minimapMinSize: 0,
+                    minimapMaxSize: 200
                 }
             }
         ]
