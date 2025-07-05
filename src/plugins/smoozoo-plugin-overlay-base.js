@@ -3,16 +3,21 @@
  * 
  * Creates a canvas overlay for drawing that pans and zooms with the main image.
  */
-export class ExampleOverlayPlugin
+export class OverlayBasePlugin
 {
     /**
-     * @param {object} viewerApi - The API provided by the smoozoo viewer.
+     * @param {object} viewerApi - The API provided by Smoozoo image viewer.
      * @param {object} options - Configuration options for this plugin.
      */
     constructor(viewerApi, options)
     {
         this.viewerApi = viewerApi;
+
+        options.hoverOutlineColor = options.hoverOutlineColor ?? "yellow";
+
         this.options = options || {};
+
+        this.loadedImages = new Map();
 
         // Get the main canvas from the viewer
         this.mainCanvas = this.viewerApi.getCanvas();
@@ -53,7 +58,6 @@ export class ExampleOverlayPlugin
                 tooltip: 'Blue Rectangle - A clickable zone.'
             },
             {
-                id: 'rect1',
                 type: 'rect',
                 x: 400, y: 400, width: 200, height: 50,
                 fillStyle: 'rgba(120, 100, 255, 0.5)',
@@ -77,17 +81,47 @@ export class ExampleOverlayPlugin
                 tooltip: 'This is a resizable text label.',
             },
             {
+                // https://getemoji.com/
+                type: 'text',
+                x: 1600, y: 700,
+                fillStyle: 'yellow',
+                font: '178px sans-serif',
+                text: "🧐",
+                tooltip: "",
+            },
+            {
                 type: 'text',
                 x: 500, y: 700,
                 fillStyle: 'white',
-                font: '10px sans-serif',
-                text: 'Hello from Example Plugin!',
-                tooltip: 'This is a fixed size text label.',
+                font: '12px sans-serif',
+                text: 'This is fixed size text via plugin!',
+                tooltip: 'This is a text label.',
+                textBackgroundColor: 'rgba(255, 0, 100, 0.7)',
                 fixedSize: true
-            }
-
+            },
+            {
+                type: 'rect',
+                x: 500, y: 705, width: 200, height: 200,
+                fillStyle: 'transparent',
+                strokeStyle: 'white',
+                lineWidth: 1,
+                tooltip: "",
+                fixedSize: false,
+                hover: false,
+            },
+            {
+                type: 'image',
+                src: 'https://placehold.co/300x200/ff6347/000066?text=Mah+Image',
+                x: 1000, y: 800,
+                width: 300, height: 200,
+                tooltip: 'This is an image!',
+                hover: true
+            }            
         ];
         this.hoveredShape = null;
+
+        // Pre-load all images defined in the shapes array.
+        this._loadImages();
 
         // Ensure the overlay canvas always has the same size as the main canvas
         this.resizeObserver = new ResizeObserver(() => {
@@ -103,6 +137,33 @@ export class ExampleOverlayPlugin
     }
 
 
+    /**
+     * Finds all shapes of type 'image' and pre-loads their source.
+     * This is an internal method called by the constructor.
+     * @private
+     */
+    _loadImages() {
+        this.shapes.forEach(shape => {
+            if (shape.type === 'image' && shape.src && !this.loadedImages.has(shape.src)) {
+                const img = new Image();
+                img.src = shape.src;
+                
+                // When the image loads, store it in the cache and request a re-render
+                // so the image appears as soon as it's ready.
+                img.onload = () => {
+                    this.loadedImages.set(shape.src, img);
+                    this.viewerApi.requestRender();
+                };
+                
+                // Handle loading errors, e.g., by logging to the console.
+                img.onerror = () => {
+                    console.error(`Failed to load image: ${shape.src}`);
+                };
+            }
+        });
+    }
+
+    
     onImageLoaded()
     {
         // Called when we get a new image, we don't really care.
@@ -116,11 +177,11 @@ export class ExampleOverlayPlugin
     {
         const { scale, originX, originY } = this.viewerApi.getTransform();
 
-        // 1. Prepare for rendering: Reset transform and clear the whole canvas.
+        // Prepare for rendering: Reset transform and clear the whole canvas.
         this.ctx.setTransform(1, 0, 0, 1, 0, 0);
         this.ctx.clearRect(0, 0, this.overlayCanvas.width, this.overlayCanvas.height);
 
-        // 2. FIRST PASS: Draw all scalable items in world space.
+        // First pass: Draw all scalable items in world space.
         this.ctx.setTransform(scale, 0, 0, scale, originX * scale, originY * scale);
         this.shapes.forEach(shape => {
             if (shape.fixedSize) return; // Skip fixed-size items for now.
@@ -129,7 +190,7 @@ export class ExampleOverlayPlugin
             this.drawShape(shape, this.hoveredShape === shape);
         });
 
-        // 3. SECOND PASS: Draw all fixed-size items in screen space.
+        // Second pass: Draw all fixed-size items in screen space.
         this.ctx.setTransform(1, 0, 0, 1, 0, 0); // Reset to screen space.
         this.shapes.forEach(shape => {
             if (!shape.fixedSize) return; // Skip scalable items.
@@ -142,13 +203,36 @@ export class ExampleOverlayPlugin
             this.drawShape(shape, this.hoveredShape === shape, screenX, screenY);
         });
         
-        // 4. TOOLTIP PASS: Draw the tooltip for the hovered shape (if any).
-        if (this.hoveredShape) {
-            // Calculate the anchor position for the tooltip on the screen.
-            const anchorX = (this.hoveredShape.x + originX) * scale;
-            const anchorY = (this.hoveredShape.y + originY) * scale;
-            this.drawTooltip(this.hoveredShape, anchorX, anchorY);
+        // Tooltip pass: Draw the tooltip for the hovered shape (if any).
+        if (this.hoveredShape && this.hoveredShape.tooltip) {
+            const shape = this.hoveredShape;
+            let centerX_world, topY_world;
+
+            // Determine the anchor point based on the shape type.
+            switch (shape.type) {
+                case 'circle':
+                    centerX_world = shape.x;
+                    topY_world = shape.y - shape.radius;
+                    break;
+                case 'rect':
+                case 'image':
+                    centerX_world = shape.x + shape.width / 2;
+                    topY_world = shape.y;
+                    break;
+                default:
+                    centerX_world = shape.x;
+                    topY_world = shape.y;
+                    break;
+            }
+
+            // Convert the world-space anchor point to screen-space coordinates.
+            const anchorX = (centerX_world + originX) * scale;
+            const anchorY = (topY_world + originY) * scale;
+
+            // Draw the tooltip, now passing the scale as well.
+            this.drawTooltip(shape, anchorX, anchorY, scale);
         }
+
     }
 
     drawShape(shape, isHovered, screenX, screenY)
@@ -183,7 +267,6 @@ export class ExampleOverlayPlugin
             });
         }
 
-
         // Use 0,0 for coordinates if in screen space, as we've already translated the context.
         const x = shape.fixedSize ? 0 : shape.x;
         const y = shape.fixedSize ? 0 : shape.y;
@@ -203,14 +286,39 @@ export class ExampleOverlayPlugin
                 break;
 
             case 'text':
+                // If a background color is specified, draw it first.
+                if (shape.textBackgroundColor) {
+                    const textMetrics = this.ctx.measureText(shape.text);
+                    const fontHeight = parseInt(this.ctx.font.match(/\d+/), 10);
+                    const padding = shape.fixedSize ? 2 : 4;
+
+                    const rectX = x - padding;
+                    const rectY = y - fontHeight ;
+                    const rectWidth = textMetrics.width + padding * 2;
+                    const rectHeight = fontHeight + padding * 2;
+
+                    const originalFillStyle = this.ctx.fillStyle;
+                    this.ctx.fillStyle = shape.textBackgroundColor;
+                    this.ctx.fillRect(rectX, rectY, rectWidth, rectHeight);
+                    this.ctx.fillStyle = originalFillStyle;
+                }
+
                 this.ctx.fillText(shape.text, x, y);
+                break;
+
+            case 'image':
+                const img = this.loadedImages.get(shape.src);
+                // Only draw the image if it has been successfully loaded.
+                if (img) {
+                    this.ctx.drawImage(img, x, y, shape.width, shape.height);
+                }
                 break;
         }
 
         // Draw hover highlight.
-        if (isHovered) {
-            this.ctx.strokeStyle = 'yellow';
-            this.ctx.lineWidth = shape.fixedSize ? 2 : 6; // Thinner line for fixed-size items.
+        if (shape.hover && isHovered) {
+            this.ctx.strokeStyle = this.options.hoverOutlineColor;
+            this.ctx.lineWidth = shape.fixedSize ? 2 : 4; // Thinner line for fixed-size items.
             switch (shape.type) {
                 case 'circle':
                     this.ctx.beginPath();
@@ -218,6 +326,7 @@ export class ExampleOverlayPlugin
                     this.ctx.stroke();
                     break;
 
+                case 'image':
                 case 'rect':
                     this.ctx.strokeRect(x, y, shape.width, shape.height);
                     break;
@@ -261,6 +370,7 @@ export class ExampleOverlayPlugin
     isPointInShape(x, y, shape)
     {
         switch (shape.type) {
+            case 'image':
             case 'rect':
                 return x >= shape.x && x <= shape.x + shape.width &&
                        y >= shape.y && y <= shape.y + shape.height;
@@ -283,7 +393,7 @@ export class ExampleOverlayPlugin
     /**
      * Draws a tooltip for a given shape.
      */
-    drawTooltip(shape, anchorX, anchorY)
+    drawTooltip(shape, anchorX, anchorY, scale)
     {
         const fontSize = 12; // Fixed font size for readability.
         const padding = 8;   // Fixed padding.
@@ -293,9 +403,21 @@ export class ExampleOverlayPlugin
         const boxWidth = textMetrics.width + padding * 2;
         const boxHeight = fontSize + padding * 2;
         
-        // Position the tooltip above the shape's anchor point.
+        // --- MODIFIED LOGIC ---
+        // Define the base offset you want at 1x zoom.
+        const baseOffset = 15; 
+        
+        // Calculate the offset based on the current scale.
+        const scaledOffset = baseOffset * scale;
+
+        // Clamp the offset to a reasonable range (e.g., between 5px and 20px)
+        // to prevent it from getting too small or too large.
+        const offset = Math.max(5, Math.min(scaledOffset, 20));
+        // --- END MODIFIED LOGIC ---
+
+        // Position the tooltip centered above the shape's anchor point.
         const boxX = anchorX - boxWidth / 2;
-        const boxY = anchorY - boxHeight - (shape.fixedSize ? 10 : 20);
+        const boxY = anchorY - boxHeight - offset;
 
         // Draw the tooltip box.
         this.ctx.fillStyle = 'rgba(0, 0, 0, 0.75)';
@@ -305,6 +427,7 @@ export class ExampleOverlayPlugin
         this.ctx.fillStyle = 'white';
         this.ctx.fillText(shape.tooltip, boxX + padding, boxY + fontSize + padding / 2);
     }
+
 
     // TODO: This is not yet called by the viewer
     destroy()

@@ -1,5 +1,5 @@
 import { HotspotPlugin } from "../plugins/smoozoo-plugin-hotspot.js";
-import { ExampleOverlayPlugin } from "../plugins/smoozoo-plugin-example-overlay.js";
+import { OverlayBasePlugin } from "../plugins/smoozoo-plugin-overlay-base.js";
 import { MinimapPlugin } from "../plugins/smoozoo-plugin-minimap.js";
 import { FileChooserPlugin } from "../plugins/smoozoo-plugin-filechooser.js";
 
@@ -29,7 +29,7 @@ window.addEventListener('load', async () => {
                 }
             },
             {
-                name: ExampleOverlayPlugin,
+                name: OverlayBasePlugin,
                 options: {
                 }
             },

@@ -12,6 +12,7 @@ Made for very large images that require fast navigation and scaling.
 - Minimap navigator
 - Plugin support
 - Desktop-first but very mobile-friendly
+- File loader & drag/drop of files
 
 ![Mobile screenshot](/.github/mobile-screenshot.png?raw=true "Mobile Screenshot")
 
@@ -81,15 +82,14 @@ quite done yet, but, this actually already feels _better_ than Windows
 native one (I humbly opine)!
 
 ## TODO
+    - Make a plugin based on the shapes example
+
     - Make overlay example plugin pull data remotely and make it able to redraw
       itself (live) if there are changes
 
     - When I deep-link to a position, I end up ignoring what is allowed to be 
       maximum zoomed-out. I will want to still do that calculation even if we
       are not using it initially (basically, I cannot zoom out as far as I want)
-
-    - I think I introduced some zoom-jitter when attempting a fix to stay locked
-      on a pixel when animating in/out zoom
 
     - There seems to be some kind of acceleration/momentum issue when you flick
       the view with mouse. Perhaps it happens when you flick and we are already
@@ -274,8 +274,7 @@ const settings = {
 }
 ```
 
-The format of the `JSON` is this:
-
+The format of the `JSON` used for this plugin is this:
 ```json
 [
     {
@@ -295,17 +294,18 @@ The format of the `JSON` is this:
 ```
 
 ### 2. Overlay Example plugin
-It is meant for you to base your own plugins on.
+It is meant for you to base your own plugins on, but it will still output some test-shapes
+for testing.
 
 Include it in Smoozoo like so:
 ```javascript
-import { ExampleOverlayPlugin } from "../plugins/smoozoo-plugin-example-overlay.js";
+import { OverlayBasePlugin } from "../plugins/smoozoo-plugin-overlay-base.js";
 
 const settings = {
     ...,
     plugins: [
         {
-            name:    ExampleOverlayPlugin,
+            name:    OverlayBasePlugin,
             options: {
             }
         }
@@ -380,8 +380,6 @@ in the distribution. You can just pass in a string as URL.
     - not for in here, but I would like chartjs to generate base64-encoded images for the
       inline'd minute-charts
 
-    - manual annotation on a separate canvas
-
 	- we already support some meta-data via plugin but I'd like to extend that so that
       depending on position of viewport it should show/pin messages to that pixel as we
       pan/zoom around it
@@ -389,7 +387,9 @@ in the distribution. You can just pass in a string as URL.
     - be able to set a title of an image (through some meta data)
 
     - save image; incl. whatever plugins did -- would need some way to say which elements
-      are part of the image (in the case of overlay canvases and similar.
+      are part of the image (in the case of overlay canvases and similar)
+
+    - manual annotation on a separate canvas (i.e. simple drawing -- or minipaint?)
 
     - set up an intermediate layer to allow MiniPaint to be used for drawing on overlay
       file:///K:/development/2023/miniPaint/index.html
