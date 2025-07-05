@@ -141,8 +141,7 @@ window.addEventListener('load', async () => {
 
 
 ## Plugins
-The breadth of the API is very sparse at the moment, it was expanded with what I needed,
-as I needed it. 
+The Viewer API gets expanded with what I need, as I need it. Feel free to expand upon it yourself.
 
 That said ...
 
@@ -185,6 +184,21 @@ export class YourSmoozooPlugin
     {
     }
 
+    /**
+     * Called after a new image was loaded and made into tiles
+     */
+    onImageLoaded()
+    {
+    }
+
+    /**
+     * For those moments when you have a touchable element above
+     * the canvas and want to prevent canvas from stealing the event.
+     */
+    mayTouchStartOnCanvas(e)
+    {
+        return true;
+    }
 }
 ```
 
@@ -228,7 +242,8 @@ const viewerApi = {
     jumpToOrigin: jumpToOrigin,
     cancelAllAnimations: cancelAllAnimations,
     renderToPixels: renderToPixels,
-    renderToPixelsAsync: renderToPixelsAsync
+    renderToPixelsAsync: renderToPixelsAsync,
+    loadImage: loadImage,
 };
 ```
 
@@ -357,8 +372,6 @@ in the distribution. You can just pass in a string as URL.
 
 
 ## Maybe future plugins
-    - make the load UI area more discreet
-
     - smart conversion of image to dark mode
     
     - ability to set brightness / contrast / saturation - maybe other adjustments
