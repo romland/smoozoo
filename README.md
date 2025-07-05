@@ -153,6 +153,8 @@ Your plugin consists of two files, if you have extra CSS, include the file in yo
 Then you need to have the code somewhere. So, this .js file should export a class which will
 be instantiated by Smoozoo on startup.
 
+You only have to declare the methods you need.
+
 As a brief example:
 ```javascript
 export class YourSmoozooPlugin
@@ -166,7 +168,6 @@ export class YourSmoozooPlugin
      */
     constructor(viewer, options)
     {
-        // ... your code
     }
 
     /**
