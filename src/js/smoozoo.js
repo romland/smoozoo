@@ -6,7 +6,7 @@ window.smoozoo = (imageUrl, settings) => {
     canvas.width = window.innerWidth;
     canvas.height = window.innerHeight;
 
-    // We're requesting a 'webgl' context, which is WebGL 1.
+    // We're requesting a 'webgl' context, which ~~is~~ was WebGL 1.
     // const gl = canvas.getContext('webgl');
     // Alright, need webgl2 for async pixels reading
     const gl = canvas.getContext('webgl2') || canvas.getContext('webgl');
@@ -83,8 +83,8 @@ window.smoozoo = (imageUrl, settings) => {
 
     // Get the maximum dimension (width or height) for a texture that the user's GPU can handle.
     // This is a hardware limitation. If an image is larger than this size, we can't load it as a single
-    // texture. This is the entire reason for the "tiling" logic in this application. We will slice the
-    // large image into smaller pieces (tiles) that are each no larger than maxTextureSize.
+    // texture. This is the entire reason for the "tiling" logic.
+    // We will slice the large image into smaller pieces (tiles) that are each no larger than maxTextureSize.
     const maxTextureSize = gl.getParameter(gl.MAX_TEXTURE_SIZE);
 
     // Plugins
@@ -128,9 +128,6 @@ window.smoozoo = (imageUrl, settings) => {
     }
 
 
-    /**
-     * Linear interpolation
-     */
     function lerp(s, e, a)
     {
         return (1 - a) * s + a * e;
@@ -152,7 +149,9 @@ window.smoozoo = (imageUrl, settings) => {
 
     function createPluginInstance(ClassName, api, options)
     {
-        return new ClassName(api, options);
+        const instance = new ClassName(api, options);
+        console.log("Plugin", instance.constructor.name, "instantiated.")
+        return instance;
     }
 
 
@@ -1092,6 +1091,7 @@ window.smoozoo = (imageUrl, settings) => {
         checkEdges(false);
     }
 
+
     /**
      * Cleans up all resources associated with the currently loaded image.
      * This is crucial for preventing memory leaks when loading a new image.
@@ -1124,12 +1124,6 @@ window.smoozoo = (imageUrl, settings) => {
         if (currentImageUrl && currentImageUrl.startsWith('blob:')) {
             URL.revokeObjectURL(currentImageUrl);
         }
-
-        // This, here, is not actually destroy-like, don't call plugins here!
-        // I don't yet have a proper destroy moment
-        // for(const plugin of plugins) {
-        //     plugin.instance?.destroy && plugin.instance?.destroy();
-        // }
     }
 
 
@@ -1280,8 +1274,11 @@ window.smoozoo = (imageUrl, settings) => {
 
     function handleTouchStart(e)
     {
-        if (minimapContainer.contains(e.target)) {
-            return;
+        for(const plugin of plugins) {
+            if(plugin.instance?.mayTouchStartOnCanvas
+               && !plugin.instance?.mayTouchStartOnCanvas(e)) {
+                return;
+            }
         }
 
         e.preventDefault();
@@ -1826,8 +1823,9 @@ window.smoozoo = (imageUrl, settings) => {
     panSlider.addEventListener('input',  handleSliderInput);
     panSlider.addEventListener('mousedown', (e) => e.stopPropagation());
 
-    // The plugin system
-    // -----------------
+    // ----------------------
+    // --- The plugin API ---
+    // ----------------------
     const viewerApi = {
         getTransform: () => ({ scale, originX, originY }),
         getCanvas: () => canvas,
@@ -1841,7 +1839,6 @@ window.smoozoo = (imageUrl, settings) => {
         loadImage: loadImage,
     };
 
-
     loadImage(imageUrl);
 
     for(const plugin of plugins) {
@@ -1851,40 +1848,6 @@ window.smoozoo = (imageUrl, settings) => {
     if(canvas.width < 600) {
         document.body.classList.toggle('ui-hidden');
     }
-
-/*
-    // Really start stuff up, load image and initialize us
-    loadImageAndCreateTextureInfo(`${imageUrl}`, async () => {
-        setInitialView();
-
-        imageSizePixelsSpan.textContent = `${orgImgWidth}x${orgImgHeight}`;
-        imageSizeBytesSpan.textContent = formatBytes(orgImgBytes);
-        updatePanSlider();
-
-        for(const plugin of plugins) {
-            plugin.instance = createPluginInstance(plugin.name, viewerApi, plugin.options);
-        }
-
-        // Plugin lifecycle hook for e.g. minimap to generate its thumbnail.
-        for (const plugin of plugins) {
-            if (typeof plugin.instance?.onImageLoaded === 'function') {
-                plugin.instance.onImageLoaded();
-            }
-        }
-
-        for(const plugin of plugins) {
-            plugin.instance?.update();
-        }
-
-        render();
-
-        if(canvas.width < 600) {
-            document.body.classList.toggle('ui-hidden');
-        }
-
-        loader.classList.add('hidden');        
-   });
-*/
 
    return viewerApi;
 }

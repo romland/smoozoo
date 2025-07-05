@@ -100,14 +100,14 @@ export class ExampleOverlayPlugin
         // Initial size setup
         this.overlayCanvas.width = this.mainCanvas.clientWidth;
         this.overlayCanvas.height = this.mainCanvas.clientHeight;
-        
-        console.log("OverlayPlugin initialized");
     }
+
 
     onImageLoaded()
     {
         // Called when we get a new image, we don't really care.
     }
+
 
     /**
      * update() is called on every frame by the viewer's render loop.

@@ -4,10 +4,14 @@ export class FileChooserPlugin
      * @param {object} viewerApi The API exposed by the Smoozoo viewer.
      * @param {object} options Plugin-specific options, including a list of preset files.
      */
-    constructor(viewerApi, options) {
+    constructor(viewerApi, options)
+    {
         this.api = viewerApi;
         this.options = {
             presetFiles: [], // Expects an array of { name: 'Display Name', url: 'path/to/image.jpg' }
+            allowFileDrop: true,
+            showFileList: true,
+            showFileDialog: true,
             ...options
         };
 
@@ -19,18 +23,44 @@ export class FileChooserPlugin
      * Creates all the necessary UI elements for the file chooser.
      * @private
      */
-    _createDOM() {
-        // Main container for all UI elements
-        this.container = document.createElement('div');
-        this.container.className = 'file-chooser-container';
+    _createDOM()
+    {
+        if(this.options.showFileList || this.options.showFileDialog) {
+            // Main container for all UI elements
+            this.container = document.createElement('div');
+            this.container.className = 'file-chooser-container';
+        }
 
-        // --- Preset Files Dropdown ---
-        if (this.options.presetFiles && this.options.presetFiles.length > 0) {
+        if(this.options.showFileDialog) {
+            // Custom File Dialog Button
+            this.fileInput = document.createElement('input');
+            this.fileInput.type = 'file';
+            this.fileInput.accept = 'image/*';
+            this.fileInput.style.display = 'none';
+
+            this.uploadButton = document.createElement('button');
+            this.uploadButton.className = 'file-chooser-button';
+            this.uploadButton.textContent = 'Open...';
+            
+            this.container.appendChild(this.uploadButton);
+            this.container.appendChild(this.fileInput);
+
+            // --- Drag and Drop Overlay ---
+            this.dragOverlay = document.createElement('div');
+            this.dragOverlay.className = 'file-chooser-drag-overlay';
+            this.dragOverlay.innerHTML = `
+                <svg xmlns="http://www.w3.org/2000/svg" width="80" height="80" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+                <span>Drop Image to Load</span>
+            `;
+        }
+
+        // Preset Files Dropdown
+        if (this.options.showFileList && this.options.presetFiles && this.options.presetFiles.length > 0) {
             this.select = document.createElement('select');
             this.select.className = 'file-chooser-select';
 
             const defaultOption = document.createElement('option');
-            defaultOption.textContent = 'Load from preset...';
+            defaultOption.textContent = 'Select...';
             defaultOption.disabled = true;
             defaultOption.selected = true;
             this.select.appendChild(defaultOption);
@@ -44,67 +74,55 @@ export class FileChooserPlugin
             this.container.appendChild(this.select);
         }
 
-        // --- Custom File Dialog Button ---
-        this.fileInput = document.createElement('input');
-        this.fileInput.type = 'file';
-        this.fileInput.accept = 'image/*';
-        this.fileInput.style.display = 'none';
-
-        this.uploadButton = document.createElement('button');
-        this.uploadButton.className = 'file-chooser-button';
-        this.uploadButton.textContent = 'Load from Computer';
-        
-        this.container.appendChild(this.uploadButton);
-        this.container.appendChild(this.fileInput);
-
-        // --- Drag and Drop Overlay ---
-        this.dragOverlay = document.createElement('div');
-        this.dragOverlay.className = 'file-chooser-drag-overlay';
-        this.dragOverlay.innerHTML = `
-            <svg xmlns="http://www.w3.org/2000/svg" width="80" height="80" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
-            <span>Drop Image to Load</span>
-        `;
-        
-        document.body.appendChild(this.container);
-        document.body.appendChild(this.dragOverlay);
+        if(this.options.showFileList || this.options.showFileDialog) {
+            document.body.appendChild(this.container);
+            document.body.appendChild(this.dragOverlay);
+        }
     }
 
     /**
      * Attaches all necessary DOM event listeners.
      * @private
      */
-    _attachEventListeners() {
-        // Preset dropdown
-        this.select?.addEventListener('change', () => {
-            if (this.select.value) {
-                this.api.loadImage(this.select.value);
-                this.select.selectedIndex = 0; // Reset dropdown
-            }
-        });
+    _attachEventListeners()
+    {
+        if(this.options.showFileList) {
+            // Preset dropdown
+            this.select?.addEventListener('change', () => {
+                if (this.select.value) {
+                    this.api.loadImage(this.select.value);
+                    this.select.selectedIndex = 0; // Reset dropdown
+                }
+            });
+        }
 
-        // Custom file button
-        this.uploadButton.addEventListener('click', () => this.fileInput.click());
-        this.fileInput.addEventListener('change', (e) => {
-            if (e.target.files && e.target.files[0]) {
-                this._handleFile(e.target.files[0]);
-            }
-        });
+        if(this.options.showFileDialog) {
+            // Custom file button
+            this.uploadButton.addEventListener('click', () => this.fileInput.click());
+            this.fileInput.addEventListener('change', (e) => {
+                if (e.target.files && e.target.files[0]) {
+                    this._handleFile(e.target.files[0]);
+                }
+            });
+        }
 
-        // Drag and Drop
-        document.body.addEventListener('dragover', (e) => {
-            e.preventDefault();
-            this.dragOverlay.classList.add('visible');
-        });
-        document.body.addEventListener('dragleave', () => {
-            this.dragOverlay.classList.remove('visible');
-        });
-        document.body.addEventListener('drop', (e) => {
-            e.preventDefault();
-            this.dragOverlay.classList.remove('visible');
-            if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-                this._handleFile(e.dataTransfer.files[0]);
-            }
-        });
+        if(this.options.allowFileDrop) {
+            // Drag and Drop
+            document.body.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                this.dragOverlay.classList.add('visible');
+            });
+            document.body.addEventListener('dragleave', () => {
+                this.dragOverlay.classList.remove('visible');
+            });
+            document.body.addEventListener('drop', (e) => {
+                e.preventDefault();
+                this.dragOverlay.classList.remove('visible');
+                if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+                    this._handleFile(e.dataTransfer.files[0]);
+                }
+            });
+        }
     }
 
     /**

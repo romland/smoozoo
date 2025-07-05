@@ -31,6 +31,22 @@ export class MinimapPlugin
 
 
     /**
+     * We need a construct like this since we may also touch/drag on the 
+     * minimap. This plugin can deny canvas touch events.
+     * 
+     * @param {*} e 
+     * @returns 
+     */
+    mayTouchStartOnCanvas(e)
+    {
+        if (this.container.contains(e.target)) {
+            return false;
+        }
+        return true;
+    }
+
+
+    /**
      * Called by viewer when main image and its WebGL tiles have been loaded.
      */
     onImageLoaded()

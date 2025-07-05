@@ -237,10 +237,8 @@ There are a few.
 
 ### 1. Hotspot plugin
 This enables associating additional information in a popup with a pixel position in the underlying image.  
-
-E.g. with a radius of 20 at position 150,210, show this popup when hovered.  
-
-It supports clustering so that, e.g. 100 markers will become one if zoomed out.  
+E.g. with a radius of 20 at position 150,210, show this popup when hovered. It supports clustering so
+that, e.g. 100 markers will become one if zoomed out.  
 
 Enable it in settings:
 ```javascript
@@ -300,6 +298,8 @@ const settings = {
 ```
 
 ### 3. Minimap plugin
+Include in your settings like this:
+
 ```javascript
 import { MinimapPlugin } from "../plugins/smoozoo-plugin-minimap.js";
 
@@ -316,6 +316,38 @@ const settings = {
     ]
 }
 ```
+
+### 4. Filechooser plugin
+
+Enable loading of files via these means:
+- Load from computer
+- Load from preset list (passed in in settings)
+- Drag and drop file from your computer to the browser
+
+Include the plugin in your settings like this:
+```javascript
+const settings = {
+    ...,
+    plugins: [
+        {
+            name: FileChooserPlugin,
+            options: {
+                presetFiles: [
+                    { name: 'Xanadu',  url: new URL(`../assets/xanadu-reconstruction.png`, import.meta.url).toString() },
+                    { name: 'Arathok',  url: new URL(`../assets/ara-map.png`, import.meta.url).toString() },
+                    { name: 'BTC-USDT', url: new URL(`../assets/BTCUSDT.png`, import.meta.url).toString() },
+                    { name: 'ETH-USDT ATH', url: new URL(`../assets/ETHUSDT-ath.png`, import.meta.url).toString() },
+                    { name: 'BTC-USDT ATH', url: new URL(`../assets/BTCUSDT-ath.png`, import.meta.url).toString() },
+                ]
+            }
+        }
+    ]
+}
+```
+The muckery with new URL() is primarily for Parcel to know that it should include the image
+in the distribution. You can just pass in a string as URL.
+
+
 ## Maybe TODO
     - "Tiled pyramid" format (like DZI - Deep Zoom Image). Support for pre-sliced tiles at
       different scales from back-end (low priority as it needs server side code).
@@ -325,6 +357,8 @@ const settings = {
 
 
 ## Maybe future plugins
+    - make the load UI area more discreet
+
     - smart conversion of image to dark mode
     
     - ability to set brightness / contrast / saturation - maybe other adjustments
@@ -342,8 +376,6 @@ const settings = {
 
     - save image; incl. whatever plugins did -- would need some way to say which elements
       are part of the image (in the case of overlay canvases and similar.
-
-    - drag/drop image / filepicker
 
     - set up an intermediate layer to allow MiniPaint to be used for drawing on overlay
       file:///K:/development/2023/miniPaint/index.html

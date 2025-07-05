@@ -43,6 +43,9 @@ window.addEventListener('load', async () => {
             {
                 name: FileChooserPlugin,
                 options: {
+                    allowFileDrop: true,
+                    showFileList: true,
+                    showFileDialog: true,
                     presetFiles: [
                         { name: 'Xanadu (reconstructed game world)',  url: new URL(`../assets/xanadu-reconstruction.png`, import.meta.url).toString() },
                         { name: 'Arathok test-map',  url: new URL(`../assets/ara-map.png`, import.meta.url).toString() },
@@ -51,7 +54,7 @@ window.addEventListener('load', async () => {
                         { name: 'BTC-USDT all-time-highs', url: new URL(`../assets/BTCUSDT-ath.png`, import.meta.url).toString() },
                     ]
                 }
-            },            
+            },
         ]
     };
 
