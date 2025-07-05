@@ -47,7 +47,7 @@ export class OverlayBasePlugin
                 type: 'circle',
                 x: 500, y: 500, radius: 50,
                 fillStyle: 'rgba(255, 0, 0, 0.5)',
-                tooltip: 'Red Circle - An important area.'
+                tooltip: 'Red Circle'
             },
             {
                 type: 'rect',
@@ -55,7 +55,7 @@ export class OverlayBasePlugin
                 fillStyle: 'rgba(0, 100, 255, 0.5)',
                 strokeStyle: 'black',
                 lineWidth: 4,
-                tooltip: 'Blue Rectangle - A clickable zone.'
+                tooltip: 'Blue Rectangle - a clickable zone'
             },
             {
                 type: 'rect',
@@ -63,7 +63,7 @@ export class OverlayBasePlugin
                 fillStyle: 'rgba(120, 100, 255, 0.5)',
                 strokeStyle: 'pink',
                 lineWidth: 4,
-                tooltip: 'This rectangle has a shadow!',
+                tooltip: 'This rectangle has a shadow',
                 // Arbitrary commands passed to Canvas before drawing
                 beforeDraw: [
                     { "prop": "shadowColor", "value": "rgba(0, 0, 0, 0.5)" },
@@ -78,7 +78,7 @@ export class OverlayBasePlugin
                 fillStyle: 'yellow',
                 font: '48px sans-serif',
                 text: '!',
-                tooltip: 'This is a resizable text label.',
+                tooltip: 'This is a resizable text label',
             },
             {
                 // https://getemoji.com/
@@ -94,8 +94,8 @@ export class OverlayBasePlugin
                 x: 500, y: 700,
                 fillStyle: 'white',
                 font: '12px sans-serif',
-                text: 'This is fixed size text via plugin!',
-                tooltip: 'This is a text label.',
+                text: 'This is fixed size text via plugin',
+                tooltip: 'This is a text label',
                 textBackgroundColor: 'rgba(255, 0, 100, 0.7)',
                 fixedSize: true
             },
@@ -114,7 +114,7 @@ export class OverlayBasePlugin
                 src: 'https://placehold.co/300x200/ff6347/000066?text=Mah+Image',
                 x: 1000, y: 800,
                 width: 300, height: 200,
-                tooltip: 'This is an image!',
+                tooltip: 'This is an image',
                 hover: true
             }            
         ];
