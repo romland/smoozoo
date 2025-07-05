@@ -105,3 +105,7 @@ body.ui-hidden .file-chooser-container {
 	transition: opacity 0.3s ease;
 }
 
+.file-chooser-select option {
+  background-color: #2b2b3d; /* Dark background for options */
+  color: #fff;             /* Bright text for options */
+}
