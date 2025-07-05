@@ -123,6 +123,13 @@ export class OverlayBasePlugin
                 width: 300, height: 200,
             },
             {
+                type: 'image',
+                src: 'https://placehold.co/50x50/ff6347/000066?text=Au',
+                x: 900, y: 1000,
+                width: 50, height: 50,
+                fixedSize: true,
+            },
+            {
                 type: 'text',
                 x: 400, y: 1000,
                 text: 'Minimally configured text',
