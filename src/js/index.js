@@ -31,6 +31,11 @@ window.addEventListener('load', async () => {
             {
                 name: OverlayBasePlugin,
                 options: {
+                    hoverOutlineColor: "yellow",
+                    defaultTextFontSize: 14,
+                    defaultTextFontFamily: "sans-serif",
+                    defaultTextFontColor: "#888",
+                    defaultTextBackground: undefined,
                 }
             },
             {

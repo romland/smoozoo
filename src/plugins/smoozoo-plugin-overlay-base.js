@@ -13,7 +13,11 @@ export class OverlayBasePlugin
     {
         this.viewerApi = viewerApi;
 
-        options.hoverOutlineColor = options.hoverOutlineColor ?? "yellow";
+        options.hoverOutlineColor     = options.hoverOutlineColor     ?? "yellow";
+        options.defaultTextFontSize   = options.defaultTextFontSize   ?? 14;
+        options.defaultTextFontFamily = options.defaultTextFontFamily ?? "sans-serif";
+        options.defaultTextFontColor  = options.defaultTextFontColor  ?? "white";
+        options.defaultTextBackground = options.defaultTextBackground ?? undefined;
 
         this.options = options || {};
 
@@ -47,7 +51,8 @@ export class OverlayBasePlugin
                 type: 'circle',
                 x: 500, y: 500, radius: 50,
                 fillStyle: 'rgba(255, 0, 0, 0.5)',
-                tooltip: 'Red Circle'
+                tooltip: 'Red Circle',
+                hover: true
             },
             {
                 type: 'rect',
@@ -55,7 +60,8 @@ export class OverlayBasePlugin
                 fillStyle: 'rgba(0, 100, 255, 0.5)',
                 strokeStyle: 'black',
                 lineWidth: 4,
-                tooltip: 'Blue Rectangle - a clickable zone'
+                tooltip: 'Blue Rectangle - a clickable zone',
+                hover: true
             },
             {
                 type: 'rect',
@@ -70,7 +76,8 @@ export class OverlayBasePlugin
                     { "prop": "shadowBlur", "value": 15 },
                     { "prop": "shadowOffsetX", "value": 10 },
                     { "prop": "shadowOffsetY", "value": 10 }
-                ]
+                ],
+                hover: true
             },
             {
                 type: 'text',
@@ -114,9 +121,13 @@ export class OverlayBasePlugin
                 src: 'https://placehold.co/300x200/ff6347/000066?text=Mah+Image',
                 x: 1000, y: 800,
                 width: 300, height: 200,
-                tooltip: 'This is an image',
-                hover: true
-            }            
+            },
+            {
+                type: 'text',
+                x: 400, y: 1000,
+                text: 'Minimally configured text',
+            },
+
         ];
         this.hoveredShape = null;
 
@@ -232,8 +243,8 @@ export class OverlayBasePlugin
             // Draw the tooltip, now passing the scale as well.
             this.drawTooltip(shape, anchorX, anchorY, scale);
         }
-
     }
+
 
     drawShape(shape, isHovered, screenX, screenY)
     {
@@ -248,7 +259,7 @@ export class OverlayBasePlugin
         this.ctx.fillStyle = shape.fillStyle;
         this.ctx.strokeStyle = shape.strokeStyle || 'transparent';
         this.ctx.lineWidth = shape.lineWidth || 1;
-        this.ctx.font = shape.font;
+        this.ctx.font = shape.font || (this.options.defaultTextFontSize + "px " + this.options.defaultTextFontFamily);
 
         // Arbitrary command injection -- TODO: Security?
         if (shape.beforeDraw && Array.isArray(shape.beforeDraw)) {
@@ -287,7 +298,7 @@ export class OverlayBasePlugin
 
             case 'text':
                 // If a background color is specified, draw it first.
-                if (shape.textBackgroundColor) {
+                if (shape.textBackgroundColor || this.options.defaultTextBackground) {
                     const textMetrics = this.ctx.measureText(shape.text);
                     const fontHeight = parseInt(this.ctx.font.match(/\d+/), 10);
                     const padding = shape.fixedSize ? 2 : 4;
@@ -298,10 +309,12 @@ export class OverlayBasePlugin
                     const rectHeight = fontHeight + padding * 2;
 
                     const originalFillStyle = this.ctx.fillStyle;
-                    this.ctx.fillStyle = shape.textBackgroundColor;
+                    this.ctx.fillStyle = shape.textBackgroundColor || this.options.defaultTextBackground;
                     this.ctx.fillRect(rectX, rectY, rectWidth, rectHeight);
                     this.ctx.fillStyle = originalFillStyle;
                 }
+
+                this.ctx.fillStyle = shape.fillStyle || this.options.defaultTextFontColor;
 
                 this.ctx.fillText(shape.text, x, y);
                 break;

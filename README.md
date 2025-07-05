@@ -305,10 +305,16 @@ const settings = {
     ...,
     plugins: [
         {
-            name:    OverlayBasePlugin,
+            name: OverlayBasePlugin,
             options: {
+                hoverOutlineColor: "yellow",
+                // These values are used if text-shape omit any (reduces data transfer, in case of alot)
+                defaultTextFontSize: 14,
+                defaultTextFontFamily: "sans-serif",
+                defaultTextFontColor: "#888",
+                defaultTextBackground: undefined,
             }
-        }
+        },
     ]
 }
 ```
