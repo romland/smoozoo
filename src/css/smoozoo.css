@@ -71,44 +71,6 @@ p.wide {
 	pointer-events: auto;
 }
 
-#minimap-container {
-	position: fixed;
-	top: 20px;
-	right: 20px;
-	border: 1px solid rgba(255, 255, 255, 1);
-	border-radius: 4px;
-	background-color: rgba(14, 4, 34, 0.75);
-	backdrop-filter: blur(4px);
-	box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5);
-	z-index: 100;
-	display: none;
-	cursor: pointer;
-	pointer-events: auto;
-}
-
-#minimap-image {
-	width: 100%;
-	height: 100%;
-	background-size: contain;
-	background-repeat: no-repeat;
-	background-position: center;
-	opacity: 0.7;
-}
-
-#minimap-viewport {
-	position: absolute;
-	border: 2px solid #ff5555;
-	background-color: rgba(255, 85, 85, 0.25);
-	pointer-events: none;
-}
-
-body.ui-hidden #status-display,
-body.ui-hidden #control-display,
-body.ui-hidden #minimap-container {
-	opacity: 0;
-	pointer-events: none;
-	transition: opacity 0.3s ease;
-}
 
 @media (max-width: 600px) {
 	#status-display {
@@ -144,15 +106,6 @@ body.ui-hidden #minimap-container {
 		overflow: hidden;
 		text-overflow: ellipsis;
 		text-align: right;
-	}
-	
-	/* Position the minimap below the status bar */
-	#minimap-container {
-		top: 60px; /* Adjust this value for perfect spacing */
-		right: auto;
-		left: 50%;
-		transform: translateX(-50%) scale(1.5);
-		transform-origin: top center;
 	}
 	
 	#status-display p {

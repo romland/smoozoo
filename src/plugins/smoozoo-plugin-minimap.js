@@ -42,6 +42,7 @@ export class MinimapPlugin
         if (this.container.contains(e.target)) {
             return false;
         }
+        
         return true;
     }
 
