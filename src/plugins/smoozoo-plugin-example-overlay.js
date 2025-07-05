@@ -104,6 +104,11 @@ export class ExampleOverlayPlugin
         console.log("OverlayPlugin initialized");
     }
 
+    onImageLoaded()
+    {
+        // Called when we get a new image, we don't really care.
+    }
+
     /**
      * update() is called on every frame by the viewer's render loop.
      */
@@ -301,7 +306,7 @@ export class ExampleOverlayPlugin
         this.ctx.fillText(shape.tooltip, boxX + padding, boxY + fontSize + padding / 2);
     }
 
-    // TODO: I need to call this? I need a destroy() in viewer too.
+    // TODO: This is not yet called by the viewer
     destroy()
     {
         this.resizeObserver.disconnect();

@@ -38,7 +38,6 @@ export class MinimapPlugin
         this._generateAndDisplayThumbnail();
     }
 
-
     /**
      * Asynchronously generates the thumbnail and then updates the DOM to display it.
      * @private
@@ -76,10 +75,26 @@ export class MinimapPlugin
             return;
         }
 
-        // This is actually faster than you'd think...
+        // The pixel data from WebGL is upside down. We draw it to an offscreen
+        // canvas and then draw that canvas flipped onto our visible minimap canvas.
+
+        // Create an offscreen canvas to hold the raw, flipped pixel data.
+        const offscreenCanvas = document.createElement('canvas');
+        offscreenCanvas.width = this.imageCanvas.width;
+        offscreenCanvas.height = this.imageCanvas.height;
+        const offscreenCtx = offscreenCanvas.getContext('2d');
+        
+        // Put the upside-down data into the offscreen canvas.
+        const imageData = new ImageData(new Uint8ClampedArray(pixels.buffer), offscreenCanvas.width, offscreenCanvas.height);
+        offscreenCtx.putImageData(imageData, 0, 0);
+
+        // Get the context of the visible canvas, flip its coordinate system,
+        // and draw the offscreen canvas onto it, correcting the orientation.
         const thumbCtx = this.imageCanvas.getContext('2d');
-        const imageData = new ImageData(new Uint8ClampedArray(pixels.buffer), this.imageCanvas.width, this.imageCanvas.height);
-        thumbCtx.putImageData(imageData, 0, 0);
+        thumbCtx.save(); // Save the current state
+        thumbCtx.scale(1, -1); // Flip the Y axis
+        thumbCtx.drawImage(offscreenCanvas, 0, -this.imageCanvas.height); // Draw the image, adjusting for the flip
+        thumbCtx.restore(); // Restore the context to its normal state
 
         // Set container dimensions
         const containerWidth = Math.max(this.imageCanvas.width, this.settings.minimapMinSize);

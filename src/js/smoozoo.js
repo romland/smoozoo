@@ -1,4 +1,6 @@
 window.smoozoo = (imageUrl, settings) => {
+    let currentImageUrl = imageUrl;
+
     // DOM Element Selection & Initial Setup
     const canvas = settings.canvas;
     canvas.width = window.innerWidth;
@@ -799,7 +801,7 @@ window.smoozoo = (imageUrl, settings) => {
 
         if(plugins.length) {
             for(const plugin of plugins) {
-                plugin.instance?.update();
+                plugin.instance?.update && plugin.instance?.update();
             }
         }
     }
@@ -1088,6 +1090,83 @@ window.smoozoo = (imageUrl, settings) => {
 
         // Ensure the final position is valid and within image boundaries (no snapback).
         checkEdges(false);
+    }
+
+    /**
+     * Cleans up all resources associated with the currently loaded image.
+     * This is crucial for preventing memory leaks when loading a new image.
+     * @private
+     */
+    function _cleanup()
+    {
+        // Cancel any running animations
+        cancelAllAnimations();
+
+        // Delete all WebGL textures from the GPU
+        tiles.forEach(tile => {
+            gl.deleteTexture(tile.texture);
+        });
+
+        // Reset all state variables
+        tiles = [];
+        scale = 1.0;
+        originX = 0;
+        originY = 0;
+        targetScale = 1.0;
+        targetOriginX = 0;
+        targetOriginY = 0;
+        orgImgWidth = 0;
+        orgImgHeight = 0;
+        orgImgBytes = 0;
+        rotation = 0;
+
+        // If the current image was from a Blob/File, revoke its URL to free memory
+        if (currentImageUrl && currentImageUrl.startsWith('blob:')) {
+            URL.revokeObjectURL(currentImageUrl);
+        }
+
+        // This, here, is not actually destroy-like, don't call plugins here!
+        // I don't yet have a proper destroy moment
+        // for(const plugin of plugins) {
+        //     plugin.instance?.destroy && plugin.instance?.destroy();
+        // }
+    }
+
+
+    /**
+     * This is a public API method for loading a new image.
+     * It cleans up the old image and initializes the new one.
+     * @param {string} newUrl The URL of the new image to load.
+     */
+    function loadImage(newUrl)
+    {
+        console.log("Loading new image:", newUrl);
+        _cleanup();
+        currentImageUrl = newUrl; // Update the tracked URL
+        
+        // The core loading logic, wrapped in the new public function
+        loadImageAndCreateTextureInfo(newUrl, () => {
+            setInitialView();
+            
+            imageSizePixelsSpan.textContent = `${orgImgWidth}x${orgImgHeight}`;
+            imageSizeBytesSpan.textContent = formatBytes(orgImgBytes);
+            updatePanSlider();
+
+            // Notify all plugins that a new image has been loaded
+            for (const plugin of plugins) {
+                if (typeof plugin.instance?.onImageLoaded === 'function') {
+                    plugin.instance.onImageLoaded();
+                }
+            }
+
+            for(const plugin of plugins) {
+                plugin.instance?.update && plugin.instance?.update();
+            }
+
+            render();
+
+            loader.classList.add('hidden');
+        });
     }
 
 
@@ -1758,10 +1837,22 @@ window.smoozoo = (imageUrl, settings) => {
         jumpToOrigin: jumpToOrigin,
         cancelAllAnimations: cancelAllAnimations,
         renderToPixels: renderToPixels,
-        renderToPixelsAsync: renderToPixelsAsync
+        renderToPixelsAsync: renderToPixelsAsync,
+        loadImage: loadImage,
     };
 
 
+    loadImage(imageUrl);
+
+    for(const plugin of plugins) {
+        plugin.instance = createPluginInstance(plugin.name, viewerApi, plugin.options);
+    }
+
+    if(canvas.width < 600) {
+        document.body.classList.toggle('ui-hidden');
+    }
+
+/*
     // Really start stuff up, load image and initialize us
     loadImageAndCreateTextureInfo(`${imageUrl}`, async () => {
         setInitialView();
@@ -1779,7 +1870,7 @@ window.smoozoo = (imageUrl, settings) => {
             if (typeof plugin.instance?.onImageLoaded === 'function') {
                 plugin.instance.onImageLoaded();
             }
-        }        
+        }
 
         for(const plugin of plugins) {
             plugin.instance?.update();
@@ -1793,6 +1884,7 @@ window.smoozoo = (imageUrl, settings) => {
 
         loader.classList.add('hidden');        
    });
+*/
 
    return viewerApi;
 }

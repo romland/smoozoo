@@ -1,6 +1,7 @@
 import { HotspotPlugin } from "../plugins/smoozoo-plugin-hotspot.js";
 import { ExampleOverlayPlugin } from "../plugins/smoozoo-plugin-example-overlay.js";
 import { MinimapPlugin } from "../plugins/smoozoo-plugin-minimap.js";
+import { FileChooserPlugin } from "../plugins/smoozoo-plugin-filechooser.js";
 
 window.addEventListener('load', async () => {
     const settings = {
@@ -38,15 +39,22 @@ window.addEventListener('load', async () => {
                     minimapMinSize: 0,
                     minimapMaxSize: 200
                 }
-            }
+            },
+            {
+                name: FileChooserPlugin,
+                options: {
+                    presetFiles: [
+                        { name: 'Xanadu (reconstructed game world)',  url: new URL(`../assets/xanadu-reconstruction.png`, import.meta.url).toString() },
+                        { name: 'Arathok test-map',  url: new URL(`../assets/ara-map.png`, import.meta.url).toString() },
+                        { name: 'BTC-USDT', url: new URL(`../assets/BTCUSDT.png`, import.meta.url).toString() },
+                        { name: 'ETH-USDT all-time-highs', url: new URL(`../assets/ETHUSDT-ath.png`, import.meta.url).toString() },
+                        { name: 'BTC-USDT all-time-highs', url: new URL(`../assets/BTCUSDT-ath.png`, import.meta.url).toString() },
+                    ]
+                }
+            },            
         ]
     };
 
-    // const url = new URL(`../assets/xanadu-reconstruction.png`, import.meta.url);
-    // const url = new URL(`../assets/BTCUSDT.png`, import.meta.url);
     const url = new URL(`../assets/ETHUSDT-ath.png`, import.meta.url);
-    // const url = new URL(`../assets/ara-map.png`, import.meta.url);
-
-    console.log("Loading image", url.toString(), "...");
     smoozoo(url.toString(), settings);
 });
