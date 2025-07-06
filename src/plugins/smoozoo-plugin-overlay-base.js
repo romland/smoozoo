@@ -3,6 +3,57 @@
  * 
  * Creates a canvas overlay for drawing that pans and zooms with the main image.
  */
+
+/**
+    // You can, for instance, override a method like and add e.g. a new shape. 
+    // The code below adds a triangle type that you could use like this:
+    // { 
+    //     type: 'triangle', 
+    //     x: 100, y: 150, width: 80, height: 90, 
+    //     hover: true, tooltip: 'A custom triangle' 
+    // },
+
+    // The method in your class:
+    drawShape(shape, isHovered, screenX, screenY)
+    {
+        if (shape.type === 'triangle') {
+            this.ctx.save();
+
+            // Use the same logic as the base class for positioning
+            const x = shape.fixedSize ? 0 : shape.x;
+            const y = shape.fixedSize ? 0 : shape.y;
+            if (shape.fixedSize && screenX !== undefined) {
+                this.ctx.translate(screenX, screenY);
+            }
+
+            // Use our new 'specialColor' option as a default fillStyle for triangles
+            this.ctx.fillStyle = shape.fillStyle || this.options.specialColor;
+            this.ctx.strokeStyle = shape.strokeStyle || 'transparent';
+            this.ctx.lineWidth = shape.lineWidth || 1;
+
+            // Draw the triangle
+            this.ctx.beginPath();
+            this.ctx.moveTo(x, y - shape.height / 2);
+            this.ctx.lineTo(x - shape.width / 2, y + shape.height / 2);
+            this.ctx.lineTo(x + shape.width / 2, y + shape.height / 2);
+            this.ctx.closePath();
+            this.ctx.fill();
+            this.ctx.stroke();
+
+            // Handle hover outline
+            if (shape.hover && isHovered) {
+                this.ctx.strokeStyle = this.options.hoverOutlineColor;
+                this.ctx.lineWidth = 2;
+                this.ctx.stroke();
+            }
+
+            this.ctx.restore();
+        } else {
+            // If it's not our custom shape, let the parent class handle it.
+            super.drawShape(shape, isHovered, screenX, screenY);
+        }
+    }
+*/
 export class OverlayBasePlugin
 {
     /**
@@ -19,13 +70,18 @@ export class OverlayBasePlugin
         options.defaultTextFontColor  = options.defaultTextFontColor  ?? "white";
         options.defaultTextBackground = options.defaultTextBackground ?? undefined;
 
+        // Shape data
+        // Store shape information in an array for easy management and hit detection.
+        // You likely want to load this in dynamically via a fetch() or so
+        options.shapes                = options.shapes === null ? this._getTestShapes() : (options.shapes || []);
+
         this.options = options || {};
 
         this.loadedImages = new Map();
 
         // Get the main canvas from the viewer
         this.mainCanvas = this.viewerApi.getCanvas();
-        
+
         // Create the overlay canvas
         this.overlayCanvas = document.createElement('canvas');
         this.ctx = this.overlayCanvas.getContext('2d');
@@ -43,10 +99,40 @@ export class OverlayBasePlugin
         // onMouseMove hook provided by the viewer API, which is more robust.
         this.overlayCanvas.style.pointerEvents = 'none';
 
-        // Shape data
-        // Store shape information in an array for easy management and hit detection.
-        // You likely want to load this in dynamically via a fetch() or so
-        this.shapes = [
+        this.shapes = options.shapes;
+        this.hoveredShape = null;
+
+        // Pre-load all images defined in the shapes array.
+        this._loadImages();
+
+        // Ensure the overlay canvas always has the same size as the main canvas
+        this.resizeObserver = new ResizeObserver(() => {
+            this.overlayCanvas.width = this.mainCanvas.clientWidth;
+            this.overlayCanvas.height = this.mainCanvas.clientHeight;
+            this.viewerApi.requestRender(); // Request a redraw after resize
+        });
+        this.resizeObserver.observe(this.mainCanvas);
+
+        // Initial size setup
+        this.overlayCanvas.width = this.mainCanvas.clientWidth;
+        this.overlayCanvas.height = this.mainCanvas.clientHeight;
+    }
+
+    getShapes()
+    {
+        return this.options.shapes;
+    }
+
+    setShapes(shapes)
+    {
+        this.shapes = shapes;
+        this._loadImages();
+        this.update();
+    }
+
+    _getTestShapes()
+    {
+        return [
             {
                 type: 'circle',
                 x: 500, y: 500, radius: 50,
@@ -134,24 +220,7 @@ export class OverlayBasePlugin
                 x: 400, y: 1000,
                 text: 'Minimally configured text',
             },
-
         ];
-        this.hoveredShape = null;
-
-        // Pre-load all images defined in the shapes array.
-        this._loadImages();
-
-        // Ensure the overlay canvas always has the same size as the main canvas
-        this.resizeObserver = new ResizeObserver(() => {
-            this.overlayCanvas.width = this.mainCanvas.clientWidth;
-            this.overlayCanvas.height = this.mainCanvas.clientHeight;
-            this.viewerApi.requestRender(); // Request a redraw after resize
-        });
-        this.resizeObserver.observe(this.mainCanvas);
-
-        // Initial size setup
-        this.overlayCanvas.width = this.mainCanvas.clientWidth;
-        this.overlayCanvas.height = this.mainCanvas.clientHeight;
     }
 
 
@@ -338,7 +407,8 @@ export class OverlayBasePlugin
         // Draw hover highlight.
         if (shape.hover && isHovered) {
             this.ctx.strokeStyle = this.options.hoverOutlineColor;
-            this.ctx.lineWidth = shape.fixedSize ? 2 : 4; // Thinner line for fixed-size items.
+            this.ctx.lineWidth = shape.lineWidth || shape.fixedSize ? 2 : 4; // Thinner line for fixed-size items.
+
             switch (shape.type) {
                 case 'circle':
                     this.ctx.beginPath();
