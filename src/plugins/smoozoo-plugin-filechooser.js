@@ -90,7 +90,7 @@ export class FileChooserPlugin
             // Preset dropdown
             this.select?.addEventListener('change', () => {
                 if (this.select.value) {
-                    this.api.loadImage(this.select.value);
+                    this.api.loadImage(this.select.value, { preserveState: true });
                     this.select.selectedIndex = 0; // Reset dropdown
                 }
             });
