@@ -82,18 +82,14 @@ quite done yet, but, this actually already feels _better_ than Windows
 native one (I humbly opine)!
 
 ## TODO
-    - Make a plugin based on the overlay base
-
-    - Make overlay example plugin pull data remotely and make it able to redraw
-      itself (live) if there are changes
-
     - When I deep-link to a position, I end up ignoring what is allowed to be 
       maximum zoomed-out. I will want to still do that calculation even if we
       are not using it initially (basically, I cannot zoom out as far as I want)
 
     - There seems to be some kind of acceleration/momentum issue when you flick
       the view with mouse. Perhaps it happens when you flick and we are already
-      gliding?
+      gliding? Or some multiplier going awry in momentum if we already have some?
+      Sometimes it pans very fast at least.
 
     - Let Smoozoo create its own HTML elements instead of requiring all those HTML tags; 
       we just want to pass in a container to Smoozoo.
