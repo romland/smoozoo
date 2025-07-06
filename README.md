@@ -82,7 +82,7 @@ quite done yet, but, this actually already feels _better_ than Windows
 native one (I humbly opine)!
 
 ## TODO
-    - Make a plugin based on the shapes example
+    - Make a plugin based on the overlay base
 
     - Make overlay example plugin pull data remotely and make it able to redraw
       itself (live) if there are changes
@@ -313,6 +313,7 @@ const settings = {
                 defaultTextFontFamily: "sans-serif",
                 defaultTextFontColor: "#888",
                 defaultTextBackground: undefined,
+                shapes: null, // An explicit `null` here will show some default test shapes. See as documentation.
             }
         },
     ]

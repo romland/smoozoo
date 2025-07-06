@@ -1093,54 +1093,82 @@ window.smoozoo = (imageUrl, settings) => {
 
 
     /**
-     * Cleans up all resources associated with the currently loaded image.
-     * This is crucial for preventing memory leaks when loading a new image.
+     * Cleans up resources associated with the current image. It can optionally
+     * preserve the view state (scale, origin, rotation) for the next image load.
      * @private
+     * @param {object} [options]
+     * @param {boolean} [options.preserveState=false] - If true, view state is not reset.
      */
-    function _cleanup()
+    function _cleanup({ preserveState = false } = {})
     {
-        // Cancel any running animations
+        // Always cancel any running animations
         cancelAllAnimations();
 
-        // Delete all WebGL textures from the GPU
+        // Always delete all WebGL textures from the GPU
         tiles.forEach(tile => {
             gl.deleteTexture(tile.texture);
         });
 
-        // Reset all state variables
+        // Always clear the tile array and image-specific data
         tiles = [];
-        scale = 1.0;
-        originX = 0;
-        originY = 0;
-        targetScale = 1.0;
-        targetOriginX = 0;
-        targetOriginY = 0;
         orgImgWidth = 0;
         orgImgHeight = 0;
         orgImgBytes = 0;
-        rotation = 0;
+
+        // Force the render loop to apply the correct texture filter to the newly created tiles.
+        currentMagFilter = null;
 
         // If the current image was from a Blob/File, revoke its URL to free memory
         if (currentImageUrl && currentImageUrl.startsWith('blob:')) {
             URL.revokeObjectURL(currentImageUrl);
+        }
+        
+        // Conditionally reset the view transform state.
+        // If preserving state, we simply keep the existing values.
+        if (!preserveState) {
+            scale = 1.0;
+            originX = 0;
+            originY = 0;
+            targetScale = 1.0;
+            targetOriginX = 0;
+            targetOriginY = 0;
+            rotation = 0;
         }
     }
 
 
     /**
      * This is a public API method for loading a new image.
-     * It cleans up the old image and initializes the new one.
+     * It cleans up the old image and initializes the new one, with an option
+     * to preserve the current pan, zoom, and rotation.
      * @param {string} newUrl The URL of the new image to load.
+     * @param {object} [options]
+     * @param {boolean} [options.preserveState=false] - If true, the view state is retained across loads.
      */
-    function loadImage(newUrl)
+    function loadImage(newUrl, { preserveState = false } = {})
     {
-        console.log("Loading new image:", newUrl);
-        _cleanup();
+        console.log(`Loading new image: ${newUrl}, preserveState: ${preserveState}`);
+        
+        // Cleanup resources, passing the preserveState option.
+        _cleanup({ preserveState });
         currentImageUrl = newUrl; // Update the tracked URL
         
-        // The core loading logic, wrapped in the new public function
+        // The core loading logic
         loadImageAndCreateTextureInfo(newUrl, () => {
-            setInitialView();
+            // If we preserved the state, we must not call setInitialView(),
+            // as that would reset the pan and zoom. Instead, we just ensure the
+            // current view is valid for the new image's dimensions.
+            if (preserveState) {
+                // Sync animation targets with the preserved state
+                targetScale = scale;
+                targetOriginX = originX;
+                targetOriginY = originY;
+                // Snap to the new image's edges if the old view is now out of bounds
+                checkEdges(false); 
+            } else {
+                // Default behavior: reset the view to fit the new image.
+                setInitialView();
+            }
             
             imageSizePixelsSpan.textContent = `${orgImgWidth}x${orgImgHeight}`;
             imageSizeBytesSpan.textContent = formatBytes(orgImgBytes);
@@ -1149,7 +1177,7 @@ window.smoozoo = (imageUrl, settings) => {
             // Notify all plugins that a new image has been loaded
             for (const plugin of plugins) {
                 if (typeof plugin.instance?.onImageLoaded === 'function') {
-                    plugin.instance.onImageLoaded();
+                    plugin.instance.onImageLoaded(newUrl);
                 }
             }
 
@@ -1837,6 +1865,8 @@ window.smoozoo = (imageUrl, settings) => {
         renderToPixels: renderToPixels,
         renderToPixelsAsync: renderToPixelsAsync,
         loadImage: loadImage,
+        currentImageUrl: () => currentImageUrl,
+        currentImageFilename: currentImageUrl.split('/').pop()
     };
 
     loadImage(imageUrl);
