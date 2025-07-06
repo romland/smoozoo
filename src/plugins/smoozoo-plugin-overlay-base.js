@@ -407,7 +407,7 @@ export class OverlayBasePlugin
         // Draw hover highlight.
         if (shape.hover && isHovered) {
             this.ctx.strokeStyle = this.options.hoverOutlineColor;
-            this.ctx.lineWidth = shape.lineWidth || shape.fixedSize ? 2 : 4; // Thinner line for fixed-size items.
+            this.ctx.lineWidth = shape.lineWidth || (shape.fixedSize ? 2 : 4); // Thinner line for fixed-size items.
 
             switch (shape.type) {
                 case 'circle':
