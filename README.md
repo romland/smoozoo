@@ -241,6 +241,8 @@ const viewerApi = {
     renderToPixels: renderToPixels,
     renderToPixelsAsync: renderToPixelsAsync,
     loadImage: loadImage,
+    currentImageUrl: () => currentImageUrl,
+    currentImageFilename: currentImageUrl.split('/').pop()
 };
 ```
 
