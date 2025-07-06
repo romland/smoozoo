@@ -367,6 +367,63 @@ The muckery with new URL() is primarily for Parcel to know that it should includ
 in the distribution. You can just pass in a string as URL.
 
 
+### 5. Wurm Map Viewer
+It is compatible with Jonneh's map-viewer, you just need to include the script
+called `config.js`. Deeds and focusZones will be picked up automatically by
+this plugin after that.
+
+`index.html`:
+```html
+<!-- This is just for a simple test I decided to play with: compatibility with a Wurm map-viewer -->
+<script type="text/javascript" src="./assets/zenath-mapviewerconfig.js"></script>
+
+```
+
+To use, `index.js`:
+```javascript
+import { WurmMapPlugin } from "../plugins/smoozoo-plugin-wurm-map.js";
+
+window.addEventListener('load', async () => {
+    const settings = {
+        // ...other smoozoo settings...,
+        plugins: [
+            {
+                // You want to include this plugin if you want to be able to switch views (flat/3d/etc)
+                name: FileChooserPlugin,
+                options: {
+                    allowFileDrop: false,
+                    showFileList: true,
+                    showFileDialog: false,
+                    presetFiles: [
+                        { name: 'Zenath PvE',     url: new URL(`../assets/zenath-pve.png`,    import.meta.url).toString() },
+                        { name: 'Zenath PvE 3D',  url: new URL(`../assets/zenath-pve-3d.png`, import.meta.url).toString() },
+                    ]
+                }
+            },
+            {
+                // Always nice to have a minimap
+                name: MinimapPlugin,
+                options: {
+                    minimapMinSize: 0,
+                    minimapMaxSize: 200
+                }
+            },
+            {
+                // The Wurm map-viewer is tiny, not much to configure.
+                // It's currently very basic. Give it your own twist.
+                name: WurmMapPlugin,
+                options: {
+                }
+            },
+        ]        
+    }
+
+    const url = new URL(`../assets/zenath-pve.png`, import.meta.url);
+    smoozoo(url.toString(), settings);
+});
+```
+
+
 ## Maybe TODO
     - "Tiled pyramid" format (like DZI - Deep Zoom Image). Support for pre-sliced tiles at
       different scales from back-end (low priority as it needs server side code).

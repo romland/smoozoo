@@ -21,7 +21,6 @@ window.addEventListener('load', async () => {
         dynamicTextureFiltering:    true,
         dynamicFilteringThreshold:  2.0,
         plugins: [
-            /*
             {
                 name: HotspotPlugin,
                 options: {
@@ -41,7 +40,6 @@ window.addEventListener('load', async () => {
                     shapes: null, // An explicit `null` here will show some default test shapes
                 }
             },
-            */
             {
                 name: FileChooserPlugin,
                 options: {
@@ -66,16 +64,16 @@ window.addEventListener('load', async () => {
                     minimapMaxSize: 200
                 }
             },
+            /*
             {
                 name: WurmMapPlugin,
                 options: {
                 }
             },
-
+            */
         ]
     };
 
-    // const url = new URL(`../assets/ETHUSDT-ath.png`, import.meta.url);
-    const url = new URL(`../assets/zenath-pve.png`, import.meta.url);
+    const url = new URL(`../assets/ETHUSDT-ath.png`, import.meta.url);
     smoozoo(url.toString(), settings);
 });
