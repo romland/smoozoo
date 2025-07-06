@@ -102,7 +102,7 @@ native one (I humbly opine)!
     - Cosmetics:  
         - make GL clear color configurable  
 
-## Use in your own projects
+## Use Smoozoo in your own projects
 See `index.html` on what elements are needed.
 
 Then start Smoozoo like this:
@@ -435,6 +435,9 @@ window.addEventListener('load', async () => {
 
 
 ## Maybe future plugins
+    - picture collection / gallery plugin (call it collection, tho -- a gallery sounds
+      very grandiose)
+
     - smart conversion of image to dark mode
     
     - ability to set brightness / contrast / saturation - maybe other adjustments
