@@ -83,6 +83,8 @@ native one (I humbly opine)!
 ## TODO
     - the minimap viewport border goes below the minimap edge
 
+    - add a method to smoothly pan/scale from current point to another
+
     - When I deep-link to a position, I end up ignoring what is allowed to be 
       maximum zoomed-out. I will want to still do that calculation even if we
       are not using it initially (basically, I cannot zoom out as far as I want)
@@ -96,6 +98,9 @@ native one (I humbly opine)!
       Although personally, I am a fan of a single large file!
 
     - FIX (or ditch): 'r' to rotate image in steps of 90 degrees
+
+    - For demo purposes: Be able to set which plugins should be loaded with which image?
+      Or not? Just create several initializations?
 
     - Cosmetics:  
         - make GL clear color configurable  
@@ -133,20 +138,19 @@ import { FileChooserPlugin } from "../plugins/smoozoo-plugin-filechooser.js";
 window.addEventListener('load', async () => {
     const settings = {
         canvas:                     document.getElementById('smoozoo-glcanvas'),
+        initialScale:               0.3,
+        initialPosition:            { x: 0.0, y: 0.5 },
         loadingAnimation:           true,
-        minimapMaxSize:             200,
-        minimapMinSize:             8,
+        maxScale:                   40,
         elasticMoveDuration:        200,
         zoomSmoothing:              0.075,
         mouseInertiaFriction:       0.95,
         touchInertiaFriction:       0.98,
         inertiaStopThreshold:       0.1,
-        initialScale:               0.9,
-        initialPosition:            { x: 0.5, y: 0.5 },
-        allowDeepLinks:             true,   // allow going to e.g. ?x=2777&y=1879&scale=20.000000
-        pixelatedZoom:              true,   // can also be toggled with p, or overridden with dynamic
-        dynamicFilteringThreshold:  2.0,
-        dynamicTextureFiltering:    true,   // if greater or less than filteringThreshold,
+        allowDeepLinks:             true,   // Allow going to e.g. ?x=2777&y=1879&scale=20.000000
+        pixelatedZoom:              true,   // Can also be toggled with p, or overridden with dynamic below
+        dynamicFilteringThreshold:  2.0,    // The scale where we toggle filtering (if enabled)
+        dynamicTextureFiltering:    true,   // If greater or less than dynamicFilteringThreshold,
                                             // automatically toggle texture filtering (pixelated or not)
         plugins: [
             // any plugins you might have -- see below for more information.
@@ -402,7 +406,6 @@ this plugin after that.
 ```html
 <!-- This is just for a simple test I decided to play with: compatibility with a Wurm map-viewer -->
 <script type="text/javascript" src="./assets/zenath-mapviewerconfig.js"></script>
-
 ```
 
 To use, `index.js`:
@@ -411,6 +414,9 @@ import { WurmMapPlugin } from "../plugins/smoozoo-plugin-wurm-map.js";
 
 window.addEventListener('load', async () => {
     const settings = {
+        canvas: document.getElementById('smoozoo-glcanvas'),
+        loadingAnimation: true,
+        allowDeepLinks: true,
         // ...other smoozoo settings...,
         plugins: [
             {
@@ -421,8 +427,9 @@ window.addEventListener('load', async () => {
                     showFileList: true,
                     showFileDialog: false,
                     presetFiles: [
-                        { name: 'Zenath PvE',     url: new URL(`../assets/zenath-pve.png`,    import.meta.url).toString() },
-                        { name: 'Zenath PvE 3D',  url: new URL(`../assets/zenath-pve-3d.png`, import.meta.url).toString() },
+                        { name: 'Zenath PvE',       url: new URL(`../assets/zenath-pve.png`,      import.meta.url).toString() },
+                        { name: 'Zenath PvE 3D',    url: new URL(`../assets/zenath-pve-3d.png`,   import.meta.url).toString() },
+                        { name: 'Zenath PvE roads', url: new URL(`../assets/zenath-pve-road.png`, import.meta.url).toString() },
                     ]
                 }
             },
@@ -435,8 +442,8 @@ window.addEventListener('load', async () => {
                 }
             },
             {
-                // The Wurm map-viewer is tiny, not much to configure.
-                // It's currently very basic. Give it your own twist.
+                // The Wurm map-viewer is very little code, not much to configure.
+                // It's pretty basic, give it your own twist.
                 name: WurmMapPlugin,
                 options: {
                 }

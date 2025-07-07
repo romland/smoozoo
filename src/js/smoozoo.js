@@ -6,7 +6,7 @@ window.smoozoo = (imageUrl, settings) => {
     let htmlFragment;
 
     htmlFragment = `
-        <div id="smoozoo-status-display" class="display">
+        <div id="smoozoo-status-display" class="smoozoo-display">
             <p class="narrow"><strong>🔍 </strong><span id="smoozoo-zoom-level">1.00</span>x</p>
             <p class="largedisplayonly wide"><strong>⌖ </strong><span id="smoozoo-mouse-coords">0, 0</span></p>
             <p class="wide"><strong>🗎 </strong><span id="smoozoo-image-size-pixels">0x0</span></p>
@@ -41,7 +41,6 @@ window.smoozoo = (imageUrl, settings) => {
         `;
         targetElement.insertAdjacentHTML('beforeend', htmlFragment);
     }
-
 
     // DOM Element Selection & Initial Setup
     const canvas = settings.canvas;
@@ -86,6 +85,7 @@ window.smoozoo = (imageUrl, settings) => {
     settings.allowDeepLinks = settings.allowDeepLinks ?? false;
     settings.dynamicTextureFiltering = settings.dynamicTextureFiltering ?? false;
     settings.dynamicFilteringThreshold = settings.dynamicFilteringThreshold ?? 2.0;    
+    settings.maxScale = settings.maxScale ?? 20;
 
     // Variables for smooth zooming
     let targetScale = 1.0;
@@ -1427,7 +1427,7 @@ window.smoozoo = (imageUrl, settings) => {
             const t1 = e.touches[0], t2 = e.touches[1];
             const currentPinchDistance = Math.sqrt(Math.pow(t1.clientX - t2.clientX, 2) + Math.pow(t1.clientY - t2.clientY, 2));
             if (initialPinchDistance > 0) {
-                scale = Math.max(minScale, Math.min(initialScale * (currentPinchDistance / initialPinchDistance), 20));
+                scale = Math.max(minScale, Math.min(initialScale * (currentPinchDistance / initialPinchDistance), settings.maxScale));
             }
             const midpointX = (t1.clientX + t2.clientX) / 2;
             const midpointY = (t1.clientY + t2.clientY) / 2;
@@ -1576,7 +1576,7 @@ window.smoozoo = (imageUrl, settings) => {
 
         // Calculate the new target scale and clamp it.
         const newTargetScale = targetScale * scaleAmount;
-        targetScale = Math.max(minScale, Math.min(newTargetScale, 20));
+        targetScale = Math.max(minScale, Math.min(newTargetScale, settings.maxScale));
 
         // Calculate the new raw target origin to keep the world point under the mouse.
         const rawTargetOriginX = (lastMouseX / targetScale) - worldMouseX;

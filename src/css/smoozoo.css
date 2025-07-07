@@ -7,11 +7,16 @@ body {
 	margin: 0;
 }
 
-canvas {
+#smoozoo-glcanvas {
 	display: block;
+	cursor: grab;
 }
 
-.display {
+#smoozoo-glcanvas.panning {
+	cursor: grabbing;
+}
+
+.smoozoo-display {
 	z-index: 2;
 	position: fixed;
 	background-color: rgba(0, 0, 0, 0.65);
@@ -123,18 +128,8 @@ p.wide {
 	}
 }
 
-canvas {
-  cursor: grab;
-}
-
-canvas.panning {
-  cursor: grabbing;
-}
-
-
 /* --- Loader Styles --- */
 .loader-container {
-	/* Positioning & Visibility */
 	position: fixed;
 	top: 0;
 	left: 0;
@@ -142,19 +137,17 @@ canvas.panning {
 	height: 100%;
 	z-index: 9999;
 	
-	/* Layout */
 	display: flex;
 	justify-content: center;
 	align-items: center;
 	
-	/* Style & Transition */
 	background-color: rgba(14, 4, 34, 0.85); /* Matches your canvas background */
 	backdrop-filter: blur(5px);
 	opacity: 1;
 	transition: opacity 0.5s ease;
 }
 
-/* This class will be toggled by JavaScript to hide the loader */
+/* class toggled by JS to hide the loader */
 .loader-container.hidden {
 	opacity: 0;
 	pointer-events: none; /* Prevents interaction when hidden */
@@ -209,7 +202,7 @@ canvas.panning {
 	letter-spacing: 0.1em;
 	color: rgba(255, 255, 255, 0.3);
 	position: relative;
-	overflow: hidden; /* Crucial for the effect */
+	overflow: hidden;
 }
 
 /* The shimmer is a pseudo-element that wipes across the text */
