@@ -58,13 +58,11 @@ window.smoozoo = (imageUrl, settings) => {
     }
 
     const loader = document.getElementById('smoozoo-loader');
-
     const zoomLevelSpan = document.getElementById('smoozoo-zoom-level');
     const mouseCoordsSpan = document.getElementById('smoozoo-mouse-coords');
     const imageSizePixelsSpan = document.getElementById('smoozoo-image-size-pixels');
     const imageSizeBytesSpan = document.getElementById('smoozoo-image-size-bytes');
     const imageFilenameSpan = document.getElementById('smoozoo-image-file-name');
-
     const panSlider = document.getElementById('smoozoo-pan-slider');
 
     // State Variables
@@ -120,6 +118,7 @@ window.smoozoo = (imageUrl, settings) => {
     let inertiaAnimationId = null;
     let elasticMoveAnimationId = null;
     let smoothZoomAnimationId = null;
+    let animateToAnimationId = null;
     let lastAnimationTime = 0;
     let currentMagFilter = null;
 
@@ -174,6 +173,13 @@ window.smoozoo = (imageUrl, settings) => {
     {
         return (1 - a) * s + a * e;
     }
+
+
+    const easingFunctions = {
+        linear: t => t,
+        easeOutCubic: t => (--t) * t * t + 1,
+        easeInOutCubic: t => t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2,
+    };
 
 
     function debounce(func, timeout = 100)
@@ -870,6 +876,11 @@ window.smoozoo = (imageUrl, settings) => {
             cancelAnimationFrame(smoothZoomAnimationId);
             smoothZoomAnimationId = null;
         }
+
+        if (animateToAnimationId) {
+            cancelAnimationFrame(animateToAnimationId);
+            animateToAnimationId = null;
+        }
         
         lastAnimationTime = 0;
 
@@ -877,6 +888,136 @@ window.smoozoo = (imageUrl, settings) => {
     }
 
 
+    /**
+     * Calculates the valid, clamped origin coordinates for a given target state.
+     * This prevents the animation from overshooting the image boundaries.
+     * @private
+     * @param {number} targetOriginX - The desired, but potentially invalid, x-origin.
+     * @param {number} targetOriginY - The desired, but potentially invalid, y-origin.
+     * @param {number} targetScale - The scale at which to check the boundaries.
+     * @returns {{x: number, y: number}} - The clamped, valid origin coordinates.
+     */
+    function getClampedOrigin(targetOriginX, targetOriginY, targetScale)
+    {
+        const { width: imageWidth, height: imageHeight } = getCurrentImageSize();
+        const viewWidth = canvas.width / targetScale;
+        const viewHeight = canvas.height / targetScale;
+
+        let finalX = targetOriginX;
+        let finalY = targetOriginY;
+
+        // Clamp the X coordinate
+        if (imageWidth < viewWidth) {
+            finalX = (viewWidth - imageWidth) / 2; // Center if image is smaller than view
+        } else {
+            const minOriginX = viewWidth - imageWidth;
+            finalX = Math.max(minOriginX, Math.min(0, finalX));
+        }
+
+        // Clamp the Y coordinate
+        if (imageHeight < viewHeight) {
+            finalY = (viewHeight - imageHeight) / 2; // Center if image is smaller than view
+        } else {
+            const minOriginY = viewHeight - imageHeight;
+            finalY = Math.max(minOriginY, Math.min(0, finalY));
+        }
+
+        return { x: finalX, y: finalY };
+    }
+
+
+    /**
+     * Smoothly pans and scales the view to a target point over a given duration.
+     * @public
+     * @param {object} options - The animation options.
+     * @param {number} options.x - The target x-coordinate in the image's pixel space to center on.
+     * @param {number} options.y - The target y-coordinate in the image's pixel space to center on.
+     * @param {number} options.scale - The target scale level.
+     * @param {number} [options.duration=1000] - The duration of the animation in milliseconds.
+     * @param {string} [options.easing='easeInOutCubic'] - The name of the easing function to use.
+     */
+    function animateTo({
+        x,
+        y,
+        scale: newScale,
+        duration = 1000,
+        easing = 'easeInOutCubic'
+    }) {
+        cancelAllAnimations();
+
+        const finalScale = Math.max(minScale, Math.min(newScale, settings.maxScale));
+        const easingFunc = easingFunctions[easing] || easingFunctions.easeInOutCubic;
+
+        // Calculate the ideal origin to center the view on the target coordinates
+        const idealOriginX = (canvas.width / (2 * finalScale)) - x;
+        const idealOriginY = (canvas.height / (2 * finalScale)) - y;
+
+        // Get the valid, clamped final destination *before* starting the animation
+        const finalOrigin = getClampedOrigin(idealOriginX, idealOriginY, finalScale);
+
+        const animationParams = {
+            startTime: performance.now(),
+            duration: duration,
+            easingFunc: easingFunc,
+            startScale: scale,
+            startOriginX: originX,
+            startOriginY: originY,
+            targetScale: finalScale,
+            targetOriginX: finalOrigin.x,
+            targetOriginY: finalOrigin.y,
+        };
+
+        animateToAnimationId = requestAnimationFrame(() => animateToLoop(animationParams));
+    }
+
+
+    function animateToLoop({
+        startTime,
+        duration,
+        easingFunc,
+        startScale,
+        startOriginX,
+        startOriginY,
+        targetScale,
+        targetOriginX,
+        targetOriginY
+    }) {
+        const currentTime = performance.now();
+        const elapsedTime = currentTime - startTime;
+        let progress = Math.min(elapsedTime / duration, 1);
+        const easedProgress = easingFunc(progress);
+
+        scale = lerp(startScale, targetScale, easedProgress);
+        originX = lerp(startOriginX, targetOriginX, easedProgress);
+        originY = lerp(startOriginY, targetOriginY, easedProgress);
+
+        render();
+
+        if (progress < 1) {
+            animateToAnimationId = requestAnimationFrame(() => animateToLoop(
+                {
+                    startTime,
+                    duration,
+                    easingFunc,
+                    startScale,
+                    startOriginX,
+                    startOriginY,
+                    targetScale,
+                    targetOriginX,
+                    targetOriginY
+                }
+            ));
+        } else {
+            // Animation finished, set final state precisely
+            scale = targetScale;
+            originX = targetOriginX;
+            originY = targetOriginY;
+            animateToAnimationId = null;
+            render();
+        }
+    }
+
+    
     /**
      * Smoothly animates the view to a new origin point with an ease-out effect.
      */
@@ -912,39 +1053,23 @@ window.smoozoo = (imageUrl, settings) => {
      */
     function checkEdges(elasticSnap = true)
     {
-        const { width: imageWidth, height: imageHeight } = getCurrentImageSize();
-        const viewWidth = canvas.width / scale;
-        const viewHeight = canvas.height / scale;
+        // Get the correct, clamped origin for the *current* view state.
+        const clampedOrigin = getClampedOrigin(originX, originY, scale);
 
-        let targetX = originX;
-        let targetY = originY;
-
-        if (imageWidth < viewWidth) {
-            targetX = (viewWidth - imageWidth) / 2;
-        } else {
-            const minOriginX = viewWidth - imageWidth;
-            if (originX > 0) targetX = 0;
-            if (originX < minOriginX) targetX = minOriginX;
-        }
-
-        if (imageHeight < viewHeight) {
-            targetY = (viewHeight - imageHeight) / 2;
-        } else {
-            const minOriginY = viewHeight - imageHeight;
-            if (originY > 0) targetY = 0;
-            if (originY < minOriginY) targetY = minOriginY;
-        }
-
-        if (targetX !== originX || targetY !== originY) {
+        // If the current origin is not in a valid position...
+        if (clampedOrigin.x !== originX || clampedOrigin.y !== originY) {
             if (elasticSnap) {
-                elasticMove(targetX, targetY);
+                // ...animate to the correct position.
+                elasticMove(clampedOrigin.x, clampedOrigin.y);
             } else {
-                originX = targetX;
-                originY = targetY;
+                // ...or snap to it directly.
+                originX = clampedOrigin.x;
+                originY = clampedOrigin.y;
                 render();
             }
         }
     }
+
 
 
     /**
@@ -1047,21 +1172,13 @@ window.smoozoo = (imageUrl, settings) => {
     {
         cancelAllAnimations();
 
-        const { width: imageWidth, height: imageHeight } = getCurrentImageSize();
-        const viewWidth = canvas.width / scale;
-        const viewHeight = canvas.height / scale;
+        const clampedOrigin = getClampedOrigin(targetOriginX, targetOriginY, scale);
 
-        if (imageWidth > viewWidth) {
-            originX = Math.max(viewWidth - imageWidth, Math.min(0, targetOriginX));
-        } else {
-            originX = (viewWidth - imageWidth) / 2;
-        }
-
-        if (imageHeight > viewHeight) {
-            originY = Math.max(viewHeight - imageHeight, Math.min(0, targetOriginY));
-        } else {
-            originY = (viewHeight - imageHeight) / 2;
-        }
+        originX = clampedOrigin.x;
+        originY = clampedOrigin.y;
+        
+        targetOriginX = originX;
+        targetOriginY = originY;
 
         render();
     }
@@ -1099,40 +1216,25 @@ window.smoozoo = (imageUrl, settings) => {
         }
 
         // If we didn't get a deep link, proceed with the original logic and obey settings.
-        if (!didDeepLink) {
-            const scaleToFitWidth = canvas.width / imageWidth;
-            const scaleToFitHeight = canvas.height / imageHeight;
-            const fitScale = Math.min(scaleToFitWidth, scaleToFitHeight);
-
-            scale = targetScale = Math.min(1.0, fitScale);
-            minScale = Math.min(scale, 0.1);
-
-            if (settings.initialScale) {
-                scale = targetScale = settings.initialScale;
-            }
-
-            if (settings.initialPosition && typeof settings.initialPosition.x === 'number' && typeof settings.initialPosition.y === 'number') {
-                let targetX = settings.initialPosition.x;
-                let targetY = settings.initialPosition.y;
-
-                // If coordinates are between 0 and 1, treat them as percentages
-                if (targetX >= 0 && targetX <= 1 && targetY >= 0 && targetY <= 1) {
-                    targetX = imageWidth * targetX;
-                    targetY = imageHeight * targetY;
-                }
-
-                // Calculate origin to center the view on the target coordinates
-                originX = (canvas.width / (2 * scale)) - targetX;
-                originY = (canvas.height / (2 * scale)) - targetY;
-
-                // Also set the target origin for the smooth zoom animation state
-                targetOriginX = originX;
-                targetOriginY = originY;
-            }
+        if (didDeepLink) {
+            // From URL params
+            scale = targetScale = urlParams.scale;
+            const idealX = (canvas.width / (2 * scale)) - urlParams.x;
+            const idealY = (canvas.height / (2 * scale)) - urlParams.y;
+            const clamped = getClampedOrigin(idealX, idealY, scale);
+            originX = targetOriginX = clamped.x;
+            originY = targetOriginY = clamped.y;
+        } else {
+            // ... (logic to determine initial scale and ideal x/y from settings) ...
+            const idealX = (canvas.width / (2 * scale)) - targetX; // targetX from settings
+            const idealY = (canvas.height / (2 * scale)) - targetY; // targetY from settings
+            const clamped = getClampedOrigin(idealX, idealY, scale);
+            originX = targetOriginX = clamped.x;
+            originY = targetOriginY = clamped.y;
         }
 
-        // Ensure the final position is valid and within image boundaries (no snapback).
-        checkEdges(false);
+        render(); 
+
     }
 
 
@@ -1527,7 +1629,6 @@ window.smoozoo = (imageUrl, settings) => {
         
         targetScale = isFit ? 1.5 : fitScale; // Zoom to 150% or back to fit
 
-        // The rest of the logic is the same as handleCanvasDoubleClick
         // Calculate world coordinates and new origin to zoom to the tapped point
         const worldMouseX = (lastMouseX / scale) - originX;
         const worldMouseY = (lastMouseY / scale) - originY;
@@ -1578,28 +1679,12 @@ window.smoozoo = (imageUrl, settings) => {
         const newTargetScale = targetScale * scaleAmount;
         targetScale = Math.max(minScale, Math.min(newTargetScale, settings.maxScale));
 
-        // Calculate the new raw target origin to keep the world point under the mouse.
         const rawTargetOriginX = (lastMouseX / targetScale) - worldMouseX;
         const rawTargetOriginY = (lastMouseY / targetScale) - worldMouseY;
 
-        // Apply edge-snapping logic directly to the TARGET values before animating
-        const { width: imageWidth, height: imageHeight } = getCurrentImageSize();
-        const viewWidthAtTarget = canvas.width / targetScale;
-        const viewHeightAtTarget = canvas.height / targetScale;
-
-        if (imageWidth < viewWidthAtTarget) {
-            targetOriginX = (viewWidthAtTarget - imageWidth) / 2;
-        } else {
-            const minOriginX = viewWidthAtTarget - imageWidth;
-            targetOriginX = Math.max(minOriginX, Math.min(0, rawTargetOriginX));
-        }
-
-        if (imageHeight < viewHeightAtTarget) {
-            targetOriginY = (viewHeightAtTarget - imageHeight) / 2;
-        } else {
-            const minOriginY = viewHeightAtTarget - imageHeight;
-            targetOriginY = Math.max(minOriginY, Math.min(0, rawTargetOriginY));
-        }
+        const finalTarget = getClampedOrigin(rawTargetOriginX, rawTargetOriginY, targetScale);
+        targetOriginX = finalTarget.x;
+        targetOriginY = finalTarget.y;
 
         // Start the animation loop if it's not already running.
         if (!isZooming) {
@@ -1613,37 +1698,27 @@ window.smoozoo = (imageUrl, settings) => {
         e.preventDefault();
         cancelAllAnimations();
 
-        let finalScale = (Math.abs(scale - 1.0) < 0.01) ? 0.25 : 1;
+        let finalScale = (Math.abs(scale - 1.0) < 0.01) ? 0.25 : 1.0;
         lastMouseX = e.clientX;
         lastMouseY = e.clientY;
         targetScale = finalScale;
 
         const worldMouseX = (lastMouseX / scale) - originX;
         const worldMouseY = (lastMouseY / scale) - originY;
+        
         const rawTargetOriginX = (lastMouseX / targetScale) - worldMouseX;
         const rawTargetOriginY = (lastMouseY / targetScale) - worldMouseY;
-        const { width: imageWidth, height: imageHeight } = getCurrentImageSize();
 
-        const viewWidthAtTarget = canvas.width / targetScale;
-        if (imageWidth < viewWidthAtTarget) {
-            targetOriginX = (viewWidthAtTarget - imageWidth) / 2;
-        } else {
-            const minOriginX = viewWidthAtTarget - imageWidth;
-            targetOriginX = Math.max(minOriginX, Math.min(0, rawTargetOriginX));
-        }
-
-        const viewHeightAtTarget = canvas.height / targetScale;
-        if (imageHeight < viewHeightAtTarget) {
-            targetOriginY = (viewHeightAtTarget - imageHeight) / 2;
-        } else {
-            const minOriginY = viewHeightAtTarget - imageHeight;
-            targetOriginY = Math.max(minOriginY, Math.min(0, rawTargetOriginY));
-        }
+        // Use the helper to get the final, valid target origin
+        const finalTarget = getClampedOrigin(rawTargetOriginX, rawTargetOriginY, targetScale);
+        targetOriginX = finalTarget.x;
+        targetOriginY = finalTarget.y;
 
         if (!isZooming) {
             smoothZoomAnimationId = requestAnimationFrame(smoothZoomLoop);
         }
     }
+
 
 
     async function handleWindowKeyDown(e)
@@ -1720,7 +1795,6 @@ window.smoozoo = (imageUrl, settings) => {
             case 'p':
                 settings.pixelatedZoom = !settings.pixelatedZoom;
                 updateTextureFiltering();
-                console.log("Show me pixels", settings.pixelatedZoom);
                 render();
                 break;
 
@@ -1818,33 +1892,23 @@ window.smoozoo = (imageUrl, settings) => {
 
     function handleWindowResize()
     {
-        // Capture the state
         const oldWidth = canvas.width;
         const oldHeight = canvas.height;
-
-        // Find what world coordinate is currently at the center of the viewport.
-        // This is the point we want to keep centered after the resize.
+        
         const centerWorldX = (oldWidth / (2 * scale)) - originX;
         const centerWorldY = (oldHeight / (2 * scale)) - originY;
 
-        // Perform the actual resize ---
         canvas.width = window.innerWidth;
         canvas.height = window.innerHeight;
         gl.viewport(0, 0, canvas.width, canvas.height);
 
-        // Recalculate the origin to re-center the view ---
-        // We use our saved world coordinate and the new canvas size to find the
-        // new originX/Y needed to keep that point in the middle of the screen.
-        originX = (canvas.width / (2 * scale)) - centerWorldX;
-        originY = (canvas.height / (2 * scale)) - centerWorldY;
-        
-        // Also update the target origins for the smooth zoom animation state to avoid conflicts.
-        targetOriginX = originX;
-        targetOriginY = originY;
+        const idealOriginX = (canvas.width / (2 * scale)) - centerWorldX;
+        const idealOriginY = (canvas.height / (2 * scale)) - centerWorldY;
 
-        // Snap to edges and re-render the scene ---
-        // Snap immediately without animation.
-        checkEdges(false); 
+        const clamped = getClampedOrigin(idealOriginX, idealOriginY, scale);
+        originX = targetOriginX = clamped.x;
+        originY = targetOriginY = clamped.y;
+
         render();
     }
 
@@ -1911,6 +1975,7 @@ window.smoozoo = (imageUrl, settings) => {
         renderToPixels: renderToPixels,
         renderToPixelsAsync: renderToPixelsAsync,
         loadImage: loadImage,
+        animateTo: animateTo,
         currentImageUrl: () => currentImageUrl,
         currentImageFilename: currentImageUrl.split('/').pop()
     };

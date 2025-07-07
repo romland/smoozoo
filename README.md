@@ -269,6 +269,7 @@ const viewerApi = {
     renderToPixels: renderToPixels,
     renderToPixelsAsync: renderToPixelsAsync,
     loadImage: loadImage,
+    animateTo: animateTo, // e.g.: animateTo({ x: 10500, y: 500, scale: 2, duration: 1500, easing: "easeInOutCubic" });
     currentImageUrl: () => currentImageUrl,
     currentImageFilename: currentImageUrl.split('/').pop()
 };

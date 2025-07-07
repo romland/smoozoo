@@ -22,12 +22,13 @@ export class MinimapPlugin
             </div>
         `;
 
-        const targetElement = document.body; //document.getElementById('smoozoo');
+        const targetElement = document.body;
         targetElement.insertAdjacentHTML('beforeend', htmlFragment);
+        // targetElement.insertAdjacentHTML('afterbegin', htmlFragment);
 
-        this.container = document.getElementById('smoozoo-minimap-container');
+        this.container =   document.getElementById('smoozoo-minimap-container');
         this.imageCanvas = document.getElementById('smoozoo-minimap-image');
-        this.viewport = document.getElementById('smoozoo-minimap-viewport');
+        this.viewport =    document.getElementById('smoozoo-minimap-viewport');
 
         if (!this.container || !this.imageCanvas || !this.viewport) {
             console.error("Minimap DOM elements not found!");

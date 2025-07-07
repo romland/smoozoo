@@ -1,4 +1,4 @@
-#minimap-container {
+#smoozoo-minimap-container {
 	position: fixed;
 	top: 20px;
 	right: 20px;
@@ -13,7 +13,7 @@
 	pointer-events: auto;
 }
 
-#minimap-image {
+#smoozoo-minimap-image {
 	width: 100%;
 	height: 100%;
 	background-size: contain;
@@ -22,16 +22,14 @@
 	opacity: 0.7;
 }
 
-#minimap-viewport {
+#smoozoo-minimap-viewport {
 	position: absolute;
 	border: 2px solid #ff5555;
 	background-color: rgba(255, 85, 85, 0.25);
 	pointer-events: none;
 }
 
-body.ui-hidden #status-display,
-body.ui-hidden #control-display,
-body.ui-hidden #minimap-container {
+body.ui-hidden #smoozoo-minimap-container {
 	opacity: 0;
 	pointer-events: none;
 	transition: opacity 0.3s ease;
@@ -39,7 +37,7 @@ body.ui-hidden #minimap-container {
 
 @media (max-width: 600px) {
 	/* Position the minimap below the status bar */
-	#minimap-container {
+	#smoozoo-minimap-container {
 		top: 60px; /* Adjust this value for perfect spacing */
 		right: auto;
 		left: 50%;
