@@ -87,6 +87,9 @@ window.smoozoo = (imageUrl, settings) => {
     settings.maxScale = settings.maxScale ?? 20;
     settings.animateDeepLinks = settings.animateDeepLinks ?? false;
 
+    targetElement.style.backgroundColor = settings.backgroundColor;
+
+
     // Variables for smooth zooming
     let targetScale = 1.0;
     let targetOriginX = 0;
