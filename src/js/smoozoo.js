@@ -85,6 +85,7 @@ window.smoozoo = (imageUrl, settings) => {
     settings.dynamicTextureFiltering = settings.dynamicTextureFiltering ?? false;
     settings.dynamicFilteringThreshold = settings.dynamicFilteringThreshold ?? 2.0;    
     settings.maxScale = settings.maxScale ?? 20;
+    settings.animateDeepLinks = settings.animateDeepLinks ?? false;
 
     // Variables for smooth zooming
     let targetScale = 1.0;
@@ -149,9 +150,10 @@ window.smoozoo = (imageUrl, settings) => {
         const x = parseFloat(params.get('x'));
         const y = parseFloat(params.get('y'));
         const scale = parseFloat(params.get('scale'));
+        const animate = params.get("animate") === "true";
 
         if (!isNaN(x) && !isNaN(y) && !isNaN(scale)) {
-            return { x, y, scale };
+            return { x, y, scale, animate };
         }
 
         return null;
@@ -1229,14 +1231,23 @@ window.smoozoo = (imageUrl, settings) => {
 
         if (didDeepLink) {
             // Handle Deep Link
-            scale = targetScale = urlParams.scale;
-            minScale = Math.min(scale, 0.1);
+            if(urlParams.animate) {
+                scale = 0.1;
+                originX = 0
+                originY = 0
 
-            const idealX = (canvas.width / (2 * scale)) - urlParams.x;
-            const idealY = (canvas.height / (2 * scale)) - urlParams.y;
-            const clamped = getClampedOrigin(idealX, idealY, scale);
-            originX = targetOriginX = clamped.x;
-            originY = targetOriginY = clamped.y;
+                animateTo({ x: urlParams.x, y: urlParams.y, scale: urlParams.scale, duration: 2500, easing: "easeInOutCubic" });
+            } else {
+                scale = targetScale = urlParams.scale;
+                minScale = Math.min(scale, 0.1);
+
+                const idealX = (canvas.width / (2 * scale)) - urlParams.x;
+                const idealY = (canvas.height / (2 * scale)) - urlParams.y;
+                const clamped = getClampedOrigin(idealX, idealY, scale);
+
+                originX = targetOriginX = clamped.x;
+                originY = targetOriginY = clamped.y;
+            }
 
         } else {
             // Handle Standard Initial View
@@ -1810,7 +1821,7 @@ window.smoozoo = (imageUrl, settings) => {
                 e.preventDefault();
 
                 const path = `${window.location.protocol}//${window.location.host}${window.location.pathname}`;
-                const search = `?x=${lastMouseRealX}&y=${lastMouseRealY}&scale=${scale.toFixed(6)}`;
+                const search = `?x=${lastMouseRealX}&y=${lastMouseRealY}&scale=${scale.toFixed(6)}${settings.animateDeepLinks ? "&animate=true" : ""}`;
 
                 if(true) {
                     // Throw in clipboard

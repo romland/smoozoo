@@ -16,6 +16,7 @@ window.addEventListener('load', async () => {
         mouseInertiaFriction:       0.95,
         touchInertiaFriction:       0.98,
         inertiaStopThreshold:       0.1,
+        animateDeepLinks:           true,
         allowDeepLinks:             true,   // Allow going to e.g. ?x=2777&y=1879&scale=20.000000
         pixelatedZoom:              true,   // Can also be toggled with p, or overridden with dynamic below
         dynamicFilteringThreshold:  2.0,    // The scale where we toggle filtering (if enabled)
@@ -42,7 +43,7 @@ window.addEventListener('load', async () => {
                     shapes: [            {
                         // https://getemoji.com/
                         type: 'text',
-                        x: 1600, y: 700,
+                        x: 100, y: 200,
                         fillStyle: 'yellow',
                         font: '178px sans-serif',
                         text: "🧐",
@@ -58,8 +59,8 @@ window.addEventListener('load', async () => {
                     showFileList: true,
                     showFileDialog: true,
                     presetFiles: [
-                        { name: 'BTC-USDT', url: new URL(`../assets/BTCUSDT.png`, import.meta.url).toString() },
                         { name: 'ETH-USDT all-time-highs', url: new URL(`../assets/ETHUSDT-ath.png`, import.meta.url).toString() },
+                        { name: 'BTC-USDT', url: new URL(`../assets/BTCUSDT.png`, import.meta.url).toString() },
                         { name: 'BTC-USDT all-time-highs', url: new URL(`../assets/BTCUSDT-ath.png`, import.meta.url).toString() },
 
                         { name: 'Xanadu (reconstructed game world)',  url: new URL(`../assets/xanadu-reconstruction.png`, import.meta.url).toString() },

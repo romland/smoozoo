@@ -32,7 +32,7 @@ Made for very large images that require fast navigation and scaling.
         Toggle texture filtering (don't blur my pixels)  
     - `c`  
         Copy a link that leads to location currently under 
-        mouse pointer. E.g. http://localhost:1234?x=20000&y=0&scale=5
+        mouse pointer. E.g. http://oobabooga.com/smoozoo/?x=20000&y=0&scale=5&animate=true
 
 
 - Mouse  
@@ -64,7 +64,9 @@ Made for very large images that require fast navigation and scaling.
 ### Demo
 It's a pretty low-end host, depending on load, image might take a few seconds or two to load.
 
-https://oobabooga.com/smoozoo/  
+https://oobabooga.com/smoozoo/index.html  
+or
+https://oobabooga.com/smoozoo/wurm-map.html  
 
 
 ### About
@@ -106,7 +108,7 @@ native one (I humbly opine)!
         - make GL clear color configurable  
 
 ## Use Smoozoo in your own projects
-See `index.html`, but this is pretty much what you need, depending on which
+See `examples/index.html`, but this is pretty much what you need, depending on which
 plugins you have enabled:
 ```html
 <!DOCTYPE html>
@@ -117,12 +119,12 @@ plugins you have enabled:
 
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         
-        <link rel="stylesheet" href="./css/smoozoo.css" />
-        <link rel="stylesheet" href="./plugins/smoozoo-plugin-minimap.css" />
-        <link rel="stylesheet" href="./plugins/smoozoo-plugin-filechooser.css" />
+        <link rel="stylesheet" href="../css/smoozoo.css" />
+        <link rel="stylesheet" href="../plugins/smoozoo-plugin-minimap.css" />
+        <link rel="stylesheet" href="../plugins/smoozoo-plugin-filechooser.css" />
 
-        <script type="module" src="./js/smoozoo.js"></script>
-        <script type="module" src="./js/index.js"></script>
+        <script type="module" src="../js/smoozoo.js"></script>
+        <script type="module" src="../js/index.js"></script>
     </head>
     <body>
         <canvas id="smoozoo-glcanvas"></canvas>
@@ -148,6 +150,7 @@ window.addEventListener('load', async () => {
         mouseInertiaFriction:       0.95,
         touchInertiaFriction:       0.98,
         inertiaStopThreshold:       0.1,
+        animateDeepLinks:           true,
         allowDeepLinks:             true,   // Allow going to e.g. ?x=2777&y=1879&scale=20.000000
         pixelatedZoom:              true,   // Can also be toggled with p, or overridden with dynamic below
         dynamicFilteringThreshold:  2.0,    // The scale where we toggle filtering (if enabled)
@@ -427,8 +430,7 @@ this plugin after that.
 
 There is a demo for this in `examples`: `wurm-map.html` and `wurm-map.js`.
 
-But in short:
-`index.html`:
+But in short, in your HTML:
 ```html
 <!-- This is just for a simple test I decided to play with: compatibility with a Wurm map-viewer -->
 <script type="text/javascript" src="./assets/zenath-mapviewerconfig.js"></script>
@@ -495,6 +497,8 @@ window.addEventListener('load', async () => {
         - in this case, need it to do video too hum.
 
     - expand on interface to interact with the viewer in another porject
+
+    - document how to include/use this without Parcel (just a matter of including scripts in html)
 
 ## Maybe future plugins
     - picture collection / gallery plugin (call it collection, tho -- a gallery sounds

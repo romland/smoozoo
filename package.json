@@ -3,11 +3,11 @@
   "version": "1.0.0",
   "description": "This is Smoozoo - a super-smooth, performant and modern image viewer for the web",
   "scripts": {
-    "prebuild": "rm -rf dist",
-    "start": "parcel src/**/*.html --dist-dir dev",
+    "start": "parcel src/examples/*.html --dist-dir dev",
 
-    "build": "parcel build src/index.html --no-source-maps --public-url ./",
-    "buildall": "parcel build src/**/*.html --no-source-maps --public-url ./",
+    "prebuild": "rm -rf dist",
+    "build": "parcel build src/examples/index.html --no-source-maps --public-url ./",
+    "buildall": "parcel build src/examples/*.html --no-source-maps --public-url ./",
 
     "deploy": "npm run build && scripts/deploy.sh",
     "deployall": "npm run buildall && scripts/deploy.sh"
