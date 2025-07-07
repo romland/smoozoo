@@ -1,45 +1,12 @@
 /**
- * A class that extends the Shapes Overlay base!
- * 
- * This depends on Jonneh's Wurm mapviewer config file to be included as a script on the page.
- * 
- * ...and well, instantiate this plugin in Smoozoo and ... that's it.
- * 
- * Background
- * ----------
- * Jonneh's mapviewer that we are trying to have compatibility with thankfully just 
- * put two variables in the global/window scope: deeds and focusZones.
- * 
- * Let's grab them and convert them to objects Smoozoo can understand.
- * 
- * Jonneh's mapviewer define a deed like this:
- *   this.name
- *   this.x
- *   this.y
- *   this.sx
- *   this.sy
- *   this.ex
- *   this.ey
- *   this.height
- *   this.permanent
- * 
- * And a focusZone like this:
- *   this.name = name;
- *   this.x = x;
- *   this.y = y;
- *   this.sx = sx;
- *   this.sy = sy;
- *   this.ex = ex;
- *   this.ey = ey;
- *   this.height = height;
- *   this.type = type;
- * 
- * The only special thing in the shapes conversion is the height. We use it to adjust
- * our Y-pos depending on the height of the object.
- * 
- * There are two very rudimentary checks for whether we are displaying a 3D map or not;
- * if the filename contains "-3d", we deem it being a 3D view. This obviously should
- * be more robust if serious.
+ * A Smoozoo plugin that creates a shapes overlay from Jonneh's Wurm map viewer data.
+ *
+ * It relies on the map viewer's `config.js` file, which exposes global `deeds`
+ * and `focusZones` arrays. This plugin reads those arrays and converts them into
+ * shape objects for Smoozoo to render.
+ *
+ * For 3D maps (identified by "-3d" in the filename), it uses the `height`
+ * property to adjust the shape's Y-position.
  */
 import { OverlayBasePlugin } from "./smoozoo-plugin-overlay-base";
 
@@ -48,63 +15,118 @@ export class WurmMapPlugin extends OverlayBasePlugin
     constructor(api, options)
     {
         options.shapes = WurmMapPlugin.createDeedsAndZones(api.currentImageFilename.includes("-3d") ? "3d" : "flat");
-
         super(api, options);
+        this.api = api;
+        window.addEventListener('keydown', (e) => this.handleWindowKeyDown(e));
     }
 
-    // onImageLoaded() is not called for the initial image as plugins are not instantiated yet.
+    zoomOut()
+    {
+        const imgSize = this.api.getImageSize();
+        this.api.animateTo({ x: imgSize.width / 2, y: imgSize.height / 2, scale: 0.2, duration: 1500, easing: "easeInOutCubic" });
+    }
+
+    /**
+     * Let's add two keys (alternatively one could have an always visible search box):
+     * f:  Find a deed and go to it, provided we only got one result,
+     *     otherwise we will zoom out and drawShape() will take over and
+     *     flag multiple results.
+     * Escape: Go back to zoomed out view
+     */
+    handleWindowKeyDown(e)
+    {
+        switch (e.key) {
+            case 'Escape':
+                this.query = undefined;
+                this.zoomOut();
+                super.update();
+                break;
+
+            case 'f':
+                if (e.ctrlKey) return;
+                const query = prompt("Search for deed");
+                if (!query) return;
+
+                const hits = this.getShapes().filter(shape => shape.type === "text" && this.isNeedleInHaystack(query, shape.text));
+
+                if (hits.length === 1) {
+                    this.query = undefined;
+                    this.api.animateTo({ x: hits[0].x, y: hits[0].y, scale: 2, duration: 1500, easing: "easeInOutCubic" });
+                } else {
+                    this.query = query;
+                    this.zoomOut();
+                }
+                super.update();
+                break;
+        }
+    }
+
+    isNeedleInHaystack(needle, haystack)
+    {
+        return needle && haystack && haystack.toLocaleLowerCase().includes(needle.toLocaleLowerCase());
+    }
+
+    /**
+     * If multiple search results: highlight them by brutally overriding drawShape().
+     */
+    drawShape(shape, isHovered, screenX, screenY)
+    {
+        if (this.query && shape.type === "text" && (this.isNeedleInHaystack(this.query, shape.text) || this.isNeedleInHaystack(this.query, shape.tooltip))) {
+            shape = { ...shape, textBackgroundColor: 'rgba(0, 0, 255, 1)' };
+        }
+        super.drawShape(shape, isHovered, screenX, screenY);
+    }
+
+    /**
+     * onImageLoaded() is not called for the initial image as plugins are not instantiated yet.
+     */
     onImageLoaded(newUrl)
     {
-        this.setShapes(WurmMapPlugin.createDeedsAndZones(newUrl.includes("-3d") ? "3d" : "flat"));
+        const view = newUrl.includes("-3d") ? "3d" : "flat";
+        this.setShapes(WurmMapPlugin.createDeedsAndZones(view));
     }
 
     static createDeedsAndZones(view)
     {
-        let shapes = []
-        shapes = shapes.concat(WurmMapPlugin.convertLocationsToObjects(deeds, true, view));
-        shapes = shapes.concat(WurmMapPlugin.convertLocationsToObjects(focusZones, false, view));
-        return shapes;
+        if (typeof deeds === 'undefined' || typeof focusZones === 'undefined') {
+            throw new Error(`This Wurm Map plugin is missing the global 'deeds' or 'focusZones' variables. Please ensure you have included the map viewer's config file, e.g., <script src="config.js"></script>`);
+        }
+        return [
+            ...WurmMapPlugin.convertLocationsToObjects(deeds, true, view),
+            ...WurmMapPlugin.convertLocationsToObjects(focusZones, false, view)
+        ];
     }
 
     static convertLocationsToObjects(locs, isDeed = true, view = "flat")
     {
-        return locs.flatMap(location => {
+        return locs.flatMap(({ sx, sy, ex, ey, name, height, permanent, x, y }) => {
+            const yOffset = view === "3d" ? height / 40 : 0;
+
             // Rectangle for the hover area and tooltip.
             const rectShape = {
                 type: 'rect',
-                x: location.sx,
-                y: location.sy,
-                width: location.ex - location.sx,
-                height: location.ey - location.sy,
+                x: sx,
+                y: sy - yOffset,
+                width: ex - sx,
+                height: ey - sy,
                 lineWidth: 1,
-                fillStyle: 'rgba(0,0,0,0.2',
+                fillStyle: 'rgba(0,0,0,0.2)',
                 hover: true,
-                tooltip: location.name + " (height: " + location.height + ")"
+                tooltip: `${name} (height: ${height})`
             };
 
             // Text label.
+            // Conditional properties below handle styling for focus zones (!isDeed).
             const textShape = {
                 type: 'text',
-                text: location.name,
-                x: location.x, // Center the text using the main x/y coordinates
-                y: location.y,
-                // Style permanent locations differently to make them stand out
-                fillStyle: location.permanent ? 'gold' : 'white',
-                font: location.permanent ? '14px sans-serif' : '12px sans-serif',
-                textBackgroundColor: 'rgba(0, 0, 0, 0.6)',
-                fixedSize: true // Keep labels readable at any zoom level
+                text: name,
+                x: x,
+                y: y - yOffset,
+                fillStyle: isDeed ? (permanent ? 'gold' : 'white') : 'black',
+                font: isDeed && permanent ? '14px sans-serif' : '12px sans-serif',
+                textBackgroundColor: isDeed ? 'rgba(0, 0, 0, 0.6)' : 'rgba(255, 0, 0, 1)',
+                fixedSize: true
             };
-
-            // This should only happen for focus zones.
-            if(!isDeed) {
-                textShape.textBackgroundColor = 'rgba(255, 0, 0, 1)';
-                textShape.fillStyle = "black";
-            }
-
-            if(view === "3d") {
-                rectShape.y -= location.height / 40;
-                textShape.y -= location.height / 40;
-            }
 
             return [rectShape, textShape];
         });

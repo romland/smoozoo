@@ -12,6 +12,9 @@ export class FileChooserPlugin
             allowFileDrop: true,
             showFileList: true,
             showFileDialog: true,
+            strings: {
+                "Select..." : "Select..."
+            },
             ...options
         };
 
@@ -60,7 +63,7 @@ export class FileChooserPlugin
             this.select.className = 'file-chooser-select';
 
             const defaultOption = document.createElement('option');
-            defaultOption.textContent = 'Select...';
+            defaultOption.textContent = this.options.strings['Select...'];
             defaultOption.disabled = true;
             defaultOption.selected = true;
             this.select.appendChild(defaultOption);
@@ -76,6 +79,9 @@ export class FileChooserPlugin
 
         if(this.options.showFileList || this.options.showFileDialog) {
             document.body.appendChild(this.container);
+        }
+
+        if(this.options.allowFileDrop) {
             document.body.appendChild(this.dragOverlay);
         }
     }
@@ -130,11 +136,13 @@ export class FileChooserPlugin
      * @param {File} file The file object from the input or drop event.
      * @private
      */
-    _handleFile(file) {
+    _handleFile(file)
+    {
         if (!file.type.startsWith('image/')) {
             alert('Please drop an image file.');
             return;
         }
+        
         const objectURL = URL.createObjectURL(file);
         this.api.loadImage(objectURL);
     }

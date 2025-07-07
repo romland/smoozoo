@@ -138,6 +138,7 @@ import { FileChooserPlugin } from "../plugins/smoozoo-plugin-filechooser.js";
 window.addEventListener('load', async () => {
     const settings = {
         canvas:                     document.getElementById('smoozoo-glcanvas'),
+        backgroundColor:            "#0e0422",
         initialScale:               0.3,
         initialPosition:            { x: 0.0, y: 0.5 },
         loadingAnimation:           true,
@@ -161,6 +162,27 @@ window.addEventListener('load', async () => {
     const url = new URL(`../assets/some-image.png`, import.meta.url);
     smoozoo(url.toString(), settings);
 });
+```
+
+### Testing & Building
+Test/development (hot re-loading):
+```bash
+npm run test
+```
+You can find test files hosted e.g. here:  
+- http://localhost:1234/index.html  
+- http://localhost:1234/wurm-map.html  
+
+
+Building:
+```bash
+npm run build
+```
+The build ends up in `dist`.
+
+Alternatively, if you want to build examples too:
+```bash
+npm run buildall
 ```
 
 
@@ -403,6 +425,9 @@ It is compatible with Jonneh's map-viewer, you just need to include the script
 called `config.js`. Deeds and focusZones will be picked up automatically by
 this plugin after that.
 
+There is a demo for this in `examples`: `wurm-map.html` and `wurm-map.js`.
+
+But in short:
 `index.html`:
 ```html
 <!-- This is just for a simple test I decided to play with: compatibility with a Wurm map-viewer -->
@@ -416,7 +441,8 @@ import { WurmMapPlugin } from "../plugins/smoozoo-plugin-wurm-map.js";
 window.addEventListener('load', async () => {
     const settings = {
         canvas: document.getElementById('smoozoo-glcanvas'),
-        loadingAnimation: true,
+        backgroundColor: "#0e0422",
+        loadingAnimation: false,
         allowDeepLinks: true,
         // ...other smoozoo settings...,
         plugins: [
