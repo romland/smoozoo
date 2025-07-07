@@ -1,8 +1,8 @@
 export class HotspotPlugin
 {
-    constructor(viewer, options)
+    constructor(viewer, options, containerElement)
     {
-        const targetElement = document.body;
+        const targetElement = containerElement;
         const htmlFragment = `<div id="smoozoo-hotspot-layer"></div>`;
         targetElement.insertAdjacentHTML('beforeend', htmlFragment);
 

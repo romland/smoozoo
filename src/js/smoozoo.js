@@ -2,7 +2,7 @@ window.smoozoo = (imageUrl, settings) => {
     let currentImageUrl = imageUrl;
 
     // Do HTML injection
-    const targetElement = document.body;
+    const targetElement = settings.canvas.parentElement; //document.body;
     let htmlFragment;
 
     htmlFragment = `
@@ -221,7 +221,7 @@ window.smoozoo = (imageUrl, settings) => {
 
     function createPluginInstance(ClassName, api, options)
     {
-        const instance = new ClassName(api, options);
+        const instance = new ClassName(api, options, targetElement);
         console.log("Plugin", instance.constructor.name, "instantiated.")
         return instance;
     }

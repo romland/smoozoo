@@ -12,7 +12,7 @@ import { OverlayBasePlugin } from "./smoozoo-plugin-overlay-base";
 
 export class WurmMapPlugin extends OverlayBasePlugin
 {
-    constructor(api, options)
+    constructor(api, options, containerElement)
     {
         options.shapes = WurmMapPlugin.createDeedsAndZones(api.currentImageFilename.includes("-3d") ? "3d" : "flat");
         super(api, options);

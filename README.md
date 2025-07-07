@@ -214,8 +214,12 @@ export class YourSmoozooPlugin
      * 
      * options
      * is an object you pass in via settings when you instantiate Smoozoo
+     * 
+     * containerElement
+     * html element adjacent to the primary viewer canvas. This is typically
+     * where you would inject your plugin's HTML fragment(s).
      */
-    constructor(viewer, options)
+    constructor(viewer, options, containerElement)
     {
     }
 

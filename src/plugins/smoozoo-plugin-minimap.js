@@ -4,7 +4,7 @@ export class MinimapPlugin
      * @param {object} viewerApi Smoozoo viewer API
      * @param {object} options Plugin-specific options
      */
-    constructor(viewerApi, options)
+    constructor(viewerApi, options, containerElement)
     {
         this.api = viewerApi;
         this.gl = this.api.getCanvas().getContext('webgl');
@@ -22,7 +22,7 @@ export class MinimapPlugin
             </div>
         `;
 
-        const targetElement = document.body;
+        const targetElement = containerElement;
         targetElement.insertAdjacentHTML('beforeend', htmlFragment);
         // targetElement.insertAdjacentHTML('afterbegin', htmlFragment);
 

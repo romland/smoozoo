@@ -4,8 +4,9 @@ export class FileChooserPlugin
      * @param {object} viewerApi The API exposed by the Smoozoo viewer.
      * @param {object} options Plugin-specific options, including a list of preset files.
      */
-    constructor(viewerApi, options)
+    constructor(viewerApi, options, containerElement)
     {
+        this.containerElement = containerElement;
         this.api = viewerApi;
         this.options = {
             presetFiles: [], // Expects an array of { name: 'Display Name', url: 'path/to/image.jpg' }
@@ -78,11 +79,11 @@ export class FileChooserPlugin
         }
 
         if(this.options.showFileList || this.options.showFileDialog) {
-            document.body.appendChild(this.container);
+            this.containerElement.appendChild(this.container);
         }
 
         if(this.options.allowFileDrop) {
-            document.body.appendChild(this.dragOverlay);
+            this.containerElement.appendChild(this.dragOverlay);
         }
     }
 
@@ -114,14 +115,14 @@ export class FileChooserPlugin
 
         if(this.options.allowFileDrop) {
             // Drag and Drop
-            document.body.addEventListener('dragover', (e) => {
+            this.containerElement.addEventListener('dragover', (e) => {
                 e.preventDefault();
                 this.dragOverlay.classList.add('visible');
             });
-            document.body.addEventListener('dragleave', () => {
+            this.containerElement.addEventListener('dragleave', () => {
                 this.dragOverlay.classList.remove('visible');
             });
-            document.body.addEventListener('drop', (e) => {
+            this.containerElement.addEventListener('drop', (e) => {
                 e.preventDefault();
                 this.dragOverlay.classList.remove('visible');
                 if (e.dataTransfer.files && e.dataTransfer.files[0]) {
