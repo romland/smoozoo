@@ -62,7 +62,7 @@ Made for very large images that require fast navigation and scaling.
         Use mouse/finger on minimap to move viewport in all directions (depending on zoom level)  
 
 ### Demo
-Note: it's a very low-end host, image will take a few seconds to load.
+It's a pretty low-end host, depending on load, image might take a few seconds or two to load.
 
 https://oobabooga.com/smoozoo/  
 
