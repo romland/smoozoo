@@ -14,9 +14,22 @@ export class WurmMapPlugin extends OverlayBasePlugin
 {
     constructor(api, options, containerElement)
     {
+        // Intercept and inject shapes in the constructor.
         options.shapes = WurmMapPlugin.createDeedsAndZones(api.currentImageFilename.includes("-3d") ? "3d" : "flat");
         super(api, options);
+
         this.api = api;
+
+        /*
+        const htmlFragment = `
+            <div id="smoozoo-wurm-search-field" class="file-chooser-container" style="position: fixed; top: 15px; left: 180px;">
+                <input type="text"/>
+            </div>
+        `;
+        const targetElement = containerElement;
+        targetElement.insertAdjacentHTML('beforeend', htmlFragment);
+        */
+
         window.addEventListener('keydown', (e) => this.handleWindowKeyDown(e));
     }
 

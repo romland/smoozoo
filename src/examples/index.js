@@ -7,6 +7,8 @@ window.addEventListener('load', async () => {
     const settings = {
         canvas:                     document.getElementById('smoozoo-glcanvas'),
         backgroundColor:            "#0e0422",
+        statusShowFileName:         true,
+        statusShowFileSize:         true,
         initialScale:               0.3,
         initialPosition:            { x: 0.0, y: 0.5 },
         loadingAnimation:           true,

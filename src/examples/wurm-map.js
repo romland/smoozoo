@@ -5,6 +5,8 @@ import { WurmMapPlugin } from "../plugins/smoozoo-plugin-wurm-map.js";
 window.addEventListener('load', async () => {
     const settings = {
         canvas:                     document.getElementById('smoozoo-glcanvas'),
+        statusShowFileName:         false,
+        statusShowFileSize:         false,
         backgroundColor:            "#373e71",
         initialScale:               0.3,
         initialPosition:            { x: 0.0, y: 0.5 },

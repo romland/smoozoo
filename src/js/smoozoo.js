@@ -86,8 +86,13 @@ window.smoozoo = (imageUrl, settings) => {
     settings.dynamicFilteringThreshold = settings.dynamicFilteringThreshold ?? 2.0;    
     settings.maxScale = settings.maxScale ?? 20;
     settings.animateDeepLinks = settings.animateDeepLinks ?? false;
+    settings.statusShowFileName = settings.statusShowFileName ?? true;
+    settings.statusShowFileSize = settings.statusShowFileSize ?? true;
 
+    // Do some basic tweaks to HTML elements based on settings
     targetElement.style.backgroundColor = settings.backgroundColor;
+    imageFilenameSpan.style.display = settings.statusShowFileName ? "block" : "none";
+    imageSizeBytesSpan.style.display = settings.statusShowFileSize ? "block" : "none";
 
 
     // Variables for smooth zooming
