@@ -62,11 +62,10 @@ Made for very large images that require fast navigation and scaling.
         Use mouse/finger on minimap to move viewport in all directions (depending on zoom level)  
 
 ### Demo
-For some odd reason, Smoozoo is a lot smoother in Firefox than in Chrome. That's good!  
+Note: it's a very low-end host, image will take a few seconds to load.
 
 https://oobabooga.com/smoozoo/  
 
-Note: it's a very low-end host, image will take a few seconds to load.
 
 ### About
 I originally built Smoozoo (it did not have a name) for another project 
@@ -82,6 +81,8 @@ quite done yet, but, this actually already feels _better_ than Windows
 native one (I humbly opine)!
 
 ## TODO
+    - the minimap viewport border goes below the minimap edge
+
     - When I deep-link to a position, I end up ignoring what is allowed to be 
       maximum zoomed-out. I will want to still do that calculation even if we
       are not using it initially (basically, I cannot zoom out as far as I want)
@@ -91,9 +92,6 @@ native one (I humbly opine)!
       gliding? Or some multiplier going awry in momentum if we already have some?
       Sometimes it pans very fast at least.
 
-    - Let Smoozoo create its own HTML elements instead of requiring all those HTML tags; 
-      we just want to pass in a container to Smoozoo.
-    
     - Code is in one large file now. It used to be a small file. Split things up a bit.
       Although personally, I am a fan of a single large file!
 
@@ -103,13 +101,39 @@ native one (I humbly opine)!
         - make GL clear color configurable  
 
 ## Use Smoozoo in your own projects
-See `index.html` on what elements are needed.
+See `index.html`, but this is pretty much what you need, depending on which
+plugins you have enabled:
+```html
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <title>Smoozoo - Image Viewer</title>
 
-Then start Smoozoo like this:
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        
+        <link rel="stylesheet" href="./css/smoozoo.css" />
+        <link rel="stylesheet" href="./plugins/smoozoo-plugin-minimap.css" />
+        <link rel="stylesheet" href="./plugins/smoozoo-plugin-filechooser.css" />
+
+        <script type="module" src="./js/smoozoo.js"></script>
+        <script type="module" src="./js/index.js"></script>
+    </head>
+    <body>
+        <canvas id="smoozoo-glcanvas"></canvas>
+    </body>
+</html>
+```
+
+Then start Smoozoo like this (in e.g. `index.js`):
 ```javascript
+import { MinimapPlugin } from "../plugins/smoozoo-plugin-minimap.js";
+import { FileChooserPlugin } from "../plugins/smoozoo-plugin-filechooser.js";
+
 window.addEventListener('load', async () => {
     const settings = {
-        canvas:                     document.getElementById('glcanvas'),
+        canvas:                     document.getElementById('smoozoo-glcanvas'),
+        loadingAnimation:           true,
         minimapMaxSize:             200,
         minimapMinSize:             8,
         elasticMoveDuration:        200,
@@ -433,17 +457,32 @@ window.addEventListener('load', async () => {
     - Check screenwidth and decide based on that if we should load a smaller version of the image.
       (would need server-side code, not currently interested)
 
+    - Make smoozoo an electron app (or similar): I want it as default image viewer in Windows
+        - in this case, need it to do video too hum.
+
+    - expand on interface to interact with the viewer in another porject
 
 ## Maybe future plugins
     - picture collection / gallery plugin (call it collection, tho -- a gallery sounds
       very grandiose)
+        - zoom in the collection just as with a single image -- but this time then all
+          images in the gallery
+        - flick/pan/glide/ellastic scrolling (also just like in image)
+        - be able to select multiple by dragging over them
+        - plugin interface to perform an action on selected images
+        - can point it at a set of images or a folder
+        - ability to tag images (just throw the db in local storage)
 
-    - smart conversion of image to dark mode
+    - on charts:
+        - live update of "images" (think charts) - but this is a bit awkward, the imageviewer
+          should not be the one in control. The chart should be. Probably. 
+
+        - not for in here, but I would like chartjs to generate base64-encoded images for the
+          inline'd minute-charts
+    
+    - "smart" conversion of images to dark mode
     
     - ability to set brightness / contrast / saturation - maybe other adjustments
-
-    - not for in here, but I would like chartjs to generate base64-encoded images for the
-      inline'd minute-charts
 
 	- we already support some meta-data via plugin but I'd like to extend that so that
       depending on position of viewport it should show/pin messages to that pixel as we

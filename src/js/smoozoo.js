@@ -1,6 +1,48 @@
 window.smoozoo = (imageUrl, settings) => {
     let currentImageUrl = imageUrl;
 
+    // Do HTML injection
+    const targetElement = document.body;
+    let htmlFragment;
+
+    htmlFragment = `
+        <div id="smoozoo-status-display" class="display">
+            <p class="narrow"><strong>🔍 </strong><span id="smoozoo-zoom-level">1.00</span>x</p>
+            <p class="largedisplayonly wide"><strong>⌖ </strong><span id="smoozoo-mouse-coords">0, 0</span></p>
+            <p class="wide"><strong>🗎 </strong><span id="smoozoo-image-size-pixels">0x0</span></p>
+            <p class="narrow"><strong></strong><span id="smoozoo-image-size-bytes">0 B</span></p>
+            <p><span id="smoozoo-image-file-name"></span></p>
+        </div>
+    `;
+    targetElement.insertAdjacentHTML('beforeend', htmlFragment);
+
+    htmlFragment = `
+        <!-- disable slider by default (display none), minimap works so much better -->
+        <div id="smoozoo-control-display" class="" style="display: none">
+            <p class="pan-slider-container">
+                <input type="range" id="smoozoo-pan-slider" min="0" max="100" value="0">
+            </p>
+        </div>
+    `;
+    targetElement.insertAdjacentHTML('beforeend', htmlFragment);
+
+    if(settings.loadingAnimation !== false) {
+        htmlFragment = `
+            <div id="smoozoo-loader" class="loader-container hidden">
+                <div class="loader-blobs">
+                    <div class="blob" style="background-color:red;"></div>
+                    <div class="blob" style="background-color:blue;"></div>
+                    <div class="blob" style="background-color:green;"></div>
+                </div>
+                <div class="loader-text">
+                    Loading
+                </div>
+            </div>
+        `;
+        targetElement.insertAdjacentHTML('beforeend', htmlFragment);
+    }
+
+
     // DOM Element Selection & Initial Setup
     const canvas = settings.canvas;
     canvas.width = window.innerWidth;
@@ -16,15 +58,15 @@ window.smoozoo = (imageUrl, settings) => {
         throw new Error("WebGL not supported");
     }
 
-    const loader = document.getElementById('loader');
+    const loader = document.getElementById('smoozoo-loader');
 
-    const zoomLevelSpan = document.getElementById('zoom-level');
-    const mouseCoordsSpan = document.getElementById('mouse-coords');
-    const imageSizePixelsSpan = document.getElementById('image-size-pixels');
-    const imageSizeBytesSpan = document.getElementById('image-size-bytes');
-    const imageFilenameSpan = document.getElementById('image-file-name');
+    const zoomLevelSpan = document.getElementById('smoozoo-zoom-level');
+    const mouseCoordsSpan = document.getElementById('smoozoo-mouse-coords');
+    const imageSizePixelsSpan = document.getElementById('smoozoo-image-size-pixels');
+    const imageSizeBytesSpan = document.getElementById('smoozoo-image-size-bytes');
+    const imageFilenameSpan = document.getElementById('smoozoo-image-file-name');
 
-    const panSlider = document.getElementById('pan-slider');
+    const panSlider = document.getElementById('smoozoo-pan-slider');
 
     // State Variables
     let scale = 1.0,
@@ -433,7 +475,9 @@ window.smoozoo = (imageUrl, settings) => {
      */
     async function loadImageAndCreateTextureInfo(url, callback)
     {
-        loader.classList.remove('hidden');
+        if(settings.loadingAnimation !== false) {
+            loader.classList.remove('hidden');
+        }
 
         try {
             const response = await fetch(url);
@@ -1187,7 +1231,9 @@ window.smoozoo = (imageUrl, settings) => {
 
             render();
 
-            loader.classList.add('hidden');
+            if(settings.loadingAnimation !== false) {
+                loader.classList.add('hidden');
+            }
         });
     }
 

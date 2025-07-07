@@ -15,41 +15,6 @@
         <script type="module" src="./js/index.js"></script>
     </head>
     <body>
-        <canvas id="glcanvas"></canvas>
-
-        <div id="hotspot-layer"></div>
-
-        <div id="minimap-container">
-            <canvas id="minimap-image"></canvas>
-            <div id="minimap-viewport"></div>
-        </div>
-
-        <!-- disable slider by default, minimap works so much better -->
-        <div id="control-display" class="" style="display: none">
-            <p class="pan-slider-container">
-                <input type="range" id="pan-slider" min="0" max="100" value="0">
-            </p>
-        </div>
-
-        <div id="status-display" class="display">
-            <p class="narrow"><strong>🔍 </strong><span id="zoom-level">1.00</span>x</p>
-            <p class="largedisplayonly wide"><strong>⌖ </strong><span id="mouse-coords">0, 0</span></p>
-            <p class="wide"><strong>🗎 </strong><span id="image-size-pixels">0x0</span></p>
-            <p class="narrow"><strong></strong><span id="image-size-bytes">0 B</span></p>
-            <p><span id="image-file-name"></span></p>
-        </div>
-
-        <div id="loader" class="loader-container hidden">
-            <div class="loader-blobs">
-                <div class="blob" style="background-color:red;"></div>
-                <div class="blob" style="background-color:blue;"></div>
-                <div class="blob" style="background-color:green;"></div>
-            </div>
-            <div class="loader-text">
-                Loading
-            </div>
-        </div>
-
+        <canvas id="smoozoo-glcanvas"></canvas>
     </body>
-
 </html>

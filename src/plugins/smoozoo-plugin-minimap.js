@@ -15,9 +15,19 @@ export class MinimapPlugin
             ...options
         };
 
-        this.container = document.getElementById('minimap-container');
-        this.imageCanvas = document.getElementById('minimap-image');
-        this.viewport = document.getElementById('minimap-viewport');
+        const htmlFragment = `
+            <div id="smoozoo-minimap-container">
+                <canvas id="smoozoo-minimap-image"></canvas>
+                <div id="smoozoo-minimap-viewport"></div>
+            </div>
+        `;
+
+        const targetElement = document.body; //document.getElementById('smoozoo');
+        targetElement.insertAdjacentHTML('beforeend', htmlFragment);
+
+        this.container = document.getElementById('smoozoo-minimap-container');
+        this.imageCanvas = document.getElementById('smoozoo-minimap-image');
+        this.viewport = document.getElementById('smoozoo-minimap-viewport');
 
         if (!this.container || !this.imageCanvas || !this.viewport) {
             console.error("Minimap DOM elements not found!");

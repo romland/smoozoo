@@ -2,11 +2,15 @@ export class HotspotPlugin
 {
     constructor(viewer, options)
     {
+        const targetElement = document.body;
+        const htmlFragment = `<div id="smoozoo-hotspot-layer"></div>`;
+        targetElement.insertAdjacentHTML('beforeend', htmlFragment);
+
         this.viewer = viewer;
         this.hotspots = options.hotspots || [];
         this.objectType = options.objectType || "";
 
-        this.container = document.getElementById('hotspot-layer');
+        this.container = document.getElementById('smoozoo-hotspot-layer');
         this.activeHotspots = [];
         this.stickyHotspots = [];
         this.mouseScreenPos = { x: 0, y: 0 };

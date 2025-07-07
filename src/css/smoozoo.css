@@ -25,12 +25,12 @@ canvas {
 	user-select: none;
 }
 
-#status-display {
+#smoozoo-status-display {
 	bottom: 5px;
 	right: 10px;
 }
 
-#status-display p {
+#smoozoo-status-display p {
 	margin: 4px 0;
 	display: inline-block;
 	white-space: nowrap;
@@ -48,11 +48,11 @@ p.wide {
 	width: 120px !important;
 }
 
-#status-display span {
+#smoozoo-status-display span {
 	color: #82eefd;
 }
 
-#control-display {
+#smoozoo-control-display {
 	position: fixed;
 	bottom: 40px;
 	width: 15%;
@@ -60,7 +60,7 @@ p.wide {
 	transform: translateX(-50%);
 }
 
-#pan-slider {
+#smoozoo-pan-slider {
 	background-color: rgba(0, 0, 0, 0.5);
 	border: 3px solid rgba(255, 255, 255, 1);
 	border-radius: 8px;
@@ -73,7 +73,7 @@ p.wide {
 
 
 @media (max-width: 600px) {
-	#status-display {
+	#smoozoo-status-display {
 		bottom: auto;
 		top: 0px;
 		left: 10px;
@@ -82,7 +82,7 @@ p.wide {
 		text-align: left; /* Align content to the left */
 	}
 	
-	#status-display p {
+	#smoozoo-status-display p {
 		margin: 5px 0;
 	}
 	
@@ -90,16 +90,16 @@ p.wide {
 	Target zoom (1st), pixel size (3rd), AND file size (4th)
 	to appear on the same line.
 	*/
-	#status-display p:first-of-type,
-	#status-display p:nth-of-type(3),
-	#status-display p:nth-of-type(4) {
+	#smoozoo-status-display p:first-of-type,
+	#smoozoo-status-display p:nth-of-type(3),
+	#smoozoo-status-display p:nth-of-type(4) {
 		display: inline-block !important; /* !important to override .largedisplayonly */
 		width: 20%;
 		margin-right: 15px;
 	}
 	
 	/* Target the filename (the last p) to be on its own line */
-	#status-display p:last-of-type {
+	#smoozoo-status-display p:last-of-type {
 		display: block;
 		width: 100%;
 		white-space: nowrap;
@@ -108,13 +108,13 @@ p.wide {
 		text-align: right;
 	}
 	
-	#status-display p {
+	#smoozoo-status-display p {
 		display: block;
 		margin: 2px 0;
 	}
 	
 	/* Hide the pan slider, as touch panning is the primary method */
-	#control-display {
+	#smoozoo-control-display {
 		display: none;
 	}
 	
