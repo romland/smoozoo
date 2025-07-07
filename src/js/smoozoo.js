@@ -79,6 +79,7 @@ window.smoozoo = (imageUrl, settings) => {
         lastMouseRealY = 0;
 
     // Default settings if not provided
+    settings.backgroundColor = settings.backgroundColor ?? "#0e0422";
     settings.pixelatedZoom = settings.pixelatedZoom ?? false;
     settings.allowDeepLinks = settings.allowDeepLinks ?? false;
     settings.dynamicTextureFiltering = settings.dynamicTextureFiltering ?? false;
@@ -127,6 +128,7 @@ window.smoozoo = (imageUrl, settings) => {
     // texture. This is the entire reason for the "tiling" logic.
     // We will slice the large image into smaller pieces (tiles) that are each no larger than maxTextureSize.
     const maxTextureSize = gl.getParameter(gl.MAX_TEXTURE_SIZE);
+    const webGLclearColor = hexToNormalizedRGB(settings.backgroundColor);
 
     // Plugins
     let plugins = settings.plugins || [];
@@ -155,6 +157,23 @@ window.smoozoo = (imageUrl, settings) => {
         return null;
     }
     
+
+    function hexToNormalizedRGB(hex)
+    {
+        let cleanHex = hex.startsWith('#') ? hex.slice(1) : hex;
+        if (cleanHex.length === 3) {
+            cleanHex = cleanHex.split('').map(char => char + char).join('');
+        }
+        const r = parseInt(cleanHex.substring(0, 2), 16);
+        const g = parseInt(cleanHex.substring(2, 4), 16);
+        const b = parseInt(cleanHex.substring(4, 6), 16);
+        return {
+            r: r / 255,
+            g: g / 255,
+            b: b / 255
+        };
+    }
+
     
     /**
      * Gets the current image dimensions, accounting for rotation.
@@ -597,7 +616,10 @@ window.smoozoo = (imageUrl, settings) => {
 
         const originalViewport = gl.getParameter(gl.VIEWPORT);
         gl.viewport(0, 0, targetWidth, targetHeight);
-        gl.clearColor(0.055, 0.016, 0.133, 1.0); // Background color
+
+        // gl.clearColor(0.055, 0.016, 0.133, 1.0); // Background color
+        gl.clearColor(webGLclearColor.r, webGLclearColor.g, webGLclearColor.b, 1.0);
+
         gl.clear(gl.COLOR_BUFFER_BIT);
 
         gl.useProgram(program);
@@ -798,7 +820,9 @@ window.smoozoo = (imageUrl, settings) => {
             gl.bindTexture(gl.TEXTURE_2D, null);
         }
 
-        gl.clearColor(0.055, 0.016, 0.133, 1.0);
+
+        // gl.clearColor(0.055, 0.016, 0.133, 1.0); // Background color
+        gl.clearColor(webGLclearColor.r, webGLclearColor.g, webGLclearColor.b, 1.0);
         gl.clear(gl.COLOR_BUFFER_BIT);
         gl.useProgram(program);
         gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
@@ -1199,42 +1223,60 @@ window.smoozoo = (imageUrl, settings) => {
         if (settings.allowDeepLinks) {
             urlParams = parseUrlParams();
             if (urlParams) {
-                // Set scale from URL param
-                scale = targetScale = urlParams.scale;
-                minScale = Math.min(scale, 0.1);
-
-                // Calculate origin to center the view on the deep-linked coordinates
-                originX = (canvas.width / (2 * scale)) - urlParams.x;
-                originY = (canvas.height / (2 * scale)) - urlParams.y;
-
-                // Also set the target origin for the smooth zoom animation state
-                targetOriginX = originX;
-                targetOriginY = originY;
-
-                didDeepLink = true; // Flag that we've used the URL params
+                didDeepLink = true;
             }
         }
 
-        // If we didn't get a deep link, proceed with the original logic and obey settings.
         if (didDeepLink) {
-            // From URL params
+            // Handle Deep Link
             scale = targetScale = urlParams.scale;
+            minScale = Math.min(scale, 0.1);
+
             const idealX = (canvas.width / (2 * scale)) - urlParams.x;
             const idealY = (canvas.height / (2 * scale)) - urlParams.y;
             const clamped = getClampedOrigin(idealX, idealY, scale);
             originX = targetOriginX = clamped.x;
             originY = targetOriginY = clamped.y;
+
         } else {
-            // ... (logic to determine initial scale and ideal x/y from settings) ...
-            const idealX = (canvas.width / (2 * scale)) - targetX; // targetX from settings
-            const idealY = (canvas.height / (2 * scale)) - targetY; // targetY from settings
+            // Handle Standard Initial View
+            const scaleToFitWidth = canvas.width / imageWidth;
+            const scaleToFitHeight = canvas.height / imageHeight;
+            const fitScale = Math.min(scaleToFitWidth, scaleToFitHeight);
+
+            scale = targetScale = Math.min(1.0, fitScale);
+            minScale = Math.min(scale, 0.1);
+
+            if (settings.initialScale) {
+                scale = targetScale = settings.initialScale;
+            }
+
+            let targetX, targetY;
+
+            // Use initial position from settings if provided
+            if (settings.initialPosition && typeof settings.initialPosition.x === 'number' && typeof settings.initialPosition.y === 'number') {
+                targetX = settings.initialPosition.x;
+                targetY = settings.initialPosition.y;
+
+                // If coordinates are percentages, convert them to pixels
+                if (targetX >= 0 && targetX <= 1 && targetY >= 0 && targetY <= 1) {
+                    targetX = imageWidth * targetX;
+                    targetY = imageHeight * targetY;
+                }
+            } else {
+                // Default to the center of the image if no position is given
+                targetX = imageWidth / 2;
+                targetY = imageHeight / 2;
+            }
+
+            const idealX = (canvas.width / (2 * scale)) - targetX;
+            const idealY = (canvas.height / (2 * scale)) - targetY;
             const clamped = getClampedOrigin(idealX, idealY, scale);
             originX = targetOriginX = clamped.x;
             originY = targetOriginY = clamped.y;
         }
 
-        render(); 
-
+        render();
     }
 
 

@@ -1,13 +1,6 @@
-html {
-	background-color: #0e0422;
-}
-
-body {
+#smoozoo-glcanvas {
 	overflow: hidden;
 	margin: 0;
-}
-
-#smoozoo-glcanvas {
 	display: block;
 	cursor: grab;
 }
