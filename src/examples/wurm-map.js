@@ -18,7 +18,7 @@ window.addEventListener('load', async () => {
         touchInertiaFriction:       0.98,
         inertiaStopThreshold:       0.1,
         animateDeepLinks:           true,
-        allowDeepLinks:             true,   // Allow going to e.g. ?x=2777&y=1879&scale=20.000000
+        allowDeepLinks:             true,   // Allow going to e.g. ?x=2777&y=1879&scale=20.000000&animate=true
         pixelatedZoom:              true,   // Can also be toggled with p, or overridden with dynamic below
         dynamicFilteringThreshold:  2.0,    // The scale where we toggle filtering (if enabled)
         dynamicTextureFiltering:    true,   // If greater or less than dynamicFilteringThreshold,
