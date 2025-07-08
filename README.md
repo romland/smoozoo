@@ -5,7 +5,7 @@ A super-smooth, performant and modern image viewer for the web.
 Made for very large images that require fast navigation and scaling.  
 
 ### Bigger features
-- Sexy look and feel
+- Feels good, man.
 - GPU scaling using WebGL with mipmapping and frustum culling
 - No third party dependencies
 
