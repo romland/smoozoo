@@ -38,6 +38,7 @@ window.addEventListener('load', async () => {
                     showFileList: true,
                     showFileDialog: false,
                     presetFiles: [
+                        // { name: 'Zenath PvE',  url: new URL(`../assets/zenath-pve.webp`, import.meta.url).toString() },
                         { name: 'Zenath PvE',  url: new URL(`../assets/zenath-pve.png`, import.meta.url).toString() },
                         { name: 'Zenath PvE 3D',  url: new URL(`../assets/zenath-pve-3d.png`, import.meta.url).toString() },
                         { name: 'Zenath PvE roads',  url: new URL(`../assets/zenath-pve-road.png`, import.meta.url).toString() },

@@ -63,11 +63,11 @@ window.addEventListener('load', async () => {
                     showFileDialog: true,
                     presetFiles: [
                         { name: 'ETH-USDT all-time-highs', url: new URL(`../assets/ETHUSDT-ath.png`, import.meta.url).toString() },
-                        { name: 'BTC-USDT', url: new URL(`../assets/BTCUSDT.png`, import.meta.url).toString() },
-                        { name: 'BTC-USDT all-time-highs', url: new URL(`../assets/BTCUSDT-ath.png`, import.meta.url).toString() },
+                        // { name: 'BTC-USDT', url: new URL(`../assets/BTCUSDT.png`, import.meta.url).toString() },
+                        // { name: 'BTC-USDT all-time-highs', url: new URL(`../assets/BTCUSDT-ath.png`, import.meta.url).toString() },
 
-                        { name: 'Xanadu (reconstructed game world)',  url: new URL(`../assets/xanadu-reconstruction.png`, import.meta.url).toString() },
-                        { name: 'Arathok test-map',  url: new URL(`../assets/ara-map.png`, import.meta.url).toString() },
+                        // { name: 'Xanadu (reconstructed game world)',  url: new URL(`../assets/xanadu-reconstruction.png`, import.meta.url).toString() },
+                        // { name: 'Arathok test-map',  url: new URL(`../assets/ara-map.png`, import.meta.url).toString() },
                     ],
                 }
             },
