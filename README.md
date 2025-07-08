@@ -16,8 +16,6 @@ Made for very large images that require fast navigation and scaling.
 - Desktop-first but very mobile-friendly
 - File loader & drag/drop of files
 
-![Mobile screenshot](/.github/mobile-screenshot.png?raw=true "Mobile Screenshot")
-
 ### Usage
 - Keyboard
     - `Home`  
@@ -69,6 +67,8 @@ It's a pretty low-end host, depending on load, image might take a few seconds or
 https://oobabooga.com/smoozoo/index.html  
 or
 https://oobabooga.com/smoozoo/wurm-map.html  
+
+![Mobile screenshot](/.github/mobile-screenshot.png?raw=true "Mobile Screenshot")
 
 
 ### About
