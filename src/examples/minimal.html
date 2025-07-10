@@ -25,7 +25,7 @@
         window.addEventListener('load', async () => {
             smoozoo(`https://picsum.photos/seed/picsum/200/300`, {
                 canvas: document.getElementById('smoozoo-glcanvas'),
-                // Note: If this is not set, it will cause CORS issues if not on a webserver.
+                // Note: With this set, you can load images even though protocol is file://
                 disableFetchForImages: true
             });
         });
