@@ -155,7 +155,7 @@ window.addEventListener('load', async () => {
         loadingAnimation:           true,
         maxScale:                   40,
         elasticMoveDuration:        200,
-        zoomSmoothing:              0.075,
+        zoomStiffness:              15,
         mouseInertiaFriction:       0.95,
         touchInertiaFriction:       0.98,
         inertiaStopThreshold:       0.1,

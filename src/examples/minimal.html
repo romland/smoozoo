@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <title>Minimal Example - Smoozoo - Image Viewer</title>
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <style>
+            body {
+                overflow: hidden;
+                margin: 0;
+            }
+        </style>
+        
+        <link rel="stylesheet" href="../css/smoozoo.css" />
+        <script type="module" src="../js/smoozoo.js"></script>
+    </head>
+
+    <body>
+        <div>
+            <canvas id="smoozoo-glcanvas"></canvas>
+        </div>
+    </body>
+
+    <script>
+        window.addEventListener('load', async () => {
+            // Note: This will fail due to Parcel not seeing this as an URL. I just wanted a minimal
+            //       example without a separate JS file (you don't need Parcel in production).
+            smoozoo(`./ETHUSDT-ath.42391a3b.png`, { canvas: document.getElementById('smoozoo-glcanvas') });
+        });
+    </script>
+</html>
