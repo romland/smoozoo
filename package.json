@@ -4,17 +4,23 @@
   "version": "1.0.0",
   "description": "This is Smoozoo - a super-smooth, performant and modern image viewer for the web",
   "scripts": {
-    "start": "parcel src/examples/*.html --dist-dir dev",
+    "start": "npx parcel src/examples/*.html --dist-dir dev",
+    "starttauri": "npx parcel src/tauri/index.html --dist-dir dev",
     "prebuild": "rm -rf dist",
-    "build": "parcel build src/examples/index.html --no-source-maps --public-url ./",
-    "buildall": "parcel build src/examples/*.html --no-source-maps --public-url ./",
+    "build": "npx parcel build src/examples/index.html --no-source-maps --public-url ./",
+    "buildminimal": "npm run prebuild && npx parcel build src/examples/minimal.html --no-source-maps --no-content-hash --public-url ./ --no-scope-hoist",
+    "buildtauri": "npx parcel build src/tauri/index.html --no-source-maps --public-url ./",
+    "OLDbuildtauri": "npx parcel build src/examples/tauri.html --no-source-maps --public-url ./ && mv dist/tauri.html dist/index.html",
+    "buildall": "npx parcel build src/examples/*.html --no-source-maps --public-url ./",
     "deploy": "npm run build && scripts/deploy.sh",
     "deployall": "npm run buildall && scripts/deploy.sh"
   },
   "author": "Joakim Romland",
   "license": "AGPL",
   "devDependencies": {
-    "@parcel/transformer-raw": "^2.15.4",
-    "parcel": "^2.15.4"
+    "@parcel/config-default": "2.15.4",
+    "@parcel/resolver-default": "2.15.4",
+    "@parcel/transformer-raw": "2.15.4",
+    "parcel": "2.15.4"
   }
 }
