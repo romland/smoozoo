@@ -82,7 +82,7 @@ window.smoozoo = (imageUrl, settings) => {
     settings.backgroundColor = settings.backgroundColor ?? "#0e0422";
     settings.pixelatedZoom = settings.pixelatedZoom ?? false;
     settings.allowDeepLinks = settings.allowDeepLinks ?? false;
-    settings.dynamicTextureFiltering = settings.dynamicTextureFiltering ?? false;
+    settings.dynamicTextureFiltering = settings.dynamicTextureFiltering ?? true;
     settings.dynamicFilteringThreshold = settings.dynamicFilteringThreshold ?? 2.0;    
     settings.maxScale = settings.maxScale ?? 20;
     settings.zoomStiffness = settings.zoomStiffness ?? 15;
@@ -93,6 +93,7 @@ window.smoozoo = (imageUrl, settings) => {
     settings.animateDeepLinks = settings.animateDeepLinks ?? false;
     settings.statusShowFileName = settings.statusShowFileName ?? true;
     settings.statusShowFileSize = settings.statusShowFileSize ?? true;
+    settings.disableFetchForImages = settings.disableFetchForImages ?? false;
 
     // Do some basic tweaks to HTML elements based on settings
     targetElement.style.backgroundColor = settings.backgroundColor;
@@ -512,96 +513,120 @@ window.smoozoo = (imageUrl, settings) => {
 
     /**
      * Loads an image, pads each tile to be power-of-two, and creates WebGL textures with Mipmaps.
+     * It can use two methods: the Fetch API (default) which allows getting the file size,
+     * or a direct Image object load (by setting `disableFetchForImages: true`) as a fallback for CORS issues.
      */
-    async function loadImageAndCreateTextureInfo(url, callback)
-    {
-        if(settings.loadingAnimation !== false) {
+    async function loadImageAndCreateTextureInfo(url, callback) {
+        if (settings.loadingAnimation !== false) {
             loader.classList.remove('hidden');
         }
 
-        try {
-            const response = await fetch(url);
-            if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-            const blob = await response.blob();
-            orgImgBytes = blob.size;
-            const objectURL = URL.createObjectURL(blob);
+        const processImage = (img) => {
+            orgImgWidth = img.width;
+            orgImgHeight = img.height;
+
+            const numXTiles = Math.ceil(img.width / maxTextureSize);
+            const numYTiles = Math.ceil(img.height / maxTextureSize);
+
+            for (let y = 0; y < numYTiles; y++) {
+                for (let x = 0; x < numXTiles; x++) {
+                    const sx = x * maxTextureSize,
+                        sy = y * maxTextureSize,
+                        sw = Math.min(maxTextureSize, img.width - sx),
+                        sh = Math.min(maxTextureSize, img.height - sy);
+
+                    const tileCanvas = document.createElement('canvas');
+                    tileCanvas.width = sw;
+                    tileCanvas.height = sh;
+
+                    const tileCtx = tileCanvas.getContext('2d');
+                    tileCtx.drawImage(img, sx, sy, sw, sh, 0, 0, sw, sh);
+
+                    const potCanvas = document.createElement('canvas');
+                    potCanvas.width = nextPowerOf2(sw);
+                    potCanvas.height = nextPowerOf2(sh);
+                    const potCtx = potCanvas.getContext('2d');
+                    potCtx.drawImage(tileCanvas, 0, 0);
+
+                    const texCoordScaleX = sw / potCanvas.width;
+                    const texCoordScaleY = sh / potCanvas.height;
+
+                    const texture = gl.createTexture();
+                    gl.bindTexture(gl.TEXTURE_2D, texture);
+
+                    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, potCanvas);
+                    gl.generateMipmap(gl.TEXTURE_2D);
+
+                    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
+                    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+                    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+
+                    tiles.push({
+                        texture,
+                        x: sx,
+                        y: sy,
+                        width: sw,
+                        height: sh,
+                        texCoordScaleX,
+                        texCoordScaleY
+                    });
+                }
+            }
+
+            imageFilenameSpan.textContent = url.split('/').pop();
+            callback();
+        };
+
+        const handleError = (errorType, error) => {
+            console.error(`Failed to load image via ${errorType}:`, error);
+            const alertMessage = errorType === 'fetch' ?
+                `Failed to load image "${url}". This might be a CORS issue. Try setting 'disableFetchForImages: true'. See console for details.` :
+                `Failed to load image "${url}". Check the server's CORS policy allows for anonymous image loading. See console for details.`;
+            alert(alertMessage);
+            if (settings.loadingAnimation !== false) {
+                loader.classList.add('hidden');
+            }
+        };
+
+        if (settings.disableFetchForImages) {
+            // --- Method 2: Direct Image object loading (CORS fallback) ---
+            console.log("Using Image object to load, fetch is disabled.");
+            orgImgBytes = 0; // We cannot get the byte size with this method.
 
             const img = new Image();
-            img.crossOrigin = "anonymous";
-            img.src = objectURL;
+            img.crossOrigin = "anonymous"; // Crucial for WebGL textures from different origins.
+            img.src = url;
 
-            img.onload = function() {
-                orgImgWidth = img.width;
-                orgImgHeight = img.height;
+            img.onload = () => processImage(img);
+            img.onerror = (err) => handleError('Image object', err);
 
-                const numXTiles = Math.ceil(img.width / maxTextureSize);
-                const numYTiles = Math.ceil(img.height / maxTextureSize);
+        } else {
+            // --- Method 1: Fetch API (default) ---
+            try {
+                const response = await fetch(url);
+                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                const blob = await response.blob();
+                orgImgBytes = blob.size;
+                const objectURL = URL.createObjectURL(blob);
 
-                for (let y = 0; y < numYTiles; y++) {
-                    for (let x = 0; x < numXTiles; x++) {
-                        const sx = x * maxTextureSize,
-                              sy = y * maxTextureSize,
-                              sw = Math.min(maxTextureSize, img.width - sx),
-                              sh = Math.min(maxTextureSize, img.height - sy);
+                const img = new Image();
+                img.crossOrigin = "anonymous"; // Good practice even for blobs.
+                img.src = objectURL;
 
-                        const tileCanvas = document.createElement('canvas');
-                        tileCanvas.width = sw;
-                        tileCanvas.height = sh;
-
-                        const tileCtx = tileCanvas.getContext('2d');
-                        tileCtx.drawImage(img, sx, sy, sw, sh, 0, 0, sw, sh);
-
-                        const potCanvas = document.createElement('canvas');
-                        potCanvas.width = nextPowerOf2(sw);
-                        potCanvas.height = nextPowerOf2(sh);
-                        const potCtx = potCanvas.getContext('2d');
-                        potCtx.drawImage(tileCanvas, 0, 0);
-
-                        const texCoordScaleX = sw / potCanvas.width;
-                        const texCoordScaleY = sh / potCanvas.height;
-
-                        const texture = gl.createTexture();
-                        gl.bindTexture(gl.TEXTURE_2D, texture);
-                        
-                        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, potCanvas);
-                        gl.generateMipmap(gl.TEXTURE_2D);
-
-                        // We set MIN_FILTER for mipmapping when zoomed out.
-                        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
-                        
-                        // We will set MAG_FILTER later using our new function.
-                        // gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR); // This line is now handled by updateTextureFiltering
-                        
-                        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-                        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-
-                        tiles.push({
-                            texture,
-                            x: sx,
-                            y: sy,
-                            width: sw,
-                            height: sh,
-                            texCoordScaleX,
-                            texCoordScaleY
-                        });
-                    }
-                }
-
-                // Apply the initial texture filtering setting once all tiles are created.
-                // NOTE: Not any more, we have dynamic filtering
-                // updateTextureFiltering();
-
-                imageFilenameSpan.textContent = url.split('/').pop();
-                URL.revokeObjectURL(objectURL);
-                callback();
-            };
-        } catch (error) {
-            console.error("Failed to load image:", error);
-            alert(`Failed to load image "${url}", most likely a CORS issue. See console.`);
-            throw error;
+                img.onload = function() {
+                    processImage(img);
+                    URL.revokeObjectURL(objectURL);
+                };
+                img.onerror = function(err) {
+                    handleError('blob URL', err);
+                    URL.revokeObjectURL(objectURL);
+                };
+            } catch (error) {
+                handleError('fetch', error);
+            }
         }
     }
-
+    
 
     /**
      * Renders the entire scene to an off-screen Framebuffer Object (FBO)

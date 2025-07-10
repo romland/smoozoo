@@ -23,8 +23,11 @@
 
     <script>
         window.addEventListener('load', async () => {
-            // Note: This will cause CORS issues if not on a webserver.
-            smoozoo(`https://picsum.photos/seed/picsum/200/300`, { canvas: document.getElementById('smoozoo-glcanvas') });
+            smoozoo(`https://picsum.photos/seed/picsum/200/300`, {
+                canvas: document.getElementById('smoozoo-glcanvas'),
+                // Note: If this is not set, it will cause CORS issues if not on a webserver.
+                disableFetchForImages: true
+            });
         });
     </script>
 </html>
