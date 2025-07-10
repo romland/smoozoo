@@ -85,6 +85,11 @@ window.smoozoo = (imageUrl, settings) => {
     settings.dynamicTextureFiltering = settings.dynamicTextureFiltering ?? false;
     settings.dynamicFilteringThreshold = settings.dynamicFilteringThreshold ?? 2.0;    
     settings.maxScale = settings.maxScale ?? 20;
+    settings.zoomStiffness = settings.zoomStiffness ?? 15;
+    settings.elasticMoveDuration = settings.elasticMoveDuration ?? 200;
+    settings.mouseInertiaFriction = settings.mouseInertiaFriction ?? 0.95;
+    settings.touchInertiaFriction = settings.touchInertiaFriction ?? 0.98;
+    settings.inertiaStopThreshold = settings.inertiaStopThreshold ?? 0.1;
     settings.animateDeepLinks = settings.animateDeepLinks ?? false;
     settings.statusShowFileName = settings.statusShowFileName ?? true;
     settings.statusShowFileSize = settings.statusShowFileSize ?? true;
@@ -592,7 +597,8 @@ window.smoozoo = (imageUrl, settings) => {
             };
         } catch (error) {
             console.error("Failed to load image:", error);
-            alert("Failed to load image.");
+            alert(`Failed to load image "${url}", most likely a CORS issue. See console.`);
+            throw error;
         }
     }
 
@@ -1124,7 +1130,7 @@ window.smoozoo = (imageUrl, settings) => {
         isZooming = true;
 
         // A higher stiffness value results in a faster, more responsive zoom.
-        const stiffness = settings.zoomStiffness || 15;
+        const stiffness = settings.zoomStiffness;
         const frameSmoothing = 1 - Math.exp(-stiffness * deltaTime);
 
         scale = lerp(scale, targetScale, frameSmoothing);
@@ -1164,7 +1170,7 @@ window.smoozoo = (imageUrl, settings) => {
         const newVx = vx * friction;
         const newVy = vy * friction;
 
-        const stopThreshold = settings.inertiaStopThreshold || 0.1;
+        const stopThreshold = settings.inertiaStopThreshold;
 
         if (Math.abs(newVx) < stopThreshold && Math.abs(newVy) < stopThreshold) {
             inertiaAnimationId = null;
@@ -1354,7 +1360,7 @@ window.smoozoo = (imageUrl, settings) => {
      */
     function loadImage(newUrl, { preserveState = false } = {})
     {
-        console.log(`Loading new image: ${newUrl}, preserveState: ${preserveState}`);
+        console.log(`Loading image: ${newUrl}, preserveState: ${preserveState}`);
         
         // Cleanup resources, passing the preserveState option.
         _cleanup({ preserveState });
