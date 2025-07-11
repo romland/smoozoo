@@ -16,7 +16,8 @@ export class FileChooserPlugin
             showFileList: true,
             showFileDialog: true,
             strings: {
-                "Select..." : "Select..."
+                "Select..." : "Select...",
+                "Open..." : "Open..."
             },
             ...options
         };
@@ -46,7 +47,8 @@ export class FileChooserPlugin
 
             this.uploadButton = document.createElement('button');
             this.uploadButton.className = 'file-chooser-button';
-            this.uploadButton.textContent = 'Open...';
+            // this.uploadButton.textContent = 'Open...';
+            this.uploadButton.innerHTML = this.options.strings['Open...'];;
             
             this.container.appendChild(this.uploadButton);
             this.container.appendChild(this.fileInput);

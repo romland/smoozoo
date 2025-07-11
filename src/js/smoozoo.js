@@ -94,6 +94,7 @@ window.smoozoo = (imageUrl, settings) => {
     settings.statusShowFileName = settings.statusShowFileName ?? true;
     settings.statusShowFileSize = settings.statusShowFileSize ?? true;
     settings.disableFetchForImages = settings.disableFetchForImages ?? false;
+    settings.windowResizeDebounce = settings.windowResizeDebounce ?? 100;
 
     // Do some basic tweaks to HTML elements based on settings
     targetElement.style.backgroundColor = settings.backgroundColor;
@@ -2046,7 +2047,7 @@ window.smoozoo = (imageUrl, settings) => {
     document.body.addEventListener('mouseleave', handleDocumentMouseLeave);
 
     window.addEventListener('keydown',   handleWindowKeyDown);
-    window.addEventListener('resize',    debounce(handleWindowResize, 100));
+    window.addEventListener('resize',    debounce(handleWindowResize, settings.windowResizeDebounce));
     window.addEventListener('mousemove', handleCanvasMousePositionStatus);
 
     canvas.addEventListener('mousedown', handleCanvasMouseDown);

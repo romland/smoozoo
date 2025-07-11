@@ -6,11 +6,12 @@
   "scripts": {
     "prebuild": "rm -rf dist",
 
-    "start": "npx parcel src/examples/*.html --dist-dir dev",
-    "starttauri": "npx parcel ../smoozoo-native/src-web/index.html --dist-dir dev",
+    "start": "npx parcel src/index.html --dist-dir dev",
+    "build": "npx parcel build src/index.html --no-source-maps --public-url ./",
 
-    "build": "npx parcel build src/examples/index.html --no-source-maps --public-url ./",
+    "starttauri": "npx parcel ../smoozoo-native/src-web/index.html --dist-dir dev",
     "buildtauri": "npx parcel build ../smoozoo-native/src-web/index.html --no-source-maps --public-url ./",
+
     "buildminimal": "npm run prebuild && npx parcel build src/examples/minimal.js --no-source-maps --no-content-hash --public-url ./ --no-scope-hoist && cp src/examples/minimal.html dist",
     "builddefault": "npm run prebuild && npx parcel build src/examples/default.js --no-source-maps --no-content-hash --public-url ./ --no-scope-hoist && cp src/examples/default.html dist",
     "buildall": "npx parcel build src/examples/*.js --no-source-maps --public-url ./ --no-scope-hoist && cp src/examples/*.html dist",
