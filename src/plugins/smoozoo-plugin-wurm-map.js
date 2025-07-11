@@ -12,6 +12,8 @@ import { OverlayBasePlugin } from "./smoozoo-plugin-overlay-base";
 
 export class WurmMapPlugin extends OverlayBasePlugin
 {
+    toString() { return "WurmMapPlugin"; }
+
     constructor(api, options, containerElement)
     {
         // Intercept and inject shapes in the constructor.
@@ -145,3 +147,7 @@ export class WurmMapPlugin extends OverlayBasePlugin
         });
     }
 }
+
+if(!window?.smoozooPlugins)
+    window.smoozooPlugins = {};
+window.smoozooPlugins["WurmMapPlugin"] = WurmMapPlugin;

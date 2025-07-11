@@ -1,5 +1,7 @@
 export class FileChooserPlugin
 {
+    toString() { return "FileChooserPlugin"; }
+
     /**
      * @param {object} viewerApi The API exposed by the Smoozoo viewer.
      * @param {object} options Plugin-specific options, including a list of preset files.
@@ -148,3 +150,7 @@ export class FileChooserPlugin
         this.api.loadImage(objectURL);
     }
 }
+
+if(!window?.smoozooPlugins)
+    window.smoozooPlugins = {};
+window.smoozooPlugins["FileChooserPlugin"] = FileChooserPlugin;

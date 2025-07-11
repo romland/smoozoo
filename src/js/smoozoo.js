@@ -232,8 +232,15 @@ window.smoozoo = (imageUrl, settings) => {
 
     function createPluginInstance(ClassName, api, options)
     {
-        const instance = new ClassName(api, options, targetElement);
-        console.log("Plugin", instance.constructor.name, "instantiated.")
+        let instance;
+
+        try {
+            instance = new ClassName(api, options, targetElement);
+            console.log("Plugin", instance.constructor.name, `(${instance?.toString()})`, "instantiated.")
+        } catch (ex) {
+            console.warn("Could not find requested plugin. Available DEFAULT Smoozoo plugins are:", window.smoozooPlugins);
+            throw new Error(`Could not instantiate class ${ClassName}`);
+        }
         return instance;
     }
 

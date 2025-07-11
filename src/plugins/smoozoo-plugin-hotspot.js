@@ -1,5 +1,7 @@
 export class HotspotPlugin
 {
+    toString() { return "HotspotPlugin"; }
+
     constructor(viewer, options, containerElement)
     {
         const targetElement = containerElement;
@@ -343,3 +345,7 @@ export class HotspotPlugin
         this.container.innerHTML = '';
     }
 }
+
+if(!window?.smoozooPlugins)
+    window.smoozooPlugins = {};
+window.smoozooPlugins["HotspotPlugin"] = HotspotPlugin;

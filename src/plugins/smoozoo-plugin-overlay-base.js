@@ -56,6 +56,8 @@
 */
 export class OverlayBasePlugin
 {
+    toString() { return "OverlayBasePlugin"; }
+
     /**
      * @param {object} viewerApi - The API provided by Smoozoo image viewer.
      * @param {object} options - Configuration options for this plugin.
@@ -493,7 +495,6 @@ export class OverlayBasePlugin
         const boxWidth = textMetrics.width + padding * 2;
         const boxHeight = fontSize + padding * 2;
         
-        // --- MODIFIED LOGIC ---
         // Define the base offset you want at 1x zoom.
         const baseOffset = 15; 
         
@@ -503,7 +504,6 @@ export class OverlayBasePlugin
         // Clamp the offset to a reasonable range (e.g., between 5px and 20px)
         // to prevent it from getting too small or too large.
         const offset = Math.max(5, Math.min(scaledOffset, 20));
-        // --- END MODIFIED LOGIC ---
 
         // Position the tooltip centered above the shape's anchor point.
         const boxX = anchorX - boxWidth / 2;
@@ -526,3 +526,7 @@ export class OverlayBasePlugin
         this.overlayCanvas.remove();
     }
 }
+
+if(!window?.smoozooPlugins)
+    window.smoozooPlugins = {};
+window.smoozooPlugins["OverlayBasePlugin"] = OverlayBasePlugin;

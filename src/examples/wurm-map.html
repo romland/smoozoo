@@ -2,27 +2,85 @@
 <html lang="en">
     <head>
         <meta charset="UTF-8">
-        <title>Smoozoo - Wurm Map Example</title>
+        <title>Wurm-Map Example - Smoozoo - Image Viewer</title>
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
         <style>
             body {
                 overflow: hidden;
                 margin: 0;
             }
         </style>
-
-        <meta name="viewport" content="width=device-width, initial-scale=1" />
         
         <script type="text/javascript" src="../assets/zenath-mapviewerconfig.js"></script>
-
-        <link rel="stylesheet" href="../css/smoozoo.css" />
-        <link rel="stylesheet" href="../plugins/smoozoo-plugin-hotspot.css" />
-        <link rel="stylesheet" href="../plugins/smoozoo-plugin-minimap.css" />
-        <link rel="stylesheet" href="../plugins/smoozoo-plugin-filechooser.css" />
-
-        <script type="module" src="../js/smoozoo.js"></script>
-        <script type="module" src="./wurm-map.js"></script>
+        <link rel="stylesheet" href="./wurm-map.css" />
     </head>
+
     <body>
-        <canvas id="smoozoo-glcanvas"></canvas>
+        <div>
+            <canvas id="smoozoo-glcanvas"></canvas>
+        </div>
     </body>
+
+    <script type="module">
+        window.addEventListener('load', async () => {
+            const settings = {
+                canvas:                     document.getElementById('smoozoo-glcanvas'),
+                statusShowFileName:         false,
+                statusShowFileSize:         false,
+                backgroundColor:            "#373e71",
+                initialScale:               0.3,
+                initialPosition:            { x: 0.0, y: 0.5 },
+                loadingAnimation:           false,
+                maxScale:                   40,
+                elasticMoveDuration:        200,
+                zoomStiffness:              15,
+                mouseInertiaFriction:       0.95,
+                touchInertiaFriction:       0.98,
+                inertiaStopThreshold:       0.1,
+                animateDeepLinks:           true,
+                allowDeepLinks:             true,   // Allow going to e.g. ?x=2777&y=1879&scale=20.000000&animate=true
+                pixelatedZoom:              true,   // Can also be toggled with p, or overridden with dynamic below
+                dynamicFilteringThreshold:  2.0,    // The scale where we toggle filtering (if enabled)
+                dynamicTextureFiltering:    true,   // If greater or less than dynamicFilteringThreshold,
+                                                    // automatically toggle texture filtering (pixelated or not)
+                plugins: [
+                    {
+                        name: smoozooPlugins["MinimapPlugin"],
+                        options: {
+                            minimapMinSize: 0,
+                            minimapMaxSize: 200
+                        }
+                    },
+                    {
+                        name: smoozooPlugins["FileChooserPlugin"],
+                        options: {
+                            allowFileDrop: false,
+                            showFileList: true,
+                            showFileDialog: false,
+                            presetFiles: [
+                                // { name: 'Zenath PvE',  url: new URL(`../assets/zenath-pve.webp`, import.meta.url).toString() },
+                                { name: 'Zenath PvE',  url: new URL(`../assets/zenath-pve.png`, import.meta.url).toString() },
+                                { name: 'Zenath PvE 3D',  url: new URL(`../assets/zenath-pve-3d.png`, import.meta.url).toString() },
+                                { name: 'Zenath PvE roads',  url: new URL(`../assets/zenath-pve-road.png`, import.meta.url).toString() },
+                            ],
+                            strings: {
+                                "Select..." : "View"
+                            }
+                        },
+                    },
+                    {
+                        name: smoozooPlugins["WurmMapPlugin"],
+                        options: {
+                            minimapMinSize: 0,
+                            minimapMaxSize: 200
+                        }
+                    },
+                ]
+            };
+
+            // Let's abuse FileChooser: Load first image in presetFiles
+            smoozoo(settings.plugins[1].options.presetFiles[0].url, settings);
+        });
+    </script>
+    <script src="./wurm-map.js"></script>
 </html>

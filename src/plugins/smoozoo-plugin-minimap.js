@@ -1,5 +1,7 @@
 export class MinimapPlugin
 {
+    toString() { return "MinimapPlugin"; }
+
     /**
      * @param {object} viewerApi Smoozoo viewer API
      * @param {object} options Plugin-specific options
@@ -241,3 +243,7 @@ export class MinimapPlugin
         this.container.addEventListener('touchstart', onDragStart, { passive: false });
     }
 }
+
+if(!window?.smoozooPlugins)
+    window.smoozooPlugins = {};
+window.smoozooPlugins["MinimapPlugin"] = MinimapPlugin;

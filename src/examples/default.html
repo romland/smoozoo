@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <title>Smoozoo - Image Viewer</title>
+        <style>
+            body {
+                overflow: hidden;
+                margin: 0;
+            }
+        </style>
+
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <link rel="stylesheet" href="./default.css" />
+
+        <script>
+            window.addEventListener('DOMContentLoaded', async () => {
+                smoozoo(`https://picsum.photos/seed/picsum/200/300`, {
+                    canvas:                     document.getElementById('smoozoo-glcanvas'),
+                    disableFetchForImages:      true,
+                    backgroundColor:            "#0e0422",
+                    statusShowFileName:         true,
+                    statusShowFileSize:         true,
+                    initialScale:               0.3,
+                    initialPosition:            { x: 0.0, y: 0.5 },
+                    loadingAnimation:           true,
+                    maxScale:                   40,
+                    elasticMoveDuration:        200,
+                    zoomStiffness:              15,
+                    mouseInertiaFriction:       0.95,
+                    touchInertiaFriction:       0.98,
+                    inertiaStopThreshold:       0.1,
+                    animateDeepLinks:           true,
+                    allowDeepLinks:             true,   // Allow going to e.g. ?x=2777&y=1879&scale=20.000000&animate=true
+                    pixelatedZoom:              true,   // Can also be toggled with p, or overridden with dynamic below
+                    dynamicFilteringThreshold:  2.0,    // The scale where we toggle filtering (if enabled)
+                    dynamicTextureFiltering:    true,   // If greater or less than dynamicFilteringThreshold,
+                                                        // automatically toggle texture filtering (pixelated or not)
+                    plugins: [
+                        {
+                            name: smoozooPlugins["OverlayBasePlugin"],
+                            options: {
+                                hoverOutlineColor: "yellow",
+                                defaultTextFontSize: 14,
+                                defaultTextFontFamily: "sans-serif",
+                                defaultTextFontColor: "#888",
+                                defaultTextBackground: undefined,
+                                // An explicit `null` instead of an array below will show some default test shapes
+                                shapes: [
+                                    {
+                                        // https://getemoji.com/
+                                        type: 'text',
+                                        x: 100, y: 200,
+                                        fillStyle: 'yellow',
+                                        font: '178px sans-serif',
+                                        text: "👑",
+                                        tooltip: "",
+                                    },
+                                ],
+                            }
+                        },
+                        {
+                            name: smoozooPlugins["FileChooserPlugin"],
+                            options: {
+                                allowFileDrop: true,
+                                showFileList: true,
+                                showFileDialog: true,
+                                presetFiles: [
+                                ],
+                            }
+                        },
+                        {
+                            name: smoozooPlugins["MinimapPlugin"],
+                            options: {
+                                minimapMinSize: 0,
+                                minimapMaxSize: 200
+                            }
+                        },
+                    ]
+                });
+            });
+        </script>
+    </head>
+    
+    <body>
+        <div>
+            <canvas id="smoozoo-glcanvas"></canvas>
+        </div>
+        <script src="./default.js"></script>
+    </body>
+</html>
