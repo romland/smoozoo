@@ -11,7 +11,6 @@
         </style>
 
         <meta name="viewport" content="width=device-width, initial-scale=1" />
-        <link rel="stylesheet" href="./kitchensink.css" />
 
         <script type="module">
             window.addEventListener('load', async () => {
@@ -29,6 +28,7 @@
                     mouseInertiaFriction:       0.95,
                     touchInertiaFriction:       0.98,
                     inertiaStopThreshold:       0.1,
+                    windowResizeDebounce:       100,
                     animateDeepLinks:           true,
                     allowDeepLinks:             true,   // Allow going to e.g. ?x=2777&y=1879&scale=20.000000&animate=true
                     pixelatedZoom:              true,   // Can also be toggled with p, or overridden with dynamic below
@@ -102,6 +102,6 @@
         <div>
             <canvas id="smoozoo-glcanvas"></canvas>
         </div>
-        <script src="./kitchensink.js"></script>
+        <script type="module" src="./kitchensink.js"></script>
     </body>
 </html>

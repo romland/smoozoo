@@ -64,7 +64,7 @@ Made for very large images that require fast navigation and scaling.
 ### Demo
 It's a pretty low-end host, depending on load, image might take a few seconds or two to load.
 
-https://oobabooga.com/smoozoo/index.html  
+https://oobabooga.com/smoozoo/default.html  
 or
 https://oobabooga.com/smoozoo/wurm-map.html  
 
@@ -159,6 +159,7 @@ window.addEventListener('load', async () => {
         mouseInertiaFriction:       0.95,
         touchInertiaFriction:       0.98,
         inertiaStopThreshold:       0.1,
+        windowResizeDebounce:       100,
         animateDeepLinks:           true,
         allowDeepLinks:             true,   // Allow going to e.g. ?x=2777&y=1879&scale=20.000000
         pixelatedZoom:              true,   // Can also be toggled with p, or overridden with dynamic below
@@ -182,7 +183,7 @@ Test/development (hot re-loading):
 npm run test
 ```
 You can find test files hosted e.g. here:  
-- http://localhost:1234/index.html  
+- http://localhost:1234/default.html  
 - http://localhost:1234/wurm-map.html  
 
 

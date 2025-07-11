@@ -12,7 +12,6 @@
         </style>
         
         <script type="text/javascript" src="../assets/zenath-mapviewerconfig.js"></script>
-        <link rel="stylesheet" href="./wurm-map.css" />
     </head>
 
     <body>
@@ -37,6 +36,7 @@
                 mouseInertiaFriction:       0.95,
                 touchInertiaFriction:       0.98,
                 inertiaStopThreshold:       0.1,
+                windowResizeDebounce:       100,
                 animateDeepLinks:           true,
                 allowDeepLinks:             true,   // Allow going to e.g. ?x=2777&y=1879&scale=20.000000&animate=true
                 pixelatedZoom:              true,   // Can also be toggled with p, or overridden with dynamic below
@@ -82,5 +82,5 @@
             smoozoo(settings.plugins[1].options.presetFiles[0].url, settings);
         });
     </script>
-    <script src="./wurm-map.js"></script>
+    <script type="module" src="./wurm-map.js"></script>
 </html>
