@@ -17,12 +17,11 @@ export class MinimapPlugin
             ...options
         };
 
-        const htmlFragment = `
-            <div id="smoozoo-minimap-container">
-                <canvas id="smoozoo-minimap-image"></canvas>
-                <div id="smoozoo-minimap-viewport"></div>
-            </div>
-        `;
+        const htmlFragment = 
+            `<div id="smoozoo-minimap-container">` +
+                `<canvas id="smoozoo-minimap-image"></canvas>` +
+                `<div id="smoozoo-minimap-viewport"></div>` +
+            `</div>`;
 
         const targetElement = containerElement;
         targetElement.insertAdjacentHTML('beforeend', htmlFragment);
@@ -31,11 +30,6 @@ export class MinimapPlugin
         this.container =   document.getElementById('smoozoo-minimap-container');
         this.imageCanvas = document.getElementById('smoozoo-minimap-image');
         this.viewport =    document.getElementById('smoozoo-minimap-viewport');
-
-        if (!this.container || !this.imageCanvas || !this.viewport) {
-            console.error("Minimap DOM elements not found!");
-            return;
-        }
 
         // Primary update hook called by the Smoozoo's render loop.
         // Responsible for syncing the viewport rectangle on the minimap.

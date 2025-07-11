@@ -15,8 +15,8 @@
     "buildminimal": "npm run prebuild && npx parcel build src/examples/minimal.js --no-source-maps --no-content-hash --public-url ./ --no-scope-hoist && cp src/examples/minimal.html dist",
     "builddefault": "npm run prebuild && npx parcel build src/examples/default.js --no-source-maps --no-content-hash --public-url ./ --no-scope-hoist && cp src/examples/default.html dist",
 
-    "buildall-examples": "npx parcel build src/examples/*.html --no-source-maps --public-url ./ --no-scope-hoist",
-    "buildall-js": "npx parcel build src/examples/*.js --no-source-maps --public-url ./ --no-scope-hoist",
+    "build-all-examples": "npm run prebuild && npx parcel build src/examples/*.html --no-source-maps --public-url ./ --no-scope-hoist",
+    "build-all-libs": "npm run prebuild && npx parcel build src/examples/*.js --no-source-maps --public-url ./ --no-scope-hoist",
 
     "deploy": "npm run build && scripts/deploy.sh",
     "deployall": "npm run buildall && scripts/deploy.sh"

@@ -5,40 +5,38 @@ window.smoozoo = (imageUrl, settings) => {
     const targetElement = settings.canvas.parentElement; //document.body;
     let htmlFragment;
 
-    htmlFragment = `
-        <div id="smoozoo-status-display" class="smoozoo-display">
-            <p class="narrow"><strong>🔍 </strong><span id="smoozoo-zoom-level">1.00</span>x</p>
-            <p class="largedisplayonly wide"><strong>⌖ </strong><span id="smoozoo-mouse-coords">0, 0</span></p>
-            <p class="wide"><strong>🗎 </strong><span id="smoozoo-image-size-pixels">0x0</span></p>
-            <p class="narrow"><strong></strong><span id="smoozoo-image-size-bytes">0 B</span></p>
-            <p><span id="smoozoo-image-file-name"></span></p>
-        </div>
-    `;
+    htmlFragment = 
+        `<div id="smoozoo-status-display" class="smoozoo-display">` +
+            `<p class="narrow"><strong>🔍 </strong><span id="smoozoo-zoom-level">1.00</span>x</p>` +
+            `<p class="largedisplayonly wide"><strong>⌖ </strong><span id="smoozoo-mouse-coords">0, 0</span></p>` +
+            `<p class="wide"><strong>🗎 </strong><span id="smoozoo-image-size-pixels">0x0</span></p>` +
+            `<p class="narrow"><strong></strong><span id="smoozoo-image-size-bytes">0 B</span></p>` +
+            `<p><span id="smoozoo-image-file-name"></span></p>` +
+        `</div>`;
     targetElement.insertAdjacentHTML('beforeend', htmlFragment);
 
-    htmlFragment = `
-        <!-- disable slider by default (display none), minimap works so much better -->
-        <div id="smoozoo-control-display" class="" style="display: none">
-            <p class="pan-slider-container">
-                <input type="range" id="smoozoo-pan-slider" min="0" max="100" value="0">
-            </p>
-        </div>
-    `;
+    // Note display: none here.
+    // <!-- disable slider by default (display none), minimap works so much better -->
+    htmlFragment = 
+        `<div id="smoozoo-control-display" class="" style="display: none">` +
+            `<p class="pan-slider-container">` +
+                `<input type="range" id="smoozoo-pan-slider" min="0" max="100" value="0">` +
+            `</p>` +
+        `</div>`;
     targetElement.insertAdjacentHTML('beforeend', htmlFragment);
 
     if(settings.loadingAnimation !== false) {
-        htmlFragment = `
-            <div id="smoozoo-loader" class="loader-container hidden">
-                <div class="loader-blobs">
-                    <div class="blob" style="background-color:red;"></div>
-                    <div class="blob" style="background-color:blue;"></div>
-                    <div class="blob" style="background-color:green;"></div>
-                </div>
-                <div class="loader-text">
-                    Loading
-                </div>
-            </div>
-        `;
+        htmlFragment = 
+            `<div id="smoozoo-loader" class="loader-container hidden">` +
+                `<div class="loader-blobs">` +
+                    `<div class="blob" style="background-color:red;"></div>` +
+                    `<div class="blob" style="background-color:blue;"></div>` +
+                    `<div class="blob" style="background-color:green;"></div>` +
+                `</div>` +
+                `<div class="loader-text">` +
+                    `Loading` +
+                `</div>` +
+            `</div>`;
         targetElement.insertAdjacentHTML('beforeend', htmlFragment);
     }
 
@@ -348,24 +346,39 @@ window.smoozoo = (imageUrl, settings) => {
     /**
      * The Vertex Shader's primary job is to calculate the final position of each vertex.
      * It's updated to scale texture coordinates to account for POT padding.
+     * 
+     * The shader below with comments:
+     *   attribute vec2 a_position;
+     *   attribute vec2 a_texcoord;
+     *
+     *   uniform mat3 u_viewProjectionMatrix;
+     *   uniform mat3 u_rotationMatrix;
+     *   uniform vec2 u_texCoordScale; // NEW: Scales texture coordinates
+     *
+     *   varying vec2 v_texcoord;
+     *
+     *   void main() {
+     *       vec3 rotated_position = u_rotationMatrix * vec3(a_position, 1.0);
+     *       vec3 final_position = u_viewProjectionMatrix * vec3(rotated_position.xy, 1.0);
+     *
+     *       gl_Position = vec4(final_position.xy, 0.0, 1.0);
+     *
+     *       // Apply the texture coordinate scaling before passing to the fragment shader
+     *       v_texcoord = a_texcoord * u_texCoordScale;
+     *   }
+     * 
      */
     const vertexShaderSource = `
         attribute vec2 a_position;
         attribute vec2 a_texcoord;
-
         uniform mat3 u_viewProjectionMatrix;
         uniform mat3 u_rotationMatrix;
-        uniform vec2 u_texCoordScale; // NEW: Scales texture coordinates
-
+        uniform vec2 u_texCoordScale;
         varying vec2 v_texcoord;
-
         void main() {
             vec3 rotated_position = u_rotationMatrix * vec3(a_position, 1.0);
             vec3 final_position = u_viewProjectionMatrix * vec3(rotated_position.xy, 1.0);
-
             gl_Position = vec4(final_position.xy, 0.0, 1.0);
-
-            // Apply the texture coordinate scaling before passing to the fragment shader
             v_texcoord = a_texcoord * u_texCoordScale;
         }
     `;
@@ -374,29 +387,38 @@ window.smoozoo = (imageUrl, settings) => {
     /**
      * The Fragment (or Pixel) Shader's job is to calculate the final color of each pixel on the screen
      * that is covered by our geometry. It runs once for every single pixel.
+     * 
+     * The shader below with comments:
+     *   // Sets the default floating point precision for performance. 'mediump' is a good balance.
+     *   precision mediump float;
+     *
+     *   // Varyings (Input)
+     *   // This receives the interpolated texture coordinate from the vertex shader. For a pixel in the middle
+     *   // of our rectangle, this value might be (0.5, 0.5), for example.
+     *   varying vec2 v_texcoord;
+     *
+     *   // Uniforms (Input)
+     *   // This represents the actual texture (our image tile) we want to draw.
+     *   // 'sampler2D' is the GLSL type for a 2D texture.
+     *   uniform sampler2D u_image;
+     *
+     *   void main() {
+     *       // Step 1: Sample the Texture
+     *       // The texture2D function looks up a color from the texture (u_image) at a specific
+     *       // coordinate (v_texcoord).
+     *
+     *       // Step 2: Set Final Color
+     *       // gl_FragColor is a special built-in variable that the fragment shader MUST set.
+     *       // It determines the final color of the pixel as a RGBA (Red, Green, Blue, Alpha) vector.
+     *       gl_FragColor = texture2D(u_image, v_texcoord);
+     *   }
+     * 
      */
     const fragmentShaderSource = `
-        // Sets the default floating point precision for performance. 'mediump' is a good balance.
         precision mediump float;
-
-        // Varyings (Input)
-        // This receives the interpolated texture coordinate from the vertex shader. For a pixel in the middle
-        // of our rectangle, this value might be (0.5, 0.5), for example.
         varying vec2 v_texcoord;
-
-        // Uniforms (Input)
-        // This represents the actual texture (our image tile) we want to draw.
-        // 'sampler2D' is the GLSL type for a 2D texture.
         uniform sampler2D u_image;
-
         void main() {
-            // Step 1: Sample the Texture
-            // The texture2D function looks up a color from the texture (u_image) at a specific
-            // coordinate (v_texcoord).
-            
-            // Step 2: Set Final Color
-            // gl_FragColor is a special built-in variable that the fragment shader MUST set.
-            // It determines the final color of the pixel as a RGBA (Red, Green, Blue, Alpha) vector.
             gl_FragColor = texture2D(u_image, v_texcoord);
         }
     `;
