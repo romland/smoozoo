@@ -125,32 +125,64 @@ export class SmoozooCollection
      * Loads the high-resolution texture for a single image on-demand.
      */
     async requestHighResLoad(image) {
-        // 1. If we are already loading or have loaded this image, do nothing.
         if (image.highResState !== 'none') return;
-
         image.highResState = 'loading';
 
         try {
-            // 2. Fetch the high-resolution image data.
             const response = await fetch(image.highRes);
             const blob = await response.blob();
             const bmp = await createImageBitmap(blob);
 
-            // 3. Create the WebGL texture from the loaded image.
-            image.highResTexture = this.createTextureFromImageBitmap(bmp);
+            const maxTexSize = this.gl.getParameter(this.gl.MAX_TEXTURE_SIZE);
+
+            // --- Case 1: Image is small enough to fit in one texture ---
+            if (bmp.width <= maxTexSize && bmp.height <= maxTexSize) {
+                image.highResTexture = this.createTextureFromImageBitmap(bmp);
+                image.highResTiles = null; // Ensure no old tile data exists
+            
+            // --- Case 2: Image is too large and must be tiled ---
+            } else {
+                console.log(`Image ${image.filename} is too large, generating tiles...`);
+                image.highResTiles = [];
+                image.highResTexture = null; // This image will be rendered from tiles
+                image.originalWidth = bmp.width;
+                image.originalHeight = bmp.height;
+
+                const numXTiles = Math.ceil(bmp.width / maxTexSize);
+                const numYTiles = Math.ceil(bmp.height / maxTexSize);
+
+                for (let y = 0; y < numYTiles; y++) {
+                    for (let x = 0; x < numXTiles; x++) {
+                        const sx = x * maxTexSize;
+                        const sy = y * maxTexSize;
+                        const sw = Math.min(maxTexSize, bmp.width - sx);
+                        const sh = Math.min(maxTexSize, bmp.height - sy);
+
+                        // Create a temporary canvas to hold the tile data
+                        const tileCanvas = new OffscreenCanvas(sw, sh);
+                        const tileCtx = tileCanvas.getContext('2d');
+                        tileCtx.drawImage(bmp, sx, sy, sw, sh, 0, 0, sw, sh);
+                        
+                        const tileTexture = this.createTextureFromImageBitmap(tileCanvas);
+
+                        image.highResTiles.push({
+                            texture: tileTexture,
+                            x: sx, y: sy,
+                            width: sw, height: sh
+                        });
+                    }
+                }
+            }
+            
             image.highResState = 'ready';
-
-            // 4. Add the new texture to our memory cache.
-            this.addTextureToCache(image); 
-
-            // 5. Request a re-render to display the new high-res texture.
+            this.addTextureToCache(image); // Use the cache for single textures
             this.api.requestRender();
+
         } catch (e) {
             console.error(`Failed to load high-res image ${image.highRes}:`, e);
             image.highResState = 'error';
         }
     }
-
 
     updateCacheUsage(image) {
         // Remove the item from its current position in the list
@@ -636,8 +668,9 @@ export class SmoozooCollection
     render() {
         const { scale, originX, originY } = this.api.getTransform();
         const gl = this.gl;
+        const canvas = this.canvas;
         
-        // Standard WebGL state setup
+        // --- WebGL state setup ---
         const program = this.api.getProgram();
         const buffers = this.api.getBuffers();
         const attribLocations = this.api.getAttribLocations();
@@ -655,71 +688,126 @@ export class SmoozooCollection
         gl.bindBuffer(gl.ARRAY_BUFFER, buffers.texcoord);
         gl.vertexAttribPointer(attribLocations.texcoord, 2, gl.FLOAT, false, 0, 0);
 
-        const viewProjMtx = this.api.makeMatrix(originX, originY, scale);
-        gl.uniformMatrix3fv(uniformLocations.viewProjection, false, viewProjMtx);
+        const mainViewProjMtx = this.api.makeMatrix(originX, originY, scale);
+        gl.uniformMatrix3fv(uniformLocations.viewProjection, false, mainViewProjMtx);
         
         const identityMatrix = [1, 0, 0, 0, 1, 0, 0, 0, 1];
         gl.uniformMatrix3fv(uniformLocations.rotation, false, identityMatrix);
 
         gl.uniform2f(uniformLocations.texCoordScale, 1, 1);
         
-        // --- Check for visible images and trigger loading ---
-        const viewWidth = this.canvas.width / scale;
-        const viewHeight = this.canvas.height / scale;
+        // --- Center-Focus Logic ---
+        const viewWidth = canvas.width / scale;
+        const viewHeight = canvas.height / scale;
         const viewX = -originX;
         const viewY = -originY;
+        
+        const viewportCenterX = viewX + viewWidth / 2;
+        const viewportCenterY = viewY + viewHeight / 2;
 
-        // const renderBuffer = viewWidth * 1.5;
-        // const bufferedViewX = viewX - renderBuffer;
-        // const bufferedViewWidth = viewWidth + (renderBuffer * 2);
-        const renderBuffer = viewWidth * this.config.highResLoadBuffer;
-        const bufferedViewX = viewX - renderBuffer;
-        const bufferedViewWidth = viewWidth + (renderBuffer * 2);
+        let focusedImage = null;
+        let minDistance = Infinity;
+        const visibleImages = [];
 
+        // 1. First Pass: Find all visible images and identify the one closest to the center.
         this.images.forEach(img => {
             const isVisible = (
-                img.x < bufferedViewX + bufferedViewWidth &&
-                img.x + img.width > bufferedViewX &&
-                img.y < viewY + viewHeight &&
-                img.y + img.height > viewY
+                img.x < viewX + viewWidth && img.x + img.width > viewX &&
+                img.y < viewY + viewHeight && img.y + img.height > viewY
             );
 
             if (isVisible) {
-                // --- This is the complete high-resolution logic block ---
+                visibleImages.push(img);
 
-                // 1. Default to showing the thumbnail texture.
-                let textureToDisplay = img.thumbTex;
-                
-                // 2. Calculate the image's current size on the screen.
-                const onScreenWidth = img.width * scale;
-                
-                // 3. If it's zoomed in past our threshold, request the high-res version.
-                if (onScreenWidth > (img.thumbWidth * this.config.highResThreshold)) {
-                    if (img.highResState === 'none') {
-                        this.requestHighResLoad(img);
-                    }
+                const imgCenterX = img.x + img.width / 2;
+                const imgCenterY = img.y + img.height / 2;
+                const distance = Math.sqrt(Math.pow(imgCenterX - viewportCenterX, 2) + Math.pow(imgCenterY - viewportCenterY, 2));
+
+                if (distance < minDistance) {
+                    minDistance = distance;
+                    focusedImage = img;
                 }
+            }
+        });
 
+        // --- High-res load is only triggered for the single focused image ---
+        if (focusedImage) {
+            const onScreenWidth = focusedImage.width * scale;
+            if (onScreenWidth > (focusedImage.thumbWidth * this.config.highResThreshold)) {
+                if (focusedImage.highResState === 'none') {
+                    this.requestHighResLoad(focusedImage);
+                }
+            }
+        }
 
-                // 4. If the high-res texture is ready, swap to it.
-                if (img.highResState === 'ready') {
+        // --- Second Pass: Render all visible images ---
+        const mainViewport = [0, 0, gl.drawingBufferWidth, gl.drawingBufferHeight];
+
+        visibleImages.forEach(img => {
+            let textureToDisplay = img.thumbTex;
+            let drawn = false;
+
+            // Check if this image is the focused one and if its high-res version is ready
+            if (img === focusedImage && img.highResState === 'ready' && (img.highResTexture || img.highResTiles)) {
+                this.updateCacheUsage(img);
+
+                // Case A: Draw the single high-res texture
+                if (img.highResTexture) {
                     textureToDisplay = img.highResTexture;
-                    // And update the cache to mark it as recently used.
-                    this.updateCacheUsage(img);
-                }
-                // --- End of high-resolution logic block ---
+                
+                // Case B: Draw the tiled high-res texture with aspect ratio correction
+                } else if (img.highResTiles) {
+                    const itemBoxScreenX = (img.x + originX) * scale;
+                    const itemBoxScreenY = (img.y + originY) * scale;
+                    const itemBoxScreenWidth = img.width * scale;
+                    const itemBoxScreenHeight = img.height * scale;
 
-                // If the image is still a placeholder, trigger the thumbnail load.
-                if (img.state === 'placeholder') {
-                    this.requestImageLoad(img);
-                }
+                    const boxAspect = itemBoxScreenWidth / itemBoxScreenHeight;
+                    const imageAspect = img.originalWidth / img.originalHeight;
 
-                // Finally, if we have any texture to display (either thumb or high-res), draw it.
-                if (textureToDisplay) {
-                    gl.bindTexture(gl.TEXTURE_2D, textureToDisplay);
-                    this.api.setRectangle(gl, img.x, img.y, img.width, img.height);
-                    gl.drawArrays(gl.TRIANGLES, 0, 6);
+                    let vpWidth, vpHeight;
+                    // If the image is wider than the box, width is the limiting dimension
+                    if (imageAspect > boxAspect) {
+                        vpWidth = itemBoxScreenWidth;
+                        vpHeight = itemBoxScreenWidth / imageAspect;
+                    } 
+                    // If the image is taller than the box, height is the limiting dimension
+                    else {
+                        vpHeight = itemBoxScreenHeight;
+                        vpWidth = itemBoxScreenHeight * imageAspect;
+                    }
+                    
+                    const vpOffsetX = (itemBoxScreenWidth - vpWidth) / 2;
+                    const vpOffsetY = (itemBoxScreenHeight - vpHeight) / 2;
+                    
+                    gl.viewport(itemBoxScreenX + vpOffsetX, canvas.height - (itemBoxScreenY + vpOffsetY) - vpHeight, vpWidth, vpHeight);
+
+                    const fitMatrix = [ 2 / img.originalWidth, 0, 0, 0, -2 / img.originalHeight, 0, -1, 1, 1 ];
+                    gl.uniformMatrix3fv(uniformLocations.viewProjection, false, fitMatrix);
+
+                    img.highResTiles.forEach(tile => {
+                        gl.bindTexture(gl.TEXTURE_2D, tile.texture);
+                        this.api.setRectangle(gl, tile.x, tile.y, tile.width, tile.height);
+                        gl.drawArrays(gl.TRIANGLES, 0, 6);
+                    });
+
+                    gl.viewport(mainViewport[0], mainViewport[1], mainViewport[2], mainViewport[3]);
+                    gl.uniformMatrix3fv(uniformLocations.viewProjection, false, mainViewProjMtx);
+                    
+                    drawn = true;
                 }
+            }
+            
+            // Draw the final texture (either high-res single texture or the thumbnail)
+            if (!drawn && textureToDisplay) {
+                gl.bindTexture(gl.TEXTURE_2D, textureToDisplay);
+                this.api.setRectangle(gl, img.x, img.y, img.width, img.height);
+                gl.drawArrays(gl.TRIANGLES, 0, 6);
+            }
+
+            // Always trigger placeholder loading
+            if (img.state === 'placeholder') {
+                this.requestImageLoad(img);
             }
         });
 
