@@ -85,17 +85,6 @@ quite done yet, but, this actually already feels _better_ than Windows
 native one (I humbly opine)!
 
 ## TODO
-    - add support for showing a lower quality picture while loading,
-      for instance, a .webp can be quickly loaded compared to a png
-      of 15 MB (compress/convert with https://squoosh.app)
-
-    - set up github build-action for Tauri -- or _possibly_ a local
-      cross-compile to Windows ... or both. yes. both.
-
-    - the minimap viewport border goes below the minimap edge
-
-    - add a method to smoothly pan/scale from current point to another
-
     - When I deep-link to a position, I end up ignoring what is allowed to be 
       maximum zoomed-out. I will want to still do that calculation even if we
       are not using it initially (basically, I cannot zoom out as far as I want)
@@ -108,13 +97,11 @@ native one (I humbly opine)!
     - Code is in one large file now. It used to be a small file. Split things up a bit.
       Although personally, I am a fan of a single large file!
 
+    - add support for showing a lower quality picture while loading,
+      for instance, a .webp can be quickly loaded compared to a png
+      of 15 MB (compress/convert with https://squoosh.app)
+
     - FIX (or ditch): 'r' to rotate image in steps of 90 degrees
-
-    - For demo purposes: Be able to set which plugins should be loaded with which image?
-      Or not? Just create several initializations?
-
-    - Cosmetics:  
-        - make GL clear color configurable  
 
 ## Use Smoozoo in your own projects
 See `examples/index.html`, but this is pretty much what you need, depending on which
