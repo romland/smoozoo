@@ -1,4 +1,7 @@
 window.smoozoo = (imageUrl, settings) => {
+    let resolveReadyPromise;
+    const readyPromise = new Promise(resolve => { resolveReadyPromise = resolve; });
+
     let currentImageUrl = imageUrl;
 
     // Do HTML injection
@@ -71,6 +74,8 @@ window.smoozoo = (imageUrl, settings) => {
         panning = false;
     let startX = 0,
         startY = 0;
+
+    let _worldSize = null; 
 
     // To keep track of current position for deep linking
     let lastMouseRealX = 0,
@@ -146,7 +151,8 @@ window.smoozoo = (imageUrl, settings) => {
 
     // Plugins
     let plugins = settings.plugins || [];
-
+    let _rendererOverride = null;
+    let _isInitialLoadPrevented = false;
 
     // ---------------------------------
     // --- General utility functions ---
@@ -195,6 +201,13 @@ window.smoozoo = (imageUrl, settings) => {
      */
     function getCurrentImageSize()
     {
+        if (_worldSize) {
+            return {
+                width: _worldSize.width,
+                height: _worldSize.height
+            };
+        }
+
         const i = rotation === 90 || rotation === 270;
         return {
             width: i ? orgImgHeight : orgImgWidth,
@@ -238,7 +251,8 @@ window.smoozoo = (imageUrl, settings) => {
             console.log("Plugin", instance.constructor.name, `(${instance?.toString()})`, "instantiated.")
         } catch (ex) {
             console.warn("Could not find requested plugin. Available DEFAULT Smoozoo plugins are:", window.smoozooPlugins);
-            throw new Error(`Could not instantiate class ${ClassName}`);
+            console.error(ex);
+            throw new Error(`Could not instantiate ${ClassName}`);
         }
         return instance;
     }
@@ -546,7 +560,8 @@ window.smoozoo = (imageUrl, settings) => {
      * It can use two methods: the Fetch API (default) which allows getting the file size,
      * or a direct Image object load (by setting `disableFetchForImages: true`) as a fallback for CORS issues.
      */
-    async function loadImageAndCreateTextureInfo(url, callback) {
+    async function loadImageAndCreateTextureInfo(url, callback)
+    {
         if (settings.loadingAnimation !== false) {
             loader.classList.remove('hidden');
         }
@@ -862,6 +877,17 @@ window.smoozoo = (imageUrl, settings) => {
      */
     function render()
     {
+        if (_rendererOverride) {
+            _rendererOverride();
+            // Call plugin update methods after the override
+            if(plugins.length) {
+                 for(const plugin of plugins) {
+                     plugin.instance?.update && plugin.instance?.update();
+                 }
+            }
+            return;
+        }
+
         if (!tiles.length) {
             return;
         }
@@ -1458,6 +1484,10 @@ window.smoozoo = (imageUrl, settings) => {
             if(settings.loadingAnimation !== false) {
                 loader.classList.add('hidden');
             }
+
+            if (resolveReadyPromise) {
+                resolveReadyPromise(viewerApi);
+            }
         });
     }
 
@@ -1472,6 +1502,12 @@ window.smoozoo = (imageUrl, settings) => {
     
     function handleCanvasMouseDown(e)
     {
+        for (const plugin of plugins) {
+            if (plugin.instance?.onMouseDown?.(e) === false) {
+                return; // Plugin handled it
+            }
+        }
+
         canvas.classList.add('panning');
 
         cancelAllAnimations();
@@ -1492,6 +1528,16 @@ window.smoozoo = (imageUrl, settings) => {
 
     function handleCanvasMouseMove(e)
     {
+        // Note: We check a different hook `onDrag` to differentiate from the general
+        //       `onMouseMove` for status updates.
+        if (panning) {
+             for (const plugin of plugins) {
+                if (plugin.instance?.onDrag?.(e) === false) {
+                    return; // Plugin handled it
+                }
+            }
+        }
+
         if (!panning) {
             return;
         }
@@ -1535,6 +1581,12 @@ window.smoozoo = (imageUrl, settings) => {
 
     function handleCanvasMouseUp(e)
     {
+        for (const plugin of plugins) {
+            if (plugin.instance?.onMouseUp?.(e) === false) {
+                return; // Plugin handled it
+            }
+        }
+
         canvas.classList.remove('panning');
 
         if (!panning) {
@@ -1563,6 +1615,90 @@ window.smoozoo = (imageUrl, settings) => {
             checkEdges();
         }
         panning = false;
+    }
+
+
+    /**
+     * Keeping focus on the pixel under the pointer would always be a tough
+     * thing to pull off with the acceleration/momentum/snapback. But I think
+     * this does the best of both worlds -- it's fast and _somewhat_ keeps
+     * focus in place.
+     * 
+     * Check if an animation is running. If NOT, it's the start of a new
+     * zoom sequence, so we must sync the targets with the current state to
+     * account for any panning. If an animation IS running, we don't sync,
+     * which preserves the zoom's momentum and makes it feel fast.
+     * 
+     * @param {*} e 
+     */
+    function handleCanvasWheel(e)
+    {
+        for (const plugin of plugins) {
+            if (plugin.instance?.onWheel?.(e) === false) {
+                return; // Plugin handled it
+            }
+        }
+
+        e.preventDefault();
+
+        if (!isZooming) {
+            cancelAllAnimations();
+            targetScale = scale;
+            targetOriginX = originX;
+            targetOriginY = originY;
+        }
+
+        const zoomFactor = 1.1;
+        const scaleAmount = e.deltaY > 0 ? 1 / zoomFactor : zoomFactor;
+        lastMouseX = e.clientX;
+        lastMouseY = e.clientY;
+
+        // Calculate world coordinates based on the TARGET values.
+        const worldMouseX = (lastMouseX / targetScale) - targetOriginX;
+        const worldMouseY = (lastMouseY / targetScale) - targetOriginY;
+
+        // Calculate the new target scale and clamp it.
+        const newTargetScale = targetScale * scaleAmount;
+        targetScale = Math.max(minScale, Math.min(newTargetScale, settings.maxScale));
+
+        const rawTargetOriginX = (lastMouseX / targetScale) - worldMouseX;
+        const rawTargetOriginY = (lastMouseY / targetScale) - worldMouseY;
+
+        const finalTarget = getClampedOrigin(rawTargetOriginX, rawTargetOriginY, targetScale);
+        targetOriginX = finalTarget.x;
+        targetOriginY = finalTarget.y;
+
+        // Start the animation loop if it's not already running.
+        if (!isZooming) {
+            smoothZoomAnimationId = requestAnimationFrame(smoothZoomLoop);
+        }
+    }
+
+
+    function handleCanvasDoubleClick(e)
+    {
+        e.preventDefault();
+        cancelAllAnimations();
+
+        let finalScale = (Math.abs(scale - 1.0) < 0.01) ? 0.25 : 1.0;
+        lastMouseX = e.clientX;
+        lastMouseY = e.clientY;
+        targetScale = finalScale;
+
+        const worldMouseX = (lastMouseX / scale) - originX;
+        const worldMouseY = (lastMouseY / scale) - originY;
+        
+        const rawTargetOriginX = (lastMouseX / targetScale) - worldMouseX;
+        const rawTargetOriginY = (lastMouseY / targetScale) - worldMouseY;
+
+        // Use the helper to get the final, valid target origin
+        const finalTarget = getClampedOrigin(rawTargetOriginX, rawTargetOriginY, targetScale);
+        targetOriginX = finalTarget.x;
+        targetOriginY = finalTarget.y;
+
+        if (!isZooming) {
+            smoothZoomAnimationId = requestAnimationFrame(smoothZoomLoop);
+        }
     }
 
 
@@ -1764,85 +1900,6 @@ window.smoozoo = (imageUrl, settings) => {
     }
 
 
-    /**
-     * Keeping focus on the pixel under the pointer would always be a tough
-     * thing to pull off with the acceleration/momentum/snapback. But I think
-     * this does the best of both worlds -- it's fast and _somewhat_ keeps
-     * focus in place.
-     * 
-     * Check if an animation is running. If NOT, it's the start of a new
-     * zoom sequence, so we must sync the targets with the current state to
-     * account for any panning. If an animation IS running, we don't sync,
-     * which preserves the zoom's momentum and makes it feel fast.
-     * 
-     * @param {*} e 
-     */
-    function handleCanvasWheel(e)
-    {
-        e.preventDefault();
-
-        if (!isZooming) {
-            cancelAllAnimations();
-            targetScale = scale;
-            targetOriginX = originX;
-            targetOriginY = originY;
-        }
-
-        const zoomFactor = 1.1;
-        const scaleAmount = e.deltaY > 0 ? 1 / zoomFactor : zoomFactor;
-        lastMouseX = e.clientX;
-        lastMouseY = e.clientY;
-
-        // Calculate world coordinates based on the TARGET values.
-        const worldMouseX = (lastMouseX / targetScale) - targetOriginX;
-        const worldMouseY = (lastMouseY / targetScale) - targetOriginY;
-
-        // Calculate the new target scale and clamp it.
-        const newTargetScale = targetScale * scaleAmount;
-        targetScale = Math.max(minScale, Math.min(newTargetScale, settings.maxScale));
-
-        const rawTargetOriginX = (lastMouseX / targetScale) - worldMouseX;
-        const rawTargetOriginY = (lastMouseY / targetScale) - worldMouseY;
-
-        const finalTarget = getClampedOrigin(rawTargetOriginX, rawTargetOriginY, targetScale);
-        targetOriginX = finalTarget.x;
-        targetOriginY = finalTarget.y;
-
-        // Start the animation loop if it's not already running.
-        if (!isZooming) {
-            smoothZoomAnimationId = requestAnimationFrame(smoothZoomLoop);
-        }
-    }
-
-
-    function handleCanvasDoubleClick(e)
-    {
-        e.preventDefault();
-        cancelAllAnimations();
-
-        let finalScale = (Math.abs(scale - 1.0) < 0.01) ? 0.25 : 1.0;
-        lastMouseX = e.clientX;
-        lastMouseY = e.clientY;
-        targetScale = finalScale;
-
-        const worldMouseX = (lastMouseX / scale) - originX;
-        const worldMouseY = (lastMouseY / scale) - originY;
-        
-        const rawTargetOriginX = (lastMouseX / targetScale) - worldMouseX;
-        const rawTargetOriginY = (lastMouseY / targetScale) - worldMouseY;
-
-        // Use the helper to get the final, valid target origin
-        const finalTarget = getClampedOrigin(rawTargetOriginX, rawTargetOriginY, targetScale);
-        targetOriginX = finalTarget.x;
-        targetOriginY = finalTarget.y;
-
-        if (!isZooming) {
-            smoothZoomAnimationId = requestAnimationFrame(smoothZoomLoop);
-        }
-    }
-
-
-
     async function handleWindowKeyDown(e)
     {
         const { width: imageWidth, height: imageHeight } = getCurrentImageSize();
@@ -2004,9 +2061,11 @@ window.smoozoo = (imageUrl, settings) => {
 
         mouseCoordsSpan.textContent = `${x},${y}`;
         
+        // This is the general mouse move handler, good for all plugins to listen to.
         if(plugins.length) {
             for(const plugin of plugins) {
-                plugin.instance?.onMouseMove && plugin.instance?.onMouseMove(e);
+                // plugin.instance?.onMouseMove && plugin.instance?.onMouseMove(e);
+                plugin.instance?.onMouseMove && plugin.instance?.onMouseMove(e, {worldX: x, worldY: y});                
             }
         }
     }
@@ -2032,6 +2091,10 @@ window.smoozoo = (imageUrl, settings) => {
         originY = targetOriginY = clamped.y;
 
         render();
+
+        for (const plugin of plugins) {
+            plugin.instance?.onResize?.();
+        }
     }
 
 
@@ -2086,6 +2149,7 @@ window.smoozoo = (imageUrl, settings) => {
     // ----------------------
     // --- The plugin API ---
     // ----------------------
+    /*
     const viewerApi = {
         getTransform: () => ({ scale, originX, originY }),
         getCanvas: () => canvas,
@@ -2099,13 +2163,57 @@ window.smoozoo = (imageUrl, settings) => {
         loadImage: loadImage,
         animateTo: animateTo,
         currentImageUrl: () => currentImageUrl,
-        currentImageFilename: currentImageUrl.split('/').pop()
+        currentImageFilename: currentImageUrl?.split('/').pop() || "",
+
+        overrideRenderer: (renderFn) => { _rendererOverride = renderFn; },
+        preventInitialLoad: () => { _isInitialLoadPrevented = true; },
+        setWorldSize: (size) => { _worldSize = size; },
+        getGlContext: () => gl,
+        setRectangle: setRectangle,
+        useProgram: () => gl.useProgram(program),
+    };
+    */
+    const viewerApi = {
+        getTransform: () => ({ scale, originX, originY }),
+        getCanvas: () => canvas,
+        getGlContext: () => gl,
+        
+        // --- Core Rendering Primitives ---
+        getProgram: () => program,
+        getBuffers: () => ({ position: positionBuffer, texcoord: texcoordBuffer }),
+        getAttribLocations: () => ({ position: positionLocation, texcoord: texcoordLocation }),
+        getUniformLocations: () => ({
+            viewProjection: viewProjectionMatrixLocation,
+            rotation: rotationMatrixLocation,
+            texCoordScale: texCoordScaleLocation
+        }),
+        makeMatrix: makeMatrix,
+
+        // --- Core Functionality ---
+        getImageSize: getCurrentImageSize,
+        requestRender: render,
+        setRectangle: setRectangle, 
+        jumpToOrigin: jumpToOrigin,
+        cancelAllAnimations: cancelAllAnimations,
+        renderToPixelsAsync: renderToPixelsAsync,
+        loadImage: loadImage,
+        animateTo: animateTo,
+        ready: () => readyPromise,
+
+        // --- Plugin Control ---
+        overrideRenderer: (renderFn) => { _rendererOverride = renderFn; },
+        preventInitialLoad: () => { _isInitialLoadPrevented = true; },
+        setWorldSize: (size) => { _worldSize = size; },
     };
 
-    loadImage(imageUrl);
+    // loadImage(imageUrl);
 
     for(const plugin of plugins) {
         plugin.instance = createPluginInstance(plugin.name, viewerApi, plugin.options);
+    }
+
+    if (!_isInitialLoadPrevented) {
+        loadImage(imageUrl);
     }
 
     if(canvas.width < 600) {

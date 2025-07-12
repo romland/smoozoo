@@ -1,0 +1,55 @@
+#smoozoo-collection-actions {
+    position: absolute;
+    top: 60px;
+    right: 10px;
+    background: rgba(20, 20, 40, 0.8);
+    backdrop-filter: blur(5px);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 8px;
+    padding: 10px 15px;
+    color: #eee;
+    font-family: sans-serif;
+    max-width: 250px;
+    transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+body.ui-hidden #smoozoo-collection-actions {
+    opacity: 0;
+    transform: translateX(100%);
+    pointer-events: none;
+}
+
+#smoozoo-collection-actions h3 {
+    margin: 0 0 10px 0;
+    padding-bottom: 5px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+    font-size: 16px;
+}
+
+#smoozoo-selection-info {
+    font-size: 14px;
+    margin-bottom: 10px;
+}
+
+#smoozoo-action-buttons button {
+    background-color: #3a3a5a;
+    color: white;
+    border: 1px solid #5a5a7a;
+    padding: 5px 10px;
+    border-radius: 4px;
+    cursor: pointer;
+    margin-top: 5px;
+}
+
+#smoozoo-action-buttons button:hover {
+    background-color: #4a4a6a;
+}
+
+#smoozoo-selection-box {
+    position: absolute;
+    background-color: rgba(40, 120, 255, 0.4);
+    border: 1px solid rgba(90, 160, 255, 0.8);
+    display: none;
+    z-index: 100;
+    pointer-events: none; /* IMPORTANT */
+}

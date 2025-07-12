@@ -32,3 +32,4 @@ dist-ssr
 
 # Comes in as a symlink if building native
 src/tauri
+src/assets/notpublic/

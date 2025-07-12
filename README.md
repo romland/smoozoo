@@ -85,6 +85,11 @@ quite done yet, but, this actually already feels _better_ than Windows
 native one (I humbly opine)!
 
 ## TODO
+    - Rewrite docs on how to use -- base it on <script type="module"> instead.
+
+    - Write a short doc on how the packaging works and which plugins is in each
+      package -- and how to create new packages
+
     - When I deep-link to a position, I end up ignoring what is allowed to be 
       maximum zoomed-out. I will want to still do that calculation even if we
       are not using it initially (basically, I cannot zoom out as far as I want)
