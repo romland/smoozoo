@@ -138,6 +138,15 @@
                                 layoutMode: 'row',
                                 maxRowWidth: 10000,
 
+                                // To prevent flickering, increase the cache size. Uses more memory.
+                                highResCacheLimit: 15,
+
+                                // To make loading less aggressive, decrease the buffer.
+                                // A value of 0 would only load images once they are visible.
+                                highResLoadBuffer: 0.2,
+
+                                // To load high-res images sooner when zooming, decrease the threshold.
+                                highResThreshold: 1.2
                             }
                         }                        
                     ]

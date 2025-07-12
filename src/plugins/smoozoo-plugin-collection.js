@@ -32,6 +32,10 @@ export class SmoozooCollection
             maxRowWidth: options.maxRowWidth || 8000,    // For row mode
             minWorldHeight: options.minWorldHeight || 0,
             maxWorldHeight: options.maxWorldHeight || 0,
+
+            highResThreshold: options.highResThreshold || 1.5,
+            highResCacheLimit: options.highResCacheLimit || 10,  // default cache size
+            highResLoadBuffer: options.highResLoadBuffer || 0.5,
         };
 
         // --- State ---
@@ -44,6 +48,9 @@ export class SmoozooCollection
         this.isSelectModeActive = false;
 
         this.imageLoadQueue = new Set(); // Tracks images that need loading
+
+        this.highResCache = new Map();       // Stores the actual textures
+        this.highResUsageList = [];    // Tracks usage order for LRU logic        
 
         // --- Tagging ---
         this.db = new LocalStorageDB('smoozoo_tags');
@@ -59,22 +66,27 @@ export class SmoozooCollection
         this.addKeyListeners();
         this.injectUI();
 
-        this.images = this.config.images.map(imgData => ({
-            ...imgData,
-            filename: imgData.highRes.split('/').pop().split('?')[0],
-            state: 'placeholder',
-            thumbTex: null,
-            width: this.config.thumbnailSize, 
-            height: this.config.thumbnailSize * 1.25, // Estimate as portrait
-            x: 0, y: 0
-        }));
+        this.images = this.config.images.map(imgData => {
+            const estimatedHeight = this.config.layoutMode === 'masonry'
+                ? this.config.thumbnailSize * 1.25 // Estimate portrait for masonry
+                : this.config.thumbnailSize;        // Use fixed height for rows
 
-        // The initial layout will be recalculated on the first resize event anyway,
-        // but we run it once to have something to show.
-        this.calculateLayout();
-        this.api.setWorldSize(this.worldSize);
-        this.api.jumpToOrigin(0, 0); 
-        this.api.requestRender();
+            return {
+                ...imgData,
+                filename: imgData.highRes.split('/').pop().split('?')[0],
+                state: 'placeholder',
+                thumbTex: null,
+                width: this.config.thumbnailSize,
+                height: estimatedHeight,
+                thumbWidth: this.config.thumbnailSize, // Initial estimate
+                thumbHeight: estimatedHeight,           // Initial estimate
+                highResState: 'none',
+                highResTexture: null,
+                x: 0, y: 0
+            };
+        });
+
+        this.onResize(); // Run initial layout and render
     }
 
     onResize = () => {
@@ -85,45 +97,96 @@ export class SmoozooCollection
     }    
 
     // --- Core Logic ---
+    addTextureToCache(image) {
+        // Add the new texture to our cache
+        this.highResCache.set(image.id, image.highResTexture);
+        this.updateCacheUsage(image); // Mark as most recently used
+
+        // If the cache is over the limit, remove the least recently used texture
+        if (this.highResCache.size > this.config.highResCacheLimit) {
+            const lruImageId = this.highResUsageList.pop(); // Get the ID of the least-used image
+            const textureToUnload = this.highResCache.get(lruImageId);
+            
+            // Find the corresponding image object to reset its state
+            const imageToReset = this.images.find(img => img.id === lruImageId);
+            if (imageToReset) {
+                console.log(`Unloading high-res texture for: ${imageToReset.filename}`);
+                this.gl.deleteTexture(textureToUnload); // ✅ Free GPU memory
+                imageToReset.highResState = 'none';
+                imageToReset.highResTexture = null;
+            }
+
+            this.highResCache.delete(lruImageId);
+        }
+    }
+
+
+    /**
+     * Loads the high-resolution texture for a single image on-demand.
+     */
+    async requestHighResLoad(image) {
+        // 1. If we are already loading or have loaded this image, do nothing.
+        if (image.highResState !== 'none') return;
+
+        image.highResState = 'loading';
+
+        try {
+            // 2. Fetch the high-resolution image data.
+            const response = await fetch(image.highRes);
+            const blob = await response.blob();
+            const bmp = await createImageBitmap(blob);
+
+            // 3. Create the WebGL texture from the loaded image.
+            image.highResTexture = this.createTextureFromImageBitmap(bmp);
+            image.highResState = 'ready';
+
+            // 4. Add the new texture to our memory cache.
+            this.addTextureToCache(image); 
+
+            // 5. Request a re-render to display the new high-res texture.
+            this.api.requestRender();
+        } catch (e) {
+            console.error(`Failed to load high-res image ${image.highRes}:`, e);
+            image.highResState = 'error';
+        }
+    }
+
+
+    updateCacheUsage(image) {
+        // Remove the item from its current position in the list
+        const index = this.highResUsageList.indexOf(image.id);
+        if (index > -1) {
+            this.highResUsageList.splice(index, 1);
+        }
+        // Add it to the front of the list (most recently used)
+        this.highResUsageList.unshift(image.id);
+    }
+
+
     async handleWorkerMessage(event) {
         const { status, imageUrl, pixelData, width, height, error } = event.data;
-        
-        // Here, imageUrl is the high-resolution URL
         const image = this.images.find(img => img.highRes === imageUrl);
         if (!image) return;
 
         if (status === 'success') {
+            // ✅ CORRECTED: Update both layout and native thumb dimensions
             image.width = width;
             image.height = height;
-            this.calculateLayout();
-
-            this.api.setWorldSize(this.worldSize);
+            image.thumbWidth = width;
+            image.thumbHeight = height;
 
             image.thumbTex = this.createTextureFromPixels(pixelData, width, height);
             image.state = 'ready';
+            
+            // Recalculate layout and update boundaries *after* getting real dimensions
+            this.onResize(); 
 
-            // --- Caching and Uploading Logic ---
             const thumbBlob = await this.imageDataToBlob(pixelData);
-            
-            // 1. Save to IndexedDB
             this.cache.set(image.id, thumbBlob).catch(console.error);
-            
-            // 2. Optionally upload to server
-            if (this.config.uploadConfig) {
-                const formData = new FormData();
-                formData.append('thumbnail', thumbBlob, `${image.id}.png`);
-                formData.append('id', image.id);
-                fetch(this.config.uploadConfig.url, {
-                    method: 'POST',
-                    body: formData,
-                }).catch(console.error);
-            }
-            // ---
-
         } else {
             image.state = 'error';
+            this.api.requestRender();
         }
-        this.api.requestRender();
     }
 
     async imageDataToBlob(imageData) {
@@ -227,13 +290,22 @@ export class SmoozooCollection
                 // --- END: Corrected Image Flip Logic ---
 
                 const thumbTex = this.createTextureFromPixels(flipCanvas, thumbWidth, thumbHeight);
-                
+
+                // ✅ FIX: Store the thumbnail's native dimensions separately
                 this.images.push({
                     id: src, src, thumbTex,
-                    x: 0, y: 0,
+                    // Layout dimensions (will be changed by calculateLayout)
                     width: thumbWidth,
-                    height: thumbHeight
+                    height: thumbHeight,
+                    // Native thumbnail dimensions (will NOT be changed)
+                    thumbWidth: thumbWidth,
+                    thumbHeight: thumbHeight,
+                    // ... other properties
+                    x: 0, y: 0,
+                    highResState: 'none',
+                    highResTexture: null,
                 });
+
             }
             document.body.removeChild(tempCanvas);
         }
@@ -480,8 +552,8 @@ export class SmoozooCollection
             const columnHeights = Array(cols).fill(padding);
             
             this.images.forEach(img => {
-                const scaleRatio = colWidth / img.width;
-                const imgHeight = img.height * scaleRatio;
+                const scaleRatio = colWidth / img.thumbWidth;
+                const imgHeight = img.thumbHeight * scaleRatio;
 
                 let shortestColumnIndex = 0;
                 columnHeights.forEach((h, i) => {
@@ -490,11 +562,14 @@ export class SmoozooCollection
                     }
                 });
 
+                // Overwrite the layout dimensions
                 img.x = padding + shortestColumnIndex * (colWidth + padding);
                 img.y = columnHeights[shortestColumnIndex];
                 img.width = colWidth;
                 img.height = imgHeight;
+
                 columnHeights[shortestColumnIndex] += imgHeight + padding;
+
             });
 
             this.worldSize.width = this.canvas.width;
@@ -562,6 +637,7 @@ export class SmoozooCollection
         const { scale, originX, originY } = this.api.getTransform();
         const gl = this.gl;
         
+        // Standard WebGL state setup
         const program = this.api.getProgram();
         const buffers = this.api.getBuffers();
         const attribLocations = this.api.getAttribLocations();
@@ -571,7 +647,6 @@ export class SmoozooCollection
         gl.clearColor(0.055, 0.016, 0.133, 1.0);
         gl.clear(gl.COLOR_BUFFER_BIT);
 
-        // -- Setup Attributes --
         gl.enableVertexAttribArray(attribLocations.position);
         gl.bindBuffer(gl.ARRAY_BUFFER, buffers.position);
         gl.vertexAttribPointer(attribLocations.position, 2, gl.FLOAT, false, 0, 0);
@@ -580,7 +655,6 @@ export class SmoozooCollection
         gl.bindBuffer(gl.ARRAY_BUFFER, buffers.texcoord);
         gl.vertexAttribPointer(attribLocations.texcoord, 2, gl.FLOAT, false, 0, 0);
 
-        // -- Setup Uniforms --
         const viewProjMtx = this.api.makeMatrix(originX, originY, scale);
         gl.uniformMatrix3fv(uniformLocations.viewProjection, false, viewProjMtx);
         
@@ -589,18 +663,20 @@ export class SmoozooCollection
 
         gl.uniform2f(uniformLocations.texCoordScale, 1, 1);
         
-        // -- Draw image thumbnails or placeholders --
-        const viewX = -originX;
-        const viewY = -originY;
+        // --- Check for visible images and trigger loading ---
         const viewWidth = this.canvas.width / scale;
         const viewHeight = this.canvas.height / scale;
+        const viewX = -originX;
+        const viewY = -originY;
 
-        const renderBuffer = viewWidth * 1.5; // Load images 1.5 screen-widths away
+        // const renderBuffer = viewWidth * 1.5;
+        // const bufferedViewX = viewX - renderBuffer;
+        // const bufferedViewWidth = viewWidth + (renderBuffer * 2);
+        const renderBuffer = viewWidth * this.config.highResLoadBuffer;
         const bufferedViewX = viewX - renderBuffer;
         const bufferedViewWidth = viewWidth + (renderBuffer * 2);
 
         this.images.forEach(img => {
-            // Check if the image is within the *buffered* viewport
             const isVisible = (
                 img.x < bufferedViewX + bufferedViewWidth &&
                 img.x + img.width > bufferedViewX &&
@@ -609,18 +685,40 @@ export class SmoozooCollection
             );
 
             if (isVisible) {
-                // If the image is a placeholder and in the buffered view, request it
+                // --- This is the complete high-resolution logic block ---
+
+                // 1. Default to showing the thumbnail texture.
+                let textureToDisplay = img.thumbTex;
+                
+                // 2. Calculate the image's current size on the screen.
+                const onScreenWidth = img.width * scale;
+                
+                // 3. If it's zoomed in past our threshold, request the high-res version.
+                if (onScreenWidth > (img.thumbWidth * this.config.highResThreshold)) {
+                    if (img.highResState === 'none') {
+                        this.requestHighResLoad(img);
+                    }
+                }
+
+
+                // 4. If the high-res texture is ready, swap to it.
+                if (img.highResState === 'ready') {
+                    textureToDisplay = img.highResTexture;
+                    // And update the cache to mark it as recently used.
+                    this.updateCacheUsage(img);
+                }
+                // --- End of high-resolution logic block ---
+
+                // If the image is still a placeholder, trigger the thumbnail load.
                 if (img.state === 'placeholder') {
                     this.requestImageLoad(img);
                 }
 
-                if (img.state === 'ready' && img.thumbTex) {
-                    // Draw the real thumbnail (no change to this part)
-                    gl.bindTexture(gl.TEXTURE_2D, img.thumbTex);
+                // Finally, if we have any texture to display (either thumb or high-res), draw it.
+                if (textureToDisplay) {
+                    gl.bindTexture(gl.TEXTURE_2D, textureToDisplay);
                     this.api.setRectangle(gl, img.x, img.y, img.width, img.height);
                     gl.drawArrays(gl.TRIANGLES, 0, 6);
-                } else {
-                    // Draw placeholder if needed
                 }
             }
         });
