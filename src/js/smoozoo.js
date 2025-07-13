@@ -2173,30 +2173,6 @@ window.smoozoo = (imageUrl, settings) => {
     // ----------------------
     // --- The plugin API ---
     // ----------------------
-    /*
-    const viewerApi = {
-        getTransform: () => ({ scale, originX, originY }),
-        getCanvas: () => canvas,
-        getTiles: () => tiles,
-        getImageSize: getCurrentImageSize,
-        requestRender: render,
-        jumpToOrigin: jumpToOrigin,
-        cancelAllAnimations: cancelAllAnimations,
-        renderToPixels: renderToPixels,
-        renderToPixelsAsync: renderToPixelsAsync,
-        loadImage: loadImage,
-        animateTo: animateTo,
-        currentImageUrl: () => currentImageUrl,
-        currentImageFilename: currentImageUrl?.split('/').pop() || "",
-
-        overrideRenderer: (renderFn) => { _rendererOverride = renderFn; },
-        preventInitialLoad: () => { _isInitialLoadPrevented = true; },
-        setWorldSize: (size) => { _worldSize = size; },
-        getGlContext: () => gl,
-        setRectangle: setRectangle,
-        useProgram: () => gl.useProgram(program),
-    };
-    */
     const viewerApi = {
         getTransform: () => ({ scale, originX, originY }),
         getCanvas: () => canvas,
