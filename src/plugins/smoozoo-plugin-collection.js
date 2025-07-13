@@ -39,11 +39,17 @@ export class SmoozooCollection
 
             loadBuffer: options.loadBuffer || 1.0, // Load 1 viewport height/width around the visible area
 
+            highResLoadDelay: options.highResLoadDelay || 250, // time in ms to wait before loading
+
+            // Load instantly if the image width on screen is >= 80% of the canvas width.
+            instantLoadThreshold: options.instantLoadThreshold || 0.8,
+
             maxConcurrentRequests: options.maxConcurrentRequests || 5,
         };
 
         // --- State ---
         this.images = []; // { id, src, thumbTex, x, y, width, height }
+        this.highResLoadDebounceTimer = null; // to hold timer ID
         this.worldSize = { width: 0, height: 0 };
         this.selection = new Set();
         this.isDraggingSelection = false;
@@ -645,10 +651,31 @@ export class SmoozooCollection
         }
 
         // --- 5. High-Resolution Logic ---
+
+        // Always clear any high-res load request that was scheduled in the previous frame.
+        clearTimeout(this.highResLoadDebounceTimer);
+
         if (focusedImage) {
             if (focusedImage.state === 'ready' && scale > this.config.highResThreshold) {
                 if (focusedImage.highResState === 'none') {
-                    this.requestHighResLoad(focusedImage);
+
+                    // Calculate how much horizontal space the image takes up on the screen.
+                    const imageScreenWidth = focusedImage.width * scale;
+                    const isDominantOnScreen = (imageScreenWidth / this.canvas.width) >= this.config.instantLoadThreshold;
+
+                    if (isDominantOnScreen) {
+                        // The image is big enough on screen that the user clearly wants to see it.
+                        // Bypass the debounce and load the high-res version immediately.
+                        this.requestHighResLoad(focusedImage);
+                    } else {
+                        // The user is likely panning. Use the timeout to prevent choppiness.
+                        this.highResLoadDebounceTimer = setTimeout(() => {
+                            const { scale: currentScale } = this.api.getTransform();
+                            if (currentScale > this.config.highResThreshold) {
+                                this.requestHighResLoad(focusedImage);
+                            }
+                        }, this.config.highResLoadDelay);
+                    }
                 }
             }
         }
