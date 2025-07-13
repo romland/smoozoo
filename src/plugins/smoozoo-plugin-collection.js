@@ -665,180 +665,168 @@ export class SmoozooCollection
         return texture;
     }
 
-    render() {
-        const { scale, originX, originY } = this.api.getTransform();
-        const gl = this.gl;
-        const canvas = this.canvas;
-        
-        // --- WebGL state setup ---
-        const program = this.api.getProgram();
-        const buffers = this.api.getBuffers();
-        const attribLocations = this.api.getAttribLocations();
-        const uniformLocations = this.api.getUniformLocations();
+render() {
+    const { scale, originX, originY } = this.api.getTransform();
+    const gl = this.gl;
+    const canvas = this.canvas;
 
-        gl.useProgram(program);
-        gl.clearColor(0.055, 0.016, 0.133, 1.0);
-        gl.clear(gl.COLOR_BUFFER_BIT);
+    // Get the core Smoozoo settings to ensure filtering is always in sync.
+    const smoozooSettings = this.api.getSettings();
+    const filter = smoozooSettings.pixelatedZoom ? gl.NEAREST : gl.LINEAR;
 
-        gl.enableVertexAttribArray(attribLocations.position);
-        gl.bindBuffer(gl.ARRAY_BUFFER, buffers.position);
-        gl.vertexAttribPointer(attribLocations.position, 2, gl.FLOAT, false, 0, 0);
+    // --- WebGL state setup ---
+    const program = this.api.getProgram();
+    const buffers = this.api.getBuffers();
+    const attribLocations = this.api.getAttribLocations();
+    const uniformLocations = this.api.getUniformLocations();
 
-        gl.enableVertexAttribArray(attribLocations.texcoord);
-        gl.bindBuffer(gl.ARRAY_BUFFER, buffers.texcoord);
-        gl.vertexAttribPointer(attribLocations.texcoord, 2, gl.FLOAT, false, 0, 0);
+    gl.useProgram(program);
+    gl.clearColor(0.055, 0.016, 0.133, 1.0); // Or use your configured background color
+    gl.clear(gl.COLOR_BUFFER_BIT);
 
-        const mainViewProjMtx = this.api.makeMatrix(originX, originY, scale);
-        gl.uniformMatrix3fv(uniformLocations.viewProjection, false, mainViewProjMtx);
-        
-        const identityMatrix = [1, 0, 0, 0, 1, 0, 0, 0, 1];
-        gl.uniformMatrix3fv(uniformLocations.rotation, false, identityMatrix);
+    gl.enableVertexAttribArray(attribLocations.position);
+    gl.bindBuffer(gl.ARRAY_BUFFER, buffers.position);
+    gl.vertexAttribPointer(attribLocations.position, 2, gl.FLOAT, false, 0, 0);
 
-        gl.uniform2f(uniformLocations.texCoordScale, 1, 1);
-        
-        // --- Center-Focus Logic ---
-        const viewWidth = canvas.width / scale;
-        const viewHeight = canvas.height / scale;
-        const viewX = -originX;
-        const viewY = -originY;
-        
-        const viewportCenterX = viewX + viewWidth / 2;
-        const viewportCenterY = viewY + viewHeight / 2;
+    gl.enableVertexAttribArray(attribLocations.texcoord);
+    gl.bindBuffer(gl.ARRAY_BUFFER, buffers.texcoord);
+    gl.vertexAttribPointer(attribLocations.texcoord, 2, gl.FLOAT, false, 0, 0);
 
-        let focusedImage = null;
-        let minDistance = Infinity;
-        const visibleImages = [];
+    const mainViewProjMtx = this.api.makeMatrix(originX, originY, scale);
+    gl.uniformMatrix3fv(uniformLocations.viewProjection, false, mainViewProjMtx);
 
-        // 1. First Pass: Find all visible images and identify the one closest to the center.
-        this.images.forEach(img => {
-            const isVisible = (
-                img.x < viewX + viewWidth && img.x + img.width > viewX &&
-                img.y < viewY + viewHeight && img.y + img.height > viewY
-            );
+    const identityMatrix = [1, 0, 0, 0, 1, 0, 0, 0, 1];
+    gl.uniformMatrix3fv(uniformLocations.rotation, false, identityMatrix);
 
-            if (isVisible) {
-                visibleImages.push(img);
+    gl.uniform2f(uniformLocations.texCoordScale, 1, 1);
 
-                const imgCenterX = img.x + img.width / 2;
-                const imgCenterY = img.y + img.height / 2;
-                const distance = Math.sqrt(Math.pow(imgCenterX - viewportCenterX, 2) + Math.pow(imgCenterY - viewportCenterY, 2));
+    // --- Center-Focus & Visibility Logic ---
+    const viewWidth = canvas.width / scale;
+    const viewHeight = canvas.height / scale;
+    const viewX = -originX;
+    const viewY = -originY;
 
-                if (distance < minDistance) {
-                    minDistance = distance;
-                    focusedImage = img;
-                }
-            }
-        });
+    const viewportCenterX = viewX + viewWidth / 2;
+    const viewportCenterY = viewY + viewHeight / 2;
 
-        // --- High-res load is only triggered for the single focused image ---
-        if (focusedImage) {
-            const onScreenWidth = focusedImage.width * scale;
-            if (onScreenWidth > (focusedImage.thumbWidth * this.config.highResThreshold)) {
-                if (focusedImage.highResState === 'none') {
-                    this.requestHighResLoad(focusedImage);
-                }
+    let focusedImage = null;
+    let minDistance = Infinity;
+    const visibleImages = [];
+
+    // 1. First Pass: Find all visible images and the one closest to the center.
+    this.images.forEach(img => {
+        const isVisible = (
+            img.x < viewX + viewWidth && img.x + img.width > viewX &&
+            img.y < viewY + viewHeight && img.y + img.height > viewY
+        );
+
+        if (isVisible) {
+            visibleImages.push(img);
+            const imgCenterX = img.x + img.width / 2;
+            const imgCenterY = img.y + img.height / 2;
+            const distance = Math.sqrt(Math.pow(imgCenterX - viewportCenterX, 2) + Math.pow(imgCenterY - viewportCenterY, 2));
+
+            if (distance < minDistance) {
+                minDistance = distance;
+                focusedImage = img;
             }
         }
+    });
 
-        // --- Second Pass: Render all visible images ---
-        const mainViewport = [0, 0, gl.drawingBufferWidth, gl.drawingBufferHeight];
-
-        visibleImages.forEach(img => {
-            let textureToDisplay = img.thumbTex;
-            let drawn = false;
-
-            // Check if this image is the focused one and if its high-res version is ready
-            if (img === focusedImage && img.highResState === 'ready' && (img.highResTexture || img.highResTiles)) {
-                this.updateCacheUsage(img);
-
-                // Case A: Draw the single high-res texture
-                if (img.highResTexture) {
-                    textureToDisplay = img.highResTexture;
-                
-                // Case B: Draw the tiled high-res texture with aspect ratio correction
-                } else if (img.highResTiles) {
-                    // Save the current viewport and view-projection matrix
-                    const mainViewport = [0, 0, gl.drawingBufferWidth, gl.drawingBufferHeight];
-                    const mainViewProjMtx = this.api.makeMatrix(originX, originY, scale);
-
-                    // --- START: FIX for Aspect Ratio Skew ---
-                    // We need to calculate the correct scale and offset to fit the original image
-                    // (with its native aspect ratio) inside the layout box (img.width, img.height).
-                    const boxAspect = img.width / img.height;
-                    const imageAspect = img.originalWidth / img.originalHeight;
-
-                    let finalWidth, finalHeight, offsetX, offsetY;
-
-                    if (imageAspect > boxAspect) {
-                        // Image is wider than the box, so it's letterboxed (black bars top/bottom)
-                        finalWidth = img.width;
-                        finalHeight = img.width / imageAspect;
-                        offsetX = 0;
-                        offsetY = (img.height - finalHeight) / 2;
-                    } else {
-                        // Image is taller than the box, so it's pillarboxed (black bars left/right)
-                        finalHeight = img.height;
-                        finalWidth = img.height * imageAspect;
-                        offsetY = 0;
-                        offsetX = (img.width - finalWidth) / 2;
-                    }
-
-                    // The scale factor to transform from original image dimensions to the final fitted dimensions.
-                    const tileScaleFactor = finalWidth / img.originalWidth;
-
-                    img.highResTiles.forEach(tile => {
-                        gl.bindTexture(gl.TEXTURE_2D, tile.texture);
-
-                        // For each tile, calculate its final position and size in the world.
-                        // 1. Scale the tile's original coordinates and dimensions by our new scale factor.
-                        // 2. Add the letterbox/pillarbox offset.
-                        // 3. Add the image's main layout position (img.x, img.y).
-                        const tileX = img.x + offsetX + (tile.x * tileScaleFactor);
-                        const tileY = img.y + offsetY + (tile.y * tileScaleFactor);
-                        const tileWidth = tile.width * tileScaleFactor;
-                        const tileHeight = tile.height * tileScaleFactor;
-
-                        // Use the main API to draw this rectangle. The main view-projection matrix
-                        // is already active and will handle the user's pan and zoom correctly.
-                        this.api.setRectangle(gl, tileX, tileY, tileWidth, tileHeight);
-                        gl.drawArrays(gl.TRIANGLES, 0, 6);
-                    });
-                                        
-                    drawn = true;
-                }
+    // --- High-res Loading Logic ---
+    if (focusedImage) {
+        const onScreenWidth = focusedImage.width * scale;
+        if (onScreenWidth > (focusedImage.thumbWidth * this.config.highResThreshold)) {
+            if (focusedImage.highResState === 'none') {
+                this.requestHighResLoad(focusedImage);
             }
-            
-            // Draw the final texture (either high-res single texture or the thumbnail)
-            if (!drawn && textureToDisplay) {
-                gl.bindTexture(gl.TEXTURE_2D, textureToDisplay);
-                this.api.setRectangle(gl, img.x, img.y, img.width, img.height);
-                gl.drawArrays(gl.TRIANGLES, 0, 6);
-            }
-
-            // Always trigger placeholder loading
-            if (img.state === 'placeholder') {
-                this.requestImageLoad(img);
-            }
-        });
-
-        // -- Draw selection box overlay --
-        const selectionDiv = document.getElementById('smoozoo-selection-box');
-        if (this.isDraggingSelection && this.selectionBox) {
-            const canvasRect = this.canvas.getBoundingClientRect();
-            const screenStartX = (this.selectionBox.startX + originX) * scale + canvasRect.left;
-            const screenStartY = (this.selectionBox.startY + originY) * scale + canvasRect.top;
-            const screenEndX = (this.lastMouseWorldPos.x + originX) * scale + canvasRect.left;
-            const screenEndY = (this.lastMouseWorldPos.y + originY) * scale + canvasRect.top;
-
-            selectionDiv.style.left = `${Math.min(screenStartX, screenEndX)}px`;
-            selectionDiv.style.top = `${Math.min(screenStartY, screenEndY)}px`;
-            selectionDiv.style.width = `${Math.abs(screenEndX - screenStartX)}px`;
-            selectionDiv.style.height = `${Math.abs(screenEndY - screenStartY)}px`;
-            selectionDiv.style.display = 'block';
-        } else {
-            selectionDiv.style.display = 'none';
         }
     }
+
+    // --- Second Pass: Render all visible images ---
+    visibleImages.forEach(img => {
+        let textureToDisplay = img.thumbTex;
+        let drawn = false;
+
+        // Check if the focused image's high-res version is ready to display.
+        if (img === focusedImage && img.highResState === 'ready' && (img.highResTexture || img.highResTiles)) {
+            this.updateCacheUsage(img);
+
+            // Case A: Draw the single high-res texture.
+            if (img.highResTexture) {
+                textureToDisplay = img.highResTexture;
+
+            // Case B: Draw the tiled high-res texture with aspect ratio correction.
+            } else if (img.highResTiles) {
+                const boxAspect = img.width / img.height;
+                const imageAspect = img.originalWidth / img.originalHeight;
+
+                let finalWidth, finalHeight, offsetX, offsetY;
+
+                if (imageAspect > boxAspect) { // Letterboxed
+                    finalWidth = img.width;
+                    finalHeight = img.width / imageAspect;
+                    offsetX = 0;
+                    offsetY = (img.height - finalHeight) / 2;
+                } else { // Pillarboxed
+                    finalHeight = img.height;
+                    finalWidth = img.height * imageAspect;
+                    offsetY = 0;
+                    offsetX = (img.width - finalWidth) / 2;
+                }
+                
+                const tileScaleFactor = finalWidth / img.originalWidth;
+
+                img.highResTiles.forEach(tile => {
+                    gl.bindTexture(gl.TEXTURE_2D, tile.texture);
+                    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, filter); // Apply filter
+
+                    const tileX = img.x + offsetX + (tile.x * tileScaleFactor);
+                    const tileY = img.y + offsetY + (tile.y * tileScaleFactor);
+                    const tileWidth = tile.width * tileScaleFactor;
+                    const tileHeight = tile.height * tileScaleFactor;
+
+                    this.api.setRectangle(gl, tileX, tileY, tileWidth, tileHeight);
+                    gl.drawArrays(gl.TRIANGLES, 0, 6);
+                });
+                
+                drawn = true;
+            }
+        }
+
+        // Draw the final texture (either high-res single texture or the thumbnail).
+        if (!drawn && textureToDisplay) {
+            gl.bindTexture(gl.TEXTURE_2D, textureToDisplay);
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, filter); // Apply filter
+            this.api.setRectangle(gl, img.x, img.y, img.width, img.height);
+            gl.drawArrays(gl.TRIANGLES, 0, 6);
+        }
+
+        // Always trigger placeholder loading if needed.
+        if (img.state === 'placeholder') {
+            this.requestImageLoad(img);
+        }
+    });
+
+    // -- Draw selection box overlay --
+    const selectionDiv = document.getElementById('smoozoo-selection-box');
+    if (this.isDraggingSelection && this.selectionBox) {
+        const canvasRect = this.canvas.getBoundingClientRect();
+        const screenStartX = (this.selectionBox.startX + originX) * scale + canvasRect.left;
+        const screenStartY = (this.selectionBox.startY + originY) * scale + canvasRect.top;
+        const screenEndX = (this.lastMouseWorldPos.x + originX) * scale + canvasRect.left;
+        const screenEndY = (this.lastMouseWorldPos.y + originY) * scale + canvasRect.top;
+
+        selectionDiv.style.left = `${Math.min(screenStartX, screenEndX)}px`;
+        selectionDiv.style.top = `${Math.min(screenStartY, screenEndY)}px`;
+        selectionDiv.style.width = `${Math.abs(screenEndX - screenStartX)}px`;
+        selectionDiv.style.height = `${Math.abs(screenEndY - screenStartY)}px`;
+        selectionDiv.style.display = 'block';
+    } else {
+        selectionDiv.style.display = 'none';
+    }
+}
+
 
 
     // --- Event Handlers ---

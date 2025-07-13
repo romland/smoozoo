@@ -2199,6 +2199,7 @@ window.smoozoo = (imageUrl, settings) => {
         loadImage: loadImage,
         animateTo: animateTo,
         ready: () => readyPromise,
+        getSettings: () => settings,
 
         // --- Plugin Control ---
         overrideRenderer: (renderFn) => { _rendererOverride = renderFn; },
