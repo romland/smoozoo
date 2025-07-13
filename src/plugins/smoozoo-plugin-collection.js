@@ -5,7 +5,8 @@
  */
 export class SmoozooCollection
 {
-    constructor(api, options, targetElement) {
+    constructor(api, options, targetElement)
+    {
         this.api = api;
         this.options = options;
         this.gl = api.getGlContext();
@@ -44,6 +45,7 @@ export class SmoozooCollection
             // Load instantly if the image width on screen is >= 80% of the canvas width.
             instantLoadThreshold: options.instantLoadThreshold || 0.8,
 
+            apiOrigin: options.apiOrigin || '',
             maxConcurrentRequests: options.maxConcurrentRequests || 5,
         };
 
@@ -74,7 +76,8 @@ export class SmoozooCollection
         this.init();
     }
 
-    init() {
+    init()
+    {
         console.log("🖼️ Smoozoo Collection Plugin Initializing...");
         this.api.preventInitialLoad();
         this.api.overrideRenderer(this.render.bind(this));
@@ -90,6 +93,7 @@ export class SmoozooCollection
                 ...imgData,
                 filename: imgData.highRes.split('/').pop().split('?')[0],
                 state: 'placeholder',
+                thumb: imgData.thumb || null, 
                 thumbTex: null,
                 width: this.config.thumbnailSize,
                 height: estimatedHeight,
@@ -104,7 +108,8 @@ export class SmoozooCollection
         this.onResize(); // Run initial layout and render
     }
 
-    rebuildQuadtree() {
+    rebuildQuadtree()
+    {
         // Define the boundary of the entire gallery world
         const bounds = {
             x: 0,
@@ -113,7 +118,7 @@ export class SmoozooCollection
             height: this.worldSize.height || 10000 // Fallback height if 0
         };
         
-        console.log("Rebuilding Quadtree with bounds:", bounds);
+        // console.log("Rebuilding Quadtree with bounds:", bounds);
         this.quadtree = new Quadtree(bounds);
         
         for (const image of this.images) {
@@ -123,14 +128,15 @@ export class SmoozooCollection
 
 
     onResize = () => {
-        console.log("Recalculating layout due to resize...");
+        // console.log("Recalculating layout due to resize...");
         this.calculateLayout();
         this.api.setWorldSize(this.worldSize);
         this.api.requestRender();
     }    
 
     // --- Core Logic ---
-    addTextureToCache(image) {
+    addTextureToCache(image)
+    {
         // Add the new texture to our cache
         this.highResCache.set(image.id, image.highResTexture);
         this.updateCacheUsage(image); // Mark as most recently used
@@ -157,12 +163,15 @@ export class SmoozooCollection
     /**
      * Loads the high-resolution texture for a single image on-demand.
      */
-    async requestHighResLoad(image) {
+    async requestHighResLoad(image)
+    {
         if (image.highResState !== 'none') return;
         image.highResState = 'loading';
 
         try {
-            const response = await fetch(image.highRes);
+            const imageUrl = this.config.apiOrigin + image.highRes;
+            // const response = await fetch(image.highRes);
+            const response = await fetch(imageUrl);
             if (!response.ok) {
                 throw new Error(`HTTP error! status: ${response.status}`);
             }
@@ -213,7 +222,8 @@ export class SmoozooCollection
         }
     }
 
-    updateCacheUsage(image) {
+    updateCacheUsage(image)
+    {
         // Remove the item from its current position in the list
         const index = this.highResUsageList.indexOf(image.id);
         if (index > -1) {
@@ -224,7 +234,8 @@ export class SmoozooCollection
     }
 
 
-    async handleWorkerMessage(event) {
+    async handleWorkerMessage(event)
+    {
         const {
             status,
             imageUrl,
@@ -233,8 +244,18 @@ export class SmoozooCollection
             height,
             error
         } = event.data;
-        const image = this.images.find(img => img.highRes === imageUrl);
-        if (!image) return;
+
+        // Find the image by checking if the full URL from the worker
+        // ends with the relative path we have stored.
+        const image = this.images.find(img => imageUrl.endsWith(img.highRes));
+        
+        // If the image is not found, we can't proceed.
+        if (!image) {
+            console.error("Could not find matching image for worker URL:", imageUrl);
+            // We still need to notify the queue that a job (even a failed one) has finished.
+            this.onRequestFinished({ id: null }); // Pass a dummy object or handle differently
+            return;
+        }
 
         if (status === 'success') {
             image.width = width;
@@ -245,11 +266,15 @@ export class SmoozooCollection
             image.thumbTex = this.createTextureFromPixels(pixelData, width, height);
             image.state = 'ready';
 
+            // This recalculates the layout with the new thumbnail dimensions
             this.onResize();
 
             const thumbBlob = await this.imageDataToBlob(pixelData);
             this.cache.set(image.id, thumbBlob).catch(console.error);
+            this.uploadThumbnail(image, thumbBlob);
+            
         } else {
+            console.error(`Worker failed for ${imageUrl}:`, error);
             image.state = 'error';
             this.api.requestRender();
         }
@@ -259,7 +284,8 @@ export class SmoozooCollection
     }
 
 
-    async imageDataToBlob(imageData) {
+    async imageDataToBlob(imageData)
+    {
         const canvas = new OffscreenCanvas(imageData.width, imageData.height);
         const ctx = canvas.getContext('2d');
         ctx.putImageData(imageData, 0, 0);
@@ -270,7 +296,8 @@ export class SmoozooCollection
      * Processes the image request queue, respecting the concurrency limit.
      * This is the main engine for throttled loading.
      */
-    processRequestQueue() {
+    processRequestQueue()
+    {
         // Stop if we are already processing the maximum number of requests
         if (this.currentlyProcessing >= this.config.maxConcurrentRequests) {
             return;
@@ -298,7 +325,8 @@ export class SmoozooCollection
     /**
      * Loads a single thumbnail, first checking cache and then falling back to the worker.
      */
-    async loadThumbnail(image) {
+    async loadThumbnail(image)
+    {
         try {
             // PRIORITY 1: Check IndexedDB cache for the thumbnail
             const cachedBlob = await this.cache.get(image.id);
@@ -323,7 +351,8 @@ export class SmoozooCollection
 
             // PRIORITY 2: Fallback to the worker to download and generate a new thumbnail
             this.worker.postMessage({
-                imageUrl: image.highRes,
+                // imageUrl: image.highRes,
+                imageUrl: this.config.apiOrigin + image.highRes, 
                 thumbnailSize: this.config.thumbnailSize,
             });
 
@@ -338,11 +367,14 @@ export class SmoozooCollection
         }
     }
 
+
+
     /**
      * Callback that runs when an image request (success or fail) is complete.
      * It frees up a processing slot and continues the queue.
      */
-    onRequestFinished(image) {
+    onRequestFinished(image)
+    {
         // Remove the completed image from the queue
         const queueIndex = this.requestQueue.findIndex(req => req.id === image.id);
         if (queueIndex > -1) {
@@ -357,7 +389,8 @@ export class SmoozooCollection
     }
 
 
-    async generateAllThumbnails() {
+    async generateAllThumbnails()
+    {
         const loader = document.getElementById('smoozoo-loader');
         if (loader) loader.classList.remove('hidden');
         document.querySelector('#smoozoo-loader .loader-text').textContent = 'Generating Thumbnails...';
@@ -441,36 +474,28 @@ export class SmoozooCollection
      * @param {ImageBitmap} bitmap The image bitmap to upload.
      * @returns {WebGLTexture} The created WebGL texture.
      */
-    createTextureFromImageBitmap(bitmap) {
+    createTextureFromImageBitmap(bitmap)
+    {
         const gl = this.gl;
-
-        // 1. Create a new WebGL texture object.
         const texture = gl.createTexture();
-
-        // 2. Bind the texture to the 2D texture unit.
         gl.bindTexture(gl.TEXTURE_2D, texture);
-
-        // 3. Upload the ImageBitmap data to the texture.
         gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, bitmap);
-
-        // 4. Generate mipmaps for better quality when scaled down.
         gl.generateMipmap(gl.TEXTURE_2D);
 
-        // 5. Set texture parameters for wrapping and filtering.
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
+        
+        // Use a filter that works for all texture sizes. (?)
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+        
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-
-        // 6. Unbind the texture to be safe.
         gl.bindTexture(gl.TEXTURE_2D, null);
-
-        // 7. Return the finished texture.
         return texture;
     }
 
 
-    calculateLayout() {
+    calculateLayout()
+    {
         if (!this.images.length) return;
 
         // --- Option A: Masonry (Column-based) Layout ---
@@ -547,21 +572,25 @@ export class SmoozooCollection
     }
 
 
-    createTextureFromPixels(pixelData, width, height) {
+    createTextureFromPixels(pixelData, width, height)
+    {
         const gl = this.gl;
         const texture = gl.createTexture();
         gl.bindTexture(gl.TEXTURE_2D, texture);
 
-        // The worker gives us a perfectly oriented image, so no flipping needed.
-        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, width, height, 0, gl.RGBA, gl.UNSIGNED_BYTE, pixelData);
+        // We must pass the pixel array (.data), not the whole object.
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, width, height, 0, gl.RGBA, gl.UNSIGNED_BYTE, pixelData.data);
 
-        gl.generateMipmap(gl.TEXTURE_2D); // Optional: for smoother minification
+        // The rest of the function is correct
+        gl.generateMipmap(gl.TEXTURE_2D);
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+        
         return texture;
     }
+
 
     render = () => {
         // --- 1. Setup ---
@@ -747,8 +776,46 @@ export class SmoozooCollection
     }
 
 
+    /**
+     * Uploads a generated thumbnail blob to the server in the background.
+     * @param {object} image The image object associated with the thumbnail.
+     * @param {Blob} blob The thumbnail data as a Blob.
+     */
+    async uploadThumbnail(image, blob)
+    {
+        // Exit if no upload URL is configured
+        if (!this.config.uploadConfig?.url) {
+            return;
+        }
+
+        console.log(`⬆️ Uploading generated thumbnail for: ${image.filename}`);
+        const formData = new FormData();
+        formData.append('thumbnail', blob, image.filename);
+
+        try {
+            const uploadUrl = this.config.apiOrigin + this.config.uploadConfig.url;
+            
+            const response = await fetch(uploadUrl, {
+                method: 'POST',
+                body: formData,
+            });
+
+            if (!response.ok) {
+                throw new Error(`Server responded with status: ${response.status}`);
+            }
+
+            const result = await response.json();
+            console.log(`✅ Thumbnail upload successful:`, result.message);
+
+        } catch (error) {
+            console.error(`🚨 Thumbnail upload failed for ${image.filename}:`, error);
+        }
+    }
+
+
     // --- Event Handlers ---
-    addKeyListeners() {
+    addKeyListeners()
+    {
         window.addEventListener('keydown', (e) => {
             if (e.key === 'Shift') {
                 this.isSelectModeActive = true;
@@ -811,7 +878,8 @@ export class SmoozooCollection
 
     // --- UI and Actions ---
 
-    injectUI() {
+    injectUI()
+    {
         const html = `
             <div id="smoozoo-collection-actions" class="smoozoo-ui-panel">
                 <h3>Collection</h3>
@@ -832,12 +900,14 @@ export class SmoozooCollection
         });
     }
 
-    updateActionUI() {
+    updateActionUI()
+    {
         const info = document.getElementById('smoozoo-selection-info');
         info.textContent = `${this.selection.size} item(s) selected`;
     }
 
-    updateSelection(isFinal = false) {
+    updateSelection(isFinal = false)
+    {
         if (!this.selectionBox) return;
         if (!isFinal) this.selection.clear(); // Recalculate on each drag frame
 
@@ -857,7 +927,8 @@ export class SmoozooCollection
         });
     }
     
-    clearSelection() {
+    clearSelection()
+    {
         this.selection.clear();
         this.updateActionUI();
         this.api.requestRender();
@@ -865,7 +936,8 @@ export class SmoozooCollection
 
     // --- Tagging Logic ---
 
-    handleTagAction() {
+    handleTagAction()
+    {
         if (this.selection.size === 0) {
             alert("Please select one or more images to tag.");
             return;
@@ -889,11 +961,14 @@ export class SmoozooCollection
     }
 }
 
+
 // Simple wrapper for localStorage to act as a key-value store
-class LocalStorageDB {
+class LocalStorageDB
+{
     constructor(dbName) {
         this.dbName = dbName;
     }
+
     getAll() {
         try {
             return JSON.parse(localStorage.getItem(this.dbName));
@@ -901,19 +976,24 @@ class LocalStorageDB {
             return null;
         }
     }
+
     setAll(data) {
         localStorage.setItem(this.dbName, JSON.stringify(data));
     }
 }
 
-class ThumbnailCache {
-    constructor(dbName = 'smoozoo-thumb-cache', storeName = 'thumbnails') {
+
+class ThumbnailCache
+{
+    constructor(dbName = 'smoozoo-thumb-cache', storeName = 'thumbnails')
+    {
         this.dbName = dbName;
         this.storeName = storeName;
         this.db = null;
     }
 
-    async open() {
+    async open()
+    {
         return new Promise((resolve, reject) => {
             if (this.db) {
                 resolve(this.db);
@@ -932,7 +1012,8 @@ class ThumbnailCache {
         });
     }
 
-    async get(key) {
+    async get(key)
+    {
         await this.open();
         return new Promise((resolve, reject) => {
             const transaction = this.db.transaction(this.storeName, 'readonly');
@@ -943,7 +1024,8 @@ class ThumbnailCache {
         });
     }
 
-    async set(key, value) {
+    async set(key, value)
+    {
         await this.open();
         return new Promise((resolve, reject) => {
             const transaction = this.db.transaction(this.storeName, 'readwrite');
@@ -957,9 +1039,10 @@ class ThumbnailCache {
 
 /**
  * Quadtree implementation for 2D spatial partitioning and quick lookups.
- * Should now correctly handle rectangular items that span boundaries.
+ * Should handle rectangular items that span boundaries.
  */
-class Quadtree {
+class Quadtree
+{
     constructor(boundary, capacity = 4) {
         if (!boundary) {
             throw new Error("boundary is a required argument");
@@ -970,7 +1053,8 @@ class Quadtree {
         this.divided = false;
     }
 
-    subdivide() {
+    subdivide()
+    {
         const { x, y, width, height } = this.boundary;
         const w2 = width / 2;
         const h2 = height / 2;
@@ -999,7 +1083,8 @@ class Quadtree {
         this.items = []; // Clear items from parent after moving them down
     }
 
-    insert(item) {
+    insert(item)
+    {
         // If the item does not intersect this quad's boundary, do nothing
         if (!this.intersects(item)) {
             return false;

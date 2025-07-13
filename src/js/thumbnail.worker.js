@@ -2,7 +2,7 @@
 
 self.onmessage = async (event) => {
     const { imageUrl, thumbnailSize } = event.data;
-
+console.log({imageUrl})
     try {
         // 1. Download the image data in the worker
         const response = await fetch(imageUrl);
