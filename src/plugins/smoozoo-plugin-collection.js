@@ -291,7 +291,6 @@ export class SmoozooCollection
             nextImage.state = 'loading';
             this.currentlyProcessing++;
             
-            // ✅ FIX: Call the renamed function to avoid conflicts
             this.loadThumbnail(nextImage);
         }
     }
