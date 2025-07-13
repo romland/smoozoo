@@ -98,6 +98,10 @@ window.smoozoo = (imageUrl, settings) => {
     settings.statusShowFileSize = settings.statusShowFileSize ?? true;
     settings.disableFetchForImages = settings.disableFetchForImages ?? false;
     settings.windowResizeDebounce = settings.windowResizeDebounce ?? 100;
+    // If you have "weird" blackouts (texture stops rendering when far zoomed in)
+    // and that is an annoyance, set this to true (but it comes at a performance cost,
+    // not sure how much)
+    settings.useHighPrecisionFloat = settings.useHighPrecisionFloat ?? false;
 
     // Do some basic tweaks to HTML elements based on settings
     targetElement.style.backgroundColor = settings.backgroundColor;
@@ -357,6 +361,8 @@ window.smoozoo = (imageUrl, settings) => {
     // --- WebGL Shaders ---
     // ---------------------
 
+    console.log("useHighPrecisionFloat:", settings.useHighPrecisionFloat);
+
     /**
      * The Vertex Shader's primary job is to calculate the final position of each vertex.
      * It's updated to scale texture coordinates to account for POT padding.
@@ -383,6 +389,7 @@ window.smoozoo = (imageUrl, settings) => {
      * 
      */
     const vertexShaderSource = `
+        precision ${settings.useHighPrecisionFloat ? "highp" : "mediump"} float;
         attribute vec2 a_position;
         attribute vec2 a_texcoord;
         uniform mat3 u_viewProjectionMatrix;
@@ -429,7 +436,7 @@ window.smoozoo = (imageUrl, settings) => {
      * 
      */
     const fragmentShaderSource = `
-        precision mediump float;
+        precision ${settings.useHighPrecisionFloat ? "highp" : "mediump"} float;
         varying vec2 v_texcoord;
         uniform sampler2D u_image;
         void main() {
