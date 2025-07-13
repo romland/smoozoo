@@ -1243,47 +1243,64 @@ window.smoozoo = (imageUrl, settings) => {
 
 
     /**
-     * Simulates inertial movement, but stops and hands off to checkEdges
-     * as soon as a boundary is crossed.
+     * Simulates inertial movement. When the view goes out of bounds on an axis,
+     * it stops gliding and begins an elastic snap-back on that axis, while
+     * allowing the other axis to continue its inertial movement.
      */
     function inertiaLoop(vx, vy, friction)
     {
-        const newVx = vx * friction;
-        const newVy = vy * friction;
+        let newVx = vx * friction;
+        let newVy = vy * friction;
 
         const stopThreshold = settings.inertiaStopThreshold;
 
-        if (Math.abs(newVx) < stopThreshold && Math.abs(newVy) < stopThreshold) {
-            inertiaAnimationId = null;
-            checkEdges();
-            return;
+        // Get the valid, clamped destination for the current view.
+        const clampedOrigin = getClampedOrigin(originX, originY, scale);
+
+        let isSnappingX = false;
+        let isSnappingY = false;
+
+        // --- Handle X-axis ---
+        // Check if the current origin is outside the valid horizontal bounds.
+        if (originX !== clampedOrigin.x) {
+            isSnappingX = true;
+            newVx = 0; // Immediately kill any remaining horizontal velocity.
+
+            // Apply an elastic force to animate back to the boundary.
+            // A lerp with a constant fraction (e.g., 0.2) creates a nice ease-out effect.
+            originX = lerp(originX, clampedOrigin.x, 0.2);
+        } else {
+            // If we're within bounds, continue gliding normally.
+            originX += newVx / scale;
         }
 
-        originX += newVx / scale;
-        originY += newVy / scale;
-
-        const { width: imageWidth, height: imageHeight } = getCurrentImageSize();
-        const viewWidth = canvas.width / scale;
-        const viewHeight = canvas.height / scale;
-
-        let isOutOfBounds = false;
-        if (imageWidth > viewWidth) {
-            if (originX > 0 || originX < viewWidth - imageWidth) {
-                isOutOfBounds = true;
-            }
+        // --- Handle Y-axis ---
+        // Check if the current origin is outside the valid vertical bounds.
+        if (originY !== clampedOrigin.y) {
+            isSnappingY = true;
+            newVy = 0; // Immediately kill any remaining vertical velocity.
+            // Apply an elastic force to animate back to the boundary.
+            originY = lerp(originY, clampedOrigin.y, 0.2);
+        } else {
+            // If we're within bounds, continue gliding normally.
+            originY += newVy / scale;
         }
-        if (imageHeight > viewHeight) {
-            if (originY > 0 || originY < viewHeight - imageHeight) {
-                isOutOfBounds = true;
-            }
-        }
-        
+
         render();
 
-        if (isOutOfBounds) {
+        // Check if the animation should stop.
+        // It stops when any gliding has faded and any snapping is almost complete.
+        const isGlidingStopped = Math.abs(newVx) < stopThreshold && Math.abs(newVy) < stopThreshold;
+        const isSnappingFinished = (!isSnappingX || Math.abs(originX - clampedOrigin.x) < 0.5) &&
+                                   (!isSnappingY || Math.abs(originY - clampedOrigin.y) < 0.5);
+
+        if (isGlidingStopped && isSnappingFinished) {
             inertiaAnimationId = null;
-            checkEdges(); 
+
+            // Do a final check and snap without animation to guarantee alignment.
+            checkEdges(false);
         } else {
+            // If there's still work to do (gliding or snapping), continue the loop.
             inertiaAnimationId = requestAnimationFrame(() => inertiaLoop(newVx, newVy, friction));
         }
     }
