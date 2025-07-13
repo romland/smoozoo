@@ -757,43 +757,53 @@ export class SmoozooCollection
                 
                 // Case B: Draw the tiled high-res texture with aspect ratio correction
                 } else if (img.highResTiles) {
-                    const itemBoxScreenX = (img.x + originX) * scale;
-                    const itemBoxScreenY = (img.y + originY) * scale;
-                    const itemBoxScreenWidth = img.width * scale;
-                    const itemBoxScreenHeight = img.height * scale;
+                    // Save the current viewport and view-projection matrix
+                    const mainViewport = [0, 0, gl.drawingBufferWidth, gl.drawingBufferHeight];
+                    const mainViewProjMtx = this.api.makeMatrix(originX, originY, scale);
 
-                    const boxAspect = itemBoxScreenWidth / itemBoxScreenHeight;
+                    // --- START: FIX for Aspect Ratio Skew ---
+                    // We need to calculate the correct scale and offset to fit the original image
+                    // (with its native aspect ratio) inside the layout box (img.width, img.height).
+                    const boxAspect = img.width / img.height;
                     const imageAspect = img.originalWidth / img.originalHeight;
 
-                    let vpWidth, vpHeight;
-                    // If the image is wider than the box, width is the limiting dimension
-                    if (imageAspect > boxAspect) {
-                        vpWidth = itemBoxScreenWidth;
-                        vpHeight = itemBoxScreenWidth / imageAspect;
-                    } 
-                    // If the image is taller than the box, height is the limiting dimension
-                    else {
-                        vpHeight = itemBoxScreenHeight;
-                        vpWidth = itemBoxScreenHeight * imageAspect;
-                    }
-                    
-                    const vpOffsetX = (itemBoxScreenWidth - vpWidth) / 2;
-                    const vpOffsetY = (itemBoxScreenHeight - vpHeight) / 2;
-                    
-                    gl.viewport(itemBoxScreenX + vpOffsetX, canvas.height - (itemBoxScreenY + vpOffsetY) - vpHeight, vpWidth, vpHeight);
+                    let finalWidth, finalHeight, offsetX, offsetY;
 
-                    const fitMatrix = [ 2 / img.originalWidth, 0, 0, 0, -2 / img.originalHeight, 0, -1, 1, 1 ];
-                    gl.uniformMatrix3fv(uniformLocations.viewProjection, false, fitMatrix);
+                    if (imageAspect > boxAspect) {
+                        // Image is wider than the box, so it's letterboxed (black bars top/bottom)
+                        finalWidth = img.width;
+                        finalHeight = img.width / imageAspect;
+                        offsetX = 0;
+                        offsetY = (img.height - finalHeight) / 2;
+                    } else {
+                        // Image is taller than the box, so it's pillarboxed (black bars left/right)
+                        finalHeight = img.height;
+                        finalWidth = img.height * imageAspect;
+                        offsetY = 0;
+                        offsetX = (img.width - finalWidth) / 2;
+                    }
+
+                    // The scale factor to transform from original image dimensions to the final fitted dimensions.
+                    const tileScaleFactor = finalWidth / img.originalWidth;
 
                     img.highResTiles.forEach(tile => {
                         gl.bindTexture(gl.TEXTURE_2D, tile.texture);
-                        this.api.setRectangle(gl, tile.x, tile.y, tile.width, tile.height);
+
+                        // For each tile, calculate its final position and size in the world.
+                        // 1. Scale the tile's original coordinates and dimensions by our new scale factor.
+                        // 2. Add the letterbox/pillarbox offset.
+                        // 3. Add the image's main layout position (img.x, img.y).
+                        const tileX = img.x + offsetX + (tile.x * tileScaleFactor);
+                        const tileY = img.y + offsetY + (tile.y * tileScaleFactor);
+                        const tileWidth = tile.width * tileScaleFactor;
+                        const tileHeight = tile.height * tileScaleFactor;
+
+                        // Use the main API to draw this rectangle. The main view-projection matrix
+                        // is already active and will handle the user's pan and zoom correctly.
+                        this.api.setRectangle(gl, tileX, tileY, tileWidth, tileHeight);
                         gl.drawArrays(gl.TRIANGLES, 0, 6);
                     });
-
-                    gl.viewport(mainViewport[0], mainViewport[1], mainViewport[2], mainViewport[3]);
-                    gl.uniformMatrix3fv(uniformLocations.viewProjection, false, mainViewProjMtx);
-                    
+                                        
                     drawn = true;
                 }
             }
@@ -1038,6 +1048,161 @@ class ThumbnailCache {
         });
     }
 }
+
+/**
+ * A self-contained controller for the full-screen, tiled "Detail View".
+ * It manages its own pan, zoom, and animations for a single massive image.
+ */
+class DetailView {
+    constructor(image, api, canvas, onClose) {
+        this.image = image;
+        this.api = api;
+        this.gl = api.getGlContext();
+        this.canvas = canvas;
+        this.onClose = onClose;
+
+        // --- Interaction State ---
+        this.scale = 1.0;
+        this.targetScale = 1.0;
+        this.originX = 0;
+        this.originY = 0;
+        this.targetOriginX = 0;
+        this.targetOriginY = 0;
+        this.panning = false;
+        this.panVelocityX = 0;
+        this.panVelocityY = 0;
+        this.startX = 0;
+        this.startY = 0;
+        this.lastMouseX = 0;
+        this.lastMouseY = 0;
+        this.animationId = null;
+
+        this.init();
+    }
+
+    // --- Core Methods ---
+
+    init() {
+        const initialScaleX = this.canvas.width / this.image.originalWidth;
+        const initialScaleY = this.canvas.height / this.image.originalHeight;
+        this.scale = Math.min(initialScaleX, initialScaleY);
+        this.targetScale = this.scale;
+        
+        this.originX = (this.canvas.width - this.image.originalWidth * this.scale) / (2 * this.scale);
+        this.originY = (this.canvas.height - this.image.originalHeight * this.scale) / (2 * this.scale);
+        this.targetOriginX = this.originX;
+        this.targetOriginY = this.originY;
+
+        this.injectCloseButton();
+    }
+
+    destroy() {
+        cancelAnimationFrame(this.animationId);
+        if (this.closeButton && this.closeButton.parentElement) {
+            this.closeButton.parentElement.removeChild(this.closeButton);
+        }
+    }
+
+    render = () => {
+        // Smoothly interpolate to the target pan/zoom
+        this.scale += (this.targetScale - this.scale) * 0.2;
+        this.originX += (this.targetOriginX - this.originX) * 0.2;
+        this.originY += (this.targetOriginY - this.originY) * 0.2;
+        
+        // Inertial panning
+        if (Math.abs(this.panVelocityX) > 0.1 || Math.abs(this.panVelocityY) > 0.1) {
+            this.panVelocityX *= 0.95;
+            this.panVelocityY *= 0.95;
+            this.originX += this.panVelocityX / this.scale;
+            this.originY += this.panVelocityY / this.scale;
+            this.targetOriginX = this.originX;
+            this.targetOriginY = this.originY;
+        } else {
+            this.panVelocityX = 0;
+            this.panVelocityY = 0;
+        }
+
+        this.checkEdges();
+
+        const gl = this.gl;
+        const program = this.api.getProgram();
+        const uniformLocations = this.api.getUniformLocations();
+
+        const viewProjMtx = this.api.makeMatrix(this.originX, this.originY, this.scale);
+        gl.uniformMatrix3fv(uniformLocations.viewProjection, false, viewProjMtx);
+
+        this.image.highResTiles.forEach(tile => {
+            gl.bindTexture(gl.TEXTURE_2D, tile.texture);
+            this.api.setRectangle(gl, tile.x, tile.y, tile.width, tile.height);
+            gl.drawArrays(gl.TRIANGLES, 0, 6);
+        });
+
+        this.animationId = requestAnimationFrame(this.render);
+    }
+
+    checkEdges() {
+        const viewWidth = this.canvas.width / this.scale;
+        const viewHeight = this.canvas.height / this.scale;
+
+        const minOriginX = viewWidth > this.image.originalWidth ? (viewWidth - this.image.originalWidth) / 2 : viewWidth - this.image.originalWidth;
+        const maxOriginX = viewWidth > this.image.originalWidth ? (viewWidth - this.image.originalWidth) / 2 : 0;
+        const minOriginY = viewHeight > this.image.originalHeight ? (viewHeight - this.image.originalHeight) / 2 : viewHeight - this.image.originalHeight;
+        const maxOriginY = viewHeight > this.image.originalHeight ? (viewHeight - this.image.originalHeight) / 2 : 0;
+        
+        this.targetOriginX = Math.max(minOriginX, Math.min(maxOriginX, this.targetOriginX));
+        this.targetOriginY = Math.max(minOriginY, Math.min(maxOriginY, this.targetOriginY));
+    }
+
+    // --- Event Handlers ---
+
+    onMouseDown = (e) => {
+        this.panning = true;
+        this.panVelocityX = 0;
+        this.panVelocityY = 0;
+        this.startX = (e.clientX / this.scale) - this.originX;
+        this.startY = (e.clientY / this.scale) - this.originY;
+        this.lastMouseX = e.clientX;
+        this.lastMouseY = e.clientY;
+    }
+
+    onMouseMove = (e) => {
+        if (!this.panning) return;
+        this.targetOriginX = (e.clientX / this.scale) - this.startX;
+        this.targetOriginY = (e.clientY / this.scale) - this.startY;
+        this.panVelocityX = e.clientX - this.lastMouseX;
+        this.panVelocityY = e.clientY - this.lastMouseY;
+        this.lastMouseX = e.clientX;
+        this.lastMouseY = e.clientY;
+    }
+
+    onMouseUp = () => {
+        this.panning = false;
+    }
+
+    onWheel = (e) => {
+        e.preventDefault();
+        const zoomFactor = 1.1;
+        const scaleAmount = e.deltaY > 0 ? 1 / zoomFactor : zoomFactor;
+        
+        const mouseX = e.clientX;
+        const mouseY = e.clientY;
+        const worldX = (mouseX / this.scale) - this.originX;
+        const worldY = (mouseY / this.scale) - this.originY;
+
+        this.targetScale = Math.max(0.01, this.targetScale * scaleAmount);
+        this.targetOriginX = (mouseX / this.targetScale) - worldX;
+        this.targetOriginY = (mouseY / this.targetScale) - worldY;
+    }
+    
+    injectCloseButton() {
+        this.closeButton = document.createElement('button');
+        this.closeButton.textContent = '✕ Close';
+        this.closeButton.style.cssText = `position: absolute; top: 15px; right: 15px; z-index: 1001; padding: 8px 12px; background: rgba(0,0,0,0.5); color: white; border: 1px solid white; border-radius: 4px; cursor: pointer;`;
+        this.closeButton.onclick = this.onClose;
+        this.canvas.parentElement.appendChild(this.closeButton);
+    }
+}
+
 
 
 // Make the plugin discoverable by Smoozoo
