@@ -13,7 +13,7 @@ export class SmoozooCollection
         this.targetElement = targetElement;
 
         // --- Caching and Worker Setup ---
-        this.cache = new ThumbnailCache(); // ✅ ADD THIS LINE
+        this.cache = new ThumbnailCache();
         this.worker = new Worker(new URL('../js/thumbnail.worker.js', import.meta.url));
         this.worker.onmessage = this.handleWorkerMessage.bind(this);
 
@@ -34,8 +34,12 @@ export class SmoozooCollection
             maxWorldHeight: options.maxWorldHeight || 0,
 
             highResThreshold: options.highResThreshold || 1.5,
-            highResCacheLimit: options.highResCacheLimit || 10,  // default cache size
+            highResCacheLimit: options.highResCacheLimit || 10,
             highResLoadBuffer: options.highResLoadBuffer || 0.5,
+
+            loadBuffer: options.loadBuffer || 1.0, // Load 1 viewport height/width around the visible area
+
+            maxConcurrentRequests: options.maxConcurrentRequests || 5,
         };
 
         // --- State ---
@@ -52,6 +56,11 @@ export class SmoozooCollection
         this.highResCache = new Map();       // Stores the actual textures
         this.highResUsageList = [];    // Tracks usage order for LRU logic        
 
+        this.quadtree = null;
+        
+        this.requestQueue = []; // Holds images waiting to be loaded
+        this.currentlyProcessing = 0; // Count of active network requests
+
         // --- Tagging ---
         this.db = new LocalStorageDB('smoozoo_tags');
         this.tags = this.db.getAll() || {};
@@ -60,7 +69,7 @@ export class SmoozooCollection
     }
 
     init() {
-        console.log("🖼️ Smoozoo Collection Plugin Initializing (Responsive)...");
+        console.log("🖼️ Smoozoo Collection Plugin Initializing...");
         this.api.preventInitialLoad();
         this.api.overrideRenderer(this.render.bind(this));
         this.addKeyListeners();
@@ -89,6 +98,24 @@ export class SmoozooCollection
         this.onResize(); // Run initial layout and render
     }
 
+    rebuildQuadtree() {
+        // Define the boundary of the entire gallery world
+        const bounds = {
+            x: 0,
+            y: 0,
+            width: this.worldSize.width,
+            height: this.worldSize.height || 10000 // Fallback height if 0
+        };
+        
+        console.log("Rebuilding Quadtree with bounds:", bounds);
+        this.quadtree = new Quadtree(bounds);
+        
+        for (const image of this.images) {
+            this.quadtree.insert(image);
+        }
+    }
+
+
     onResize = () => {
         console.log("Recalculating layout due to resize...");
         this.calculateLayout();
@@ -111,7 +138,7 @@ export class SmoozooCollection
             const imageToReset = this.images.find(img => img.id === lruImageId);
             if (imageToReset) {
                 console.log(`Unloading high-res texture for: ${imageToReset.filename}`);
-                this.gl.deleteTexture(textureToUnload); // ✅ Free GPU memory
+                this.gl.deleteTexture(textureToUnload); // Free GPU memory
                 imageToReset.highResState = 'none';
                 imageToReset.highResTexture = null;
             }
@@ -130,24 +157,22 @@ export class SmoozooCollection
 
         try {
             const response = await fetch(image.highRes);
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
             const blob = await response.blob();
             const bmp = await createImageBitmap(blob);
 
             const maxTexSize = this.gl.getParameter(this.gl.MAX_TEXTURE_SIZE);
 
-            // --- Case 1: Image is small enough to fit in one texture ---
             if (bmp.width <= maxTexSize && bmp.height <= maxTexSize) {
                 image.highResTexture = this.createTextureFromImageBitmap(bmp);
-                image.highResTiles = null; // Ensure no old tile data exists
-            
-            // --- Case 2: Image is too large and must be tiled ---
+                image.highResTiles = null;
             } else {
-                console.log(`Image ${image.filename} is too large, generating tiles...`);
                 image.highResTiles = [];
-                image.highResTexture = null; // This image will be rendered from tiles
+                image.highResTexture = null;
                 image.originalWidth = bmp.width;
                 image.originalHeight = bmp.height;
-
                 const numXTiles = Math.ceil(bmp.width / maxTexSize);
                 const numYTiles = Math.ceil(bmp.height / maxTexSize);
 
@@ -157,14 +182,10 @@ export class SmoozooCollection
                         const sy = y * maxTexSize;
                         const sw = Math.min(maxTexSize, bmp.width - sx);
                         const sh = Math.min(maxTexSize, bmp.height - sy);
-
-                        // Create a temporary canvas to hold the tile data
                         const tileCanvas = new OffscreenCanvas(sw, sh);
                         const tileCtx = tileCanvas.getContext('2d');
                         tileCtx.drawImage(bmp, sx, sy, sw, sh, 0, 0, sw, sh);
-                        
                         const tileTexture = this.createTextureFromImageBitmap(tileCanvas);
-
                         image.highResTiles.push({
                             texture: tileTexture,
                             x: sx, y: sy,
@@ -175,12 +196,14 @@ export class SmoozooCollection
             }
             
             image.highResState = 'ready';
-            this.addTextureToCache(image); // Use the cache for single textures
+            this.addTextureToCache(image);
             this.api.requestRender();
 
         } catch (e) {
-            console.error(`Failed to load high-res image ${image.highRes}:`, e);
+            console.error(`High-res load failed for ${image.highRes}:`, e);
             image.highResState = 'error';
+            // Also request a render on error to show any error state (should I then have one)
+            this.api.requestRender();
         }
     }
 
@@ -196,12 +219,18 @@ export class SmoozooCollection
 
 
     async handleWorkerMessage(event) {
-        const { status, imageUrl, pixelData, width, height, error } = event.data;
+        const {
+            status,
+            imageUrl,
+            pixelData,
+            width,
+            height,
+            error
+        } = event.data;
         const image = this.images.find(img => img.highRes === imageUrl);
         if (!image) return;
 
         if (status === 'success') {
-            // ✅ CORRECTED: Update both layout and native thumb dimensions
             image.width = width;
             image.height = height;
             image.thumbWidth = width;
@@ -209,9 +238,8 @@ export class SmoozooCollection
 
             image.thumbTex = this.createTextureFromPixels(pixelData, width, height);
             image.state = 'ready';
-            
-            // Recalculate layout and update boundaries *after* getting real dimensions
-            this.onResize(); 
+
+            this.onResize();
 
             const thumbBlob = await this.imageDataToBlob(pixelData);
             this.cache.set(image.id, thumbBlob).catch(console.error);
@@ -219,7 +247,11 @@ export class SmoozooCollection
             image.state = 'error';
             this.api.requestRender();
         }
+
+        // Notify the queue that this request is complete
+        this.onRequestFinished(image);
     }
+
 
     async imageDataToBlob(imageData) {
         const canvas = new OffscreenCanvas(imageData.width, imageData.height);
@@ -229,42 +261,94 @@ export class SmoozooCollection
     }    
 
     /**
-     * NEW: Core lazy-loading function.
-     * Handles the download and thumbnail generation for one image.
+     * Processes the image request queue, respecting the concurrency limit.
+     * This is the main engine for throttled loading.
      */
-    async requestImageLoad(image) {
-        if (image.state !== 'placeholder') return;
-
-        // Mark as loading to prevent duplicate requests
-        image.state = 'loading';
-        this.api.requestRender();
-
-        // --- PRIORITY 1: Use pre-generated low-res thumbnail if available ---
-        if (image.lowRes) {
-            // Here, we load the low-res image directly, bypassing the worker.
-            // This logic can be implemented similarly to how the worker fetches,
-            // but for simplicity, we'll let it fall through for now.
-            // A full implementation would fetch image.lowRes here.
+    processRequestQueue() {
+        // Stop if we are already processing the maximum number of requests
+        if (this.currentlyProcessing >= this.config.maxConcurrentRequests) {
+            return;
         }
 
-        // --- PRIORITY 2: Check IndexedDB cache ---
-        const cachedBlob = await this.cache.get(image.id);
-        if (cachedBlob) {
-            const bmp = await createImageBitmap(cachedBlob);
-            image.width = bmp.width;
-            image.height = bmp.height;
-            this.calculateLayout();
-            image.thumbTex = this.createTextureFromImageBitmap(bmp);
-            image.state = 'ready';
-            this.api.requestRender();
-            return; // Done!
-        }
-
-        // --- PRIORITY 3: Fallback to the worker to generate a new thumbnail ---
-        this.worker.postMessage({
-            imageUrl: image.highRes, // Send high-res URL to worker
-            thumbnailSize: this.config.thumbnailSize,
+        // Prioritize loading images that are currently visible to the user
+        this.requestQueue.sort((a, b) => {
+            const aIsVisible = a.isVisible ? -1 : 1;
+            const bIsVisible = b.isVisible ? -1 : 1;
+            return aIsVisible - bIsVisible;
         });
+
+        // Find the next image that is waiting to be loaded
+        const nextImage = this.requestQueue.find(img => img.state === 'placeholder');
+
+        if (nextImage) {
+            // Mark the image as 'loading' and start the fetch process
+            nextImage.state = 'loading';
+            this.currentlyProcessing++;
+            
+            // ✅ FIX: Call the renamed function to avoid conflicts
+            this.loadThumbnail(nextImage);
+        }
+    }
+
+    /**
+     * Loads a single thumbnail, first checking cache and then falling back to the worker.
+     */
+    async loadThumbnail(image) {
+        try {
+            // PRIORITY 1: Check IndexedDB cache for the thumbnail
+            const cachedBlob = await this.cache.get(image.id);
+            if (cachedBlob) {
+                const bmp = await createImageBitmap(cachedBlob);
+                
+                // Set final dimensions and create the WebGL texture
+                image.width = bmp.width;
+                image.height = bmp.height;
+                image.thumbWidth = bmp.width;
+                image.thumbHeight = bmp.height;
+                image.thumbTex = this.createTextureFromImageBitmap(bmp);
+                image.state = 'ready';
+
+                // Recalculate layout and render, just like the worker path
+                this.onResize();
+
+                // Notify the queue that this slot is free
+                this.onRequestFinished(image);
+                return;
+            }
+
+            // PRIORITY 2: Fallback to the worker to download and generate a new thumbnail
+            this.worker.postMessage({
+                imageUrl: image.highRes,
+                thumbnailSize: this.config.thumbnailSize,
+            });
+
+            // Note: onRequestFinished() is called from handleWorkerMessage for this path
+
+        } catch (error) {
+            console.error(`Failed to load image ${image.id}:`, error);
+            image.state = 'error';
+            this.api.requestRender();
+            // Still notify the queue to free up the slot on error
+            this.onRequestFinished(image);
+        }
+    }
+
+    /**
+     * Callback that runs when an image request (success or fail) is complete.
+     * It frees up a processing slot and continues the queue.
+     */
+    onRequestFinished(image) {
+        // Remove the completed image from the queue
+        const queueIndex = this.requestQueue.findIndex(req => req.id === image.id);
+        if (queueIndex > -1) {
+            this.requestQueue.splice(queueIndex, 1);
+        }
+
+        // Decrement the active request counter
+        this.currentlyProcessing--;
+
+        // Immediately try to process the next item in the queue
+        this.processRequestQueue();
     }
 
 
@@ -315,23 +399,24 @@ export class SmoozooCollection
                 flipCtx.scale(1, -1);
                 flipCtx.translate(0, -thumbHeight);
                 
-                // ✅ FIX: Use drawImage, which respects the flip transform
+                // Use drawImage, which respects the flip transform
                 flipCtx.drawImage(imageBitmap, 0, 0);
-
                 flipCtx.restore();
-                // --- END: Corrected Image Flip Logic ---
 
                 const thumbTex = this.createTextureFromPixels(flipCanvas, thumbWidth, thumbHeight);
 
-                // ✅ FIX: Store the thumbnail's native dimensions separately
+                // Store the thumbnail's native dimensions separately
                 this.images.push({
                     id: src, src, thumbTex,
+
                     // Layout dimensions (will be changed by calculateLayout)
                     width: thumbWidth,
                     height: thumbHeight,
+
                     // Native thumbnail dimensions (will NOT be changed)
                     thumbWidth: thumbWidth,
                     thumbHeight: thumbHeight,
+
                     // ... other properties
                     x: 0, y: 0,
                     highResState: 'none',
@@ -377,200 +462,6 @@ export class SmoozooCollection
 
         // 7. Return the finished texture.
         return texture;
-    }
-
-    __OLD__calculateLayout() {
-        const { cols, padding, thumbnailSize } = this.config;
-        let currentX = padding;
-        let currentY = padding;
-        let row = 0;
-
-        this.images.forEach((img, index) => {
-            const col = index % cols;
-            if (col === 0 && index > 0) {
-                row++;
-            }
-            img.x = col * (thumbnailSize + padding) + padding;
-            img.y = row * (thumbnailSize + padding) + padding;
-        });
-
-        this.worldSize.width = cols * (thumbnailSize + padding) + padding;
-        const numRows = Math.ceil(this.images.length / cols);
-        this.worldSize.height = numRows * (thumbnailSize + padding) + padding;
-    }
-
-    __OLD2__calculateLayout() {
-        const { cols, padding } = this.config;
-        const colWidth = (this.canvas.width - (padding * (cols + 1))) / cols;
-        
-        // Track the current Y position for each column
-        const columnHeights = Array(cols).fill(padding);
-        
-        this.images.forEach(img => {
-            // Scale the image to fit the column width
-            const scaleRatio = colWidth / img.width;
-            const imgHeight = img.height * scaleRatio;
-
-            // Find the shortest column to place the next image
-            let shortestColumnIndex = 0;
-            for (let i = 1; i < cols; i++) {
-                if (columnHeights[i] < columnHeights[shortestColumnIndex]) {
-                    shortestColumnIndex = i;
-                }
-            }
-
-            // Set the image's position and dimensions
-            img.x = padding + shortestColumnIndex * (colWidth + padding);
-            img.y = columnHeights[shortestColumnIndex];
-            img.width = colWidth;
-            img.height = imgHeight;
-
-            // Update the height of the column where the image was placed
-            columnHeights[shortestColumnIndex] += imgHeight + padding;
-        });
-
-        // The world size is determined by the fixed width and the tallest column
-        this.worldSize.width = this.canvas.width;
-        this.worldSize.height = Math.max(...columnHeights);
-    }    
-
-
-    __OLD3__calculateLayout()
-    {
-        const { padding, maxRowWidth, minWorldHeight, maxWorldHeight } = this.config;
-        const targetRowHeight = this.config.thumbnailSize;
-
-        let x = padding;
-        let y = padding;
-        let currentRowMaxHeight = 0;
-
-        this.images.forEach(img => {
-            // Scale the image to the target row height, preserving aspect ratio
-            const scaleRatio = targetRowHeight / img.height;
-            const imgWidth = img.width * scaleRatio;
-
-            // If adding this image exceeds the max width, wrap to the next row
-            if (x + imgWidth + padding > maxRowWidth) {
-                y += currentRowMaxHeight + padding;
-                x = padding;
-                currentRowMaxHeight = 0;
-            }
-
-            // Set image position and dimensions
-            img.x = x;
-            img.y = y;
-            img.width = imgWidth;
-            img.height = targetRowHeight; // All images in a row have same height
-
-            // Update cursors for next image
-            x += imgWidth + padding;
-            if (targetRowHeight > currentRowMaxHeight) {
-                currentRowMaxHeight = targetRowHeight;
-            }
-        });
-
-        // Final world dimensions
-        let finalHeight = y + currentRowMaxHeight + padding;
-        
-        // Enforce Min/Max Height Constraints
-        if (minWorldHeight && finalHeight < minWorldHeight) {
-            finalHeight = minWorldHeight;
-        }
-        if (maxWorldHeight && finalHeight > maxWorldHeight) {
-            finalHeight = maxWorldHeight;
-        }
-
-        this.worldSize = { width: maxRowWidth, height: finalHeight };
-    }
-
-    __OLD4__calculateLayout() {
-        const { padding, maxRowWidth } = this.config;
-        const targetRowHeight = this.config.thumbnailSize;
-
-        if (!this.images.length) {
-            this.worldSize = { width: maxRowWidth, height: 0 };
-            return;
-        }
-
-        const rows = [];
-        let currentRow = [];
-        let currentRowWidth = 0;
-
-        // --- Step 1: Group images into rows ---
-        this.images.forEach(img => {
-            // All images are scaled to the same target height to create uniform rows
-            const scaleRatio = targetRowHeight / img.height;
-            const scaledWidth = img.width * scaleRatio;
-
-            // If the current row is full, finalize it and start a new one
-            if (currentRow.length > 0 && (currentRowWidth + scaledWidth + padding) > maxRowWidth) {
-                rows.push(currentRow);
-                currentRow = [];
-                currentRowWidth = 0;
-            }
-
-            currentRow.push({ imgRef: img, width: scaledWidth, height: targetRowHeight });
-            currentRowWidth += scaledWidth + padding;
-        });
-        if (currentRow.length > 0) {
-            rows.push(currentRow); // Add the final, potentially incomplete row
-        }
-
-        // --- Step 2: Calculate final X/Y positions from the grouped rows ---
-        let yCursor = padding;
-        rows.forEach(row => {
-            let xCursor = padding;
-            let rowHeight = 0;
-
-            row.forEach(item => {
-                const { imgRef, width, height } = item;
-
-                // Assign the final, calculated position to the original image object
-                imgRef.x = xCursor;
-                imgRef.y = yCursor;
-                imgRef.width = width;
-                imgRef.height = height;
-
-                xCursor += width + padding;
-                if (height > rowHeight) {
-                    rowHeight = height; // Track the max height of the row
-                }
-            });
-            yCursor += rowHeight + padding;
-        });
-
-        this.worldSize = { width: maxRowWidth, height: yCursor };
-    }
-
-    __OLD5__calculateLayout() {
-        const { cols, padding } = this.config;
-        // Calculate column width based on the CURRENT canvas width
-        const colWidth = (this.canvas.width - (padding * (cols + 1))) / cols;
-        
-        const columnHeights = Array(cols).fill(padding);
-        
-        this.images.forEach(img => {
-            // Scale the image's height based on its real aspect ratio to fit the column width
-            const scaleRatio = colWidth / img.width;
-            const imgHeight = img.height * scaleRatio;
-
-            let shortestColumnIndex = 0;
-            columnHeights.forEach((h, i) => {
-                if (h < columnHeights[shortestColumnIndex]) {
-                    shortestColumnIndex = i;
-                }
-            });
-
-            img.x = padding + shortestColumnIndex * (colWidth + padding);
-            img.y = columnHeights[shortestColumnIndex];
-            img.width = colWidth; // All images have the same width in a column
-            img.height = imgHeight;
-
-            columnHeights[shortestColumnIndex] += imgHeight + padding;
-        });
-
-        this.worldSize.width = this.canvas.width;
-        this.worldSize.height = Math.max(...columnHeights);
     }
 
 
@@ -646,6 +537,8 @@ export class SmoozooCollection
         if (this.config.maxWorldHeight && this.worldSize.height > this.config.maxWorldHeight) {
             this.worldSize.height = this.config.maxWorldHeight;
         }
+
+        this.rebuildQuadtree();
     }
 
 
@@ -665,168 +558,167 @@ export class SmoozooCollection
         return texture;
     }
 
-render() {
-    const { scale, originX, originY } = this.api.getTransform();
-    const gl = this.gl;
-    const canvas = this.canvas;
+    render = () => {
+        // --- 1. Setup ---
+        const { scale, originX, originY } = this.api.getTransform();
+        const gl = this.gl;
+        const canvas = this.canvas;
+        const smoozooSettings = this.api.getSettings();
+        const filter = smoozooSettings.pixelatedZoom ? gl.NEAREST : gl.LINEAR;
+        const program = this.api.getProgram();
+        const buffers = this.api.getBuffers();
+        const attribLocations = this.api.getAttribLocations();
+        const uniformLocations = this.api.getUniformLocations();
 
-    // Get the core Smoozoo settings to ensure filtering is always in sync.
-    const smoozooSettings = this.api.getSettings();
-    const filter = smoozooSettings.pixelatedZoom ? gl.NEAREST : gl.LINEAR;
+        gl.useProgram(program);
+        gl.clearColor(0.055, 0.016, 0.133, 1.0);
+        gl.clear(gl.COLOR_BUFFER_BIT);
+        gl.enableVertexAttribArray(attribLocations.position);
+        gl.bindBuffer(gl.ARRAY_BUFFER, buffers.position);
+        gl.vertexAttribPointer(attribLocations.position, 2, gl.FLOAT, false, 0, 0);
+        gl.enableVertexAttribArray(attribLocations.texcoord);
+        gl.bindBuffer(gl.ARRAY_BUFFER, buffers.texcoord);
+        gl.vertexAttribPointer(attribLocations.texcoord, 2, gl.FLOAT, false, 0, 0);
 
-    // --- WebGL state setup ---
-    const program = this.api.getProgram();
-    const buffers = this.api.getBuffers();
-    const attribLocations = this.api.getAttribLocations();
-    const uniformLocations = this.api.getUniformLocations();
+        const mainViewProjMtx = this.api.makeMatrix(originX, originY, scale);
+        gl.uniformMatrix3fv(uniformLocations.viewProjection, false, mainViewProjMtx);
+        const identityMatrix = [1, 0, 0, 0, 1, 0, 0, 0, 1];
+        gl.uniformMatrix3fv(uniformLocations.rotation, false, identityMatrix);
+        gl.uniform2f(uniformLocations.texCoordScale, 1, 1);
 
-    gl.useProgram(program);
-    gl.clearColor(0.055, 0.016, 0.133, 1.0); // Or use your configured background color
-    gl.clear(gl.COLOR_BUFFER_BIT);
+        // --- 2. Calculate Query Area ---
+        const viewWidth = canvas.width / scale;
+        const viewHeight = canvas.height / scale;
+        const viewX = -originX;
+        const viewY = -originY;
 
-    gl.enableVertexAttribArray(attribLocations.position);
-    gl.bindBuffer(gl.ARRAY_BUFFER, buffers.position);
-    gl.vertexAttribPointer(attribLocations.position, 2, gl.FLOAT, false, 0, 0);
+        const verticalBuffer = viewHeight * this.config.loadBuffer;
+        const horizontalBuffer = viewWidth * this.config.loadBuffer;
+        const loadArea = {
+            x: viewX - horizontalBuffer,
+            y: viewY - verticalBuffer,
+            width: viewWidth + horizontalBuffer * 2,
+            height: viewHeight + verticalBuffer * 2,
+        };
 
-    gl.enableVertexAttribArray(attribLocations.texcoord);
-    gl.bindBuffer(gl.ARRAY_BUFFER, buffers.texcoord);
-    gl.vertexAttribPointer(attribLocations.texcoord, 2, gl.FLOAT, false, 0, 0);
-
-    const mainViewProjMtx = this.api.makeMatrix(originX, originY, scale);
-    gl.uniformMatrix3fv(uniformLocations.viewProjection, false, mainViewProjMtx);
-
-    const identityMatrix = [1, 0, 0, 0, 1, 0, 0, 0, 1];
-    gl.uniformMatrix3fv(uniformLocations.rotation, false, identityMatrix);
-
-    gl.uniform2f(uniformLocations.texCoordScale, 1, 1);
-
-    // --- Center-Focus & Visibility Logic ---
-    const viewWidth = canvas.width / scale;
-    const viewHeight = canvas.height / scale;
-    const viewX = -originX;
-    const viewY = -originY;
-
-    const viewportCenterX = viewX + viewWidth / 2;
-    const viewportCenterY = viewY + viewHeight / 2;
-
-    let focusedImage = null;
-    let minDistance = Infinity;
-    const visibleImages = [];
-
-    // 1. First Pass: Find all visible images and the one closest to the center.
-    this.images.forEach(img => {
-        const isVisible = (
-            img.x < viewX + viewWidth && img.x + img.width > viewX &&
-            img.y < viewY + viewHeight && img.y + img.height > viewY
-        );
-
-        if (isVisible) {
-            visibleImages.push(img);
-            const imgCenterX = img.x + img.width / 2;
-            const imgCenterY = img.y + img.height / 2;
-            const distance = Math.sqrt(Math.pow(imgCenterX - viewportCenterX, 2) + Math.pow(imgCenterY - viewportCenterY, 2));
-
-            if (distance < minDistance) {
-                minDistance = distance;
-                focusedImage = img;
-            }
+        // Abort if the quadtree isn't ready
+        if (!this.quadtree) {
+            return;
         }
-    });
 
-    // --- High-res Loading Logic ---
-    if (focusedImage) {
-        const onScreenWidth = focusedImage.width * scale;
-        if (onScreenWidth > (focusedImage.thumbWidth * this.config.highResThreshold)) {
-            if (focusedImage.highResState === 'none') {
-                this.requestHighResLoad(focusedImage);
-            }
-        }
-    }
+        // --- 3. Query Quadtree for Relevant Images ---
+        const potentialImages = this.quadtree.query(loadArea);
 
-    // --- Second Pass: Render all visible images ---
-    visibleImages.forEach(img => {
-        let textureToDisplay = img.thumbTex;
-        let drawn = false;
+        // --- 4. Process Potential Images ---
+        const viewportCenterX = viewX + viewWidth / 2;
+        const viewportCenterY = viewY + viewHeight / 2;
+        let focusedImage = null;
+        let minDistance = Infinity;
+        const visibleImages = [];
 
-        // Check if the focused image's high-res version is ready to display.
-        if (img === focusedImage && img.highResState === 'ready' && (img.highResTexture || img.highResTiles)) {
-            this.updateCacheUsage(img);
+        for (const img of potentialImages) {
+            // Check which of the potential images are actually visible to draw
+            const isVisible = (
+                img.x < viewX + viewWidth && img.x + img.width > viewX &&
+                img.y < viewY + viewHeight && img.y + img.height > viewY
+            );
+            img.isVisible = isVisible; // For network queue prioritization
 
-            // Case A: Draw the single high-res texture.
-            if (img.highResTexture) {
-                textureToDisplay = img.highResTexture;
-
-            // Case B: Draw the tiled high-res texture with aspect ratio correction.
-            } else if (img.highResTiles) {
-                const boxAspect = img.width / img.height;
-                const imageAspect = img.originalWidth / img.originalHeight;
-
-                let finalWidth, finalHeight, offsetX, offsetY;
-
-                if (imageAspect > boxAspect) { // Letterboxed
-                    finalWidth = img.width;
-                    finalHeight = img.width / imageAspect;
-                    offsetX = 0;
-                    offsetY = (img.height - finalHeight) / 2;
-                } else { // Pillarboxed
-                    finalHeight = img.height;
-                    finalWidth = img.height * imageAspect;
-                    offsetY = 0;
-                    offsetX = (img.width - finalWidth) / 2;
+            if (isVisible) {
+                visibleImages.push(img);
+                const imgCenterX = img.x + img.width / 2;
+                const imgCenterY = img.y + img.height / 2;
+                const distance = Math.sqrt(Math.pow(imgCenterX - viewportCenterX, 2) + Math.pow(imgCenterY - viewportCenterY, 2));
+                if (distance < minDistance) {
+                    minDistance = distance;
+                    focusedImage = img;
                 }
-                
-                const tileScaleFactor = finalWidth / img.originalWidth;
+            }
 
-                img.highResTiles.forEach(tile => {
-                    gl.bindTexture(gl.TEXTURE_2D, tile.texture);
-                    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, filter); // Apply filter
-
-                    const tileX = img.x + offsetX + (tile.x * tileScaleFactor);
-                    const tileY = img.y + offsetY + (tile.y * tileScaleFactor);
-                    const tileWidth = tile.width * tileScaleFactor;
-                    const tileHeight = tile.height * tileScaleFactor;
-
-                    this.api.setRectangle(gl, tileX, tileY, tileWidth, tileHeight);
-                    gl.drawArrays(gl.TRIANGLES, 0, 6);
-                });
-                
-                drawn = true;
+            // If an image is in the load area and is a placeholder, queue it
+            if (img.state === 'placeholder') {
+                const isQueued = this.requestQueue.some(req => req.id === img.id);
+                if (!isQueued) {
+                    this.requestQueue.push(img);
+                }
             }
         }
 
-        // Draw the final texture (either high-res single texture or the thumbnail).
-        if (!drawn && textureToDisplay) {
-            gl.bindTexture(gl.TEXTURE_2D, textureToDisplay);
-            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, filter); // Apply filter
-            this.api.setRectangle(gl, img.x, img.y, img.width, img.height);
-            gl.drawArrays(gl.TRIANGLES, 0, 6);
+        // --- 5. High-Resolution Logic ---
+        if (focusedImage) {
+            if (focusedImage.state === 'ready' && scale > this.config.highResThreshold) {
+                if (focusedImage.highResState === 'none') {
+                    this.requestHighResLoad(focusedImage);
+                }
+            }
         }
 
-        // Always trigger placeholder loading if needed.
-        if (img.state === 'placeholder') {
-            this.requestImageLoad(img);
+        // --- 6. Draw Visible Images ---
+        for (const img of visibleImages) {
+            let textureToDisplay = img.thumbTex;
+            let drawn = false;
+
+            if (img === focusedImage && img.highResState === 'ready' && (img.highResTexture || img.highResTiles)) {
+                this.updateCacheUsage(img);
+                if (img.highResTexture) {
+                    textureToDisplay = img.highResTexture;
+                } else if (img.highResTiles) {
+                    const boxAspect = img.width / img.height;
+                    const imageAspect = img.originalWidth / img.originalHeight;
+                    let finalWidth, finalHeight, offsetX, offsetY;
+                    if (imageAspect > boxAspect) {
+                        finalWidth = img.width;
+                        finalHeight = img.width / imageAspect;
+                        offsetX = 0;
+                        offsetY = (img.height - finalHeight) / 2;
+                    } else {
+                        finalHeight = img.height;
+                        finalWidth = img.height * imageAspect;
+                        offsetY = 0;
+                        offsetX = (img.width - finalWidth) / 2;
+                    }
+                    const tileScaleFactor = finalWidth / img.originalWidth;
+                    for (const tile of img.highResTiles) {
+                        gl.bindTexture(gl.TEXTURE_2D, tile.texture);
+                        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, filter);
+                        const tileX = img.x + offsetX + (tile.x * tileScaleFactor);
+                        const tileY = img.y + offsetY + (tile.y * tileScaleFactor);
+                        const tileWidth = tile.width * tileScaleFactor;
+                        const tileHeight = tile.height * tileScaleFactor;
+                        this.api.setRectangle(gl, tileX, tileY, tileWidth, tileHeight);
+                        gl.drawArrays(gl.TRIANGLES, 0, 6);
+                    }
+                    drawn = true;
+                }
+            }
+
+            if (!drawn && textureToDisplay) {
+                gl.bindTexture(gl.TEXTURE_2D, textureToDisplay);
+                gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, filter);
+                this.api.setRectangle(gl, img.x, img.y, img.width, img.height);
+                gl.drawArrays(gl.TRIANGLES, 0, 6);
+            }
         }
-    });
 
-    // -- Draw selection box overlay --
-    const selectionDiv = document.getElementById('smoozoo-selection-box');
-    if (this.isDraggingSelection && this.selectionBox) {
-        const canvasRect = this.canvas.getBoundingClientRect();
-        const screenStartX = (this.selectionBox.startX + originX) * scale + canvasRect.left;
-        const screenStartY = (this.selectionBox.startY + originY) * scale + canvasRect.top;
-        const screenEndX = (this.lastMouseWorldPos.x + originX) * scale + canvasRect.left;
-        const screenEndY = (this.lastMouseWorldPos.y + originY) * scale + canvasRect.top;
+        // --- 7. Final Processing and UI ---
+        this.processRequestQueue();
 
-        selectionDiv.style.left = `${Math.min(screenStartX, screenEndX)}px`;
-        selectionDiv.style.top = `${Math.min(screenStartY, screenEndY)}px`;
-        selectionDiv.style.width = `${Math.abs(screenEndX - screenStartX)}px`;
-        selectionDiv.style.height = `${Math.abs(screenEndY - screenStartY)}px`;
-        selectionDiv.style.display = 'block';
-    } else {
-        selectionDiv.style.display = 'none';
+        const selectionDiv = document.getElementById('smoozoo-selection-box');
+        if (this.isDraggingSelection && this.selectionBox) {
+            const canvasRect = this.canvas.getBoundingClientRect();
+            const screenStartX = (this.selectionBox.startX + originX) * scale + canvasRect.left;
+            const screenStartY = (this.selectionBox.startY + originY) * scale + canvasRect.top;
+            const screenEndX = (this.lastMouseWorldPos.x + originX) * scale + canvasRect.left;
+            const screenEndY = (this.lastMouseWorldPos.y + originY) * scale + canvasRect.top;
+            selectionDiv.style.left = `${Math.min(screenStartX, screenEndX)}px`;
+            selectionDiv.style.top = `${Math.min(screenStartY, screenEndY)}px`;
+            selectionDiv.style.width = `${Math.abs(screenEndX - screenStartX)}px`;
+            selectionDiv.style.height = `${Math.abs(screenEndY - screenStartY)}px`;
+            selectionDiv.style.display = 'block';
+        } else {
+            selectionDiv.style.display = 'none';
+        }
     }
-}
-
 
 
     // --- Event Handlers ---
@@ -1038,161 +930,113 @@ class ThumbnailCache {
 }
 
 /**
- * A self-contained controller for the full-screen, tiled "Detail View".
- * It manages its own pan, zoom, and animations for a single massive image.
+ * Quadtree implementation for 2D spatial partitioning and quick lookups.
+ * Should now correctly handle rectangular items that span boundaries.
  */
-class DetailView {
-    constructor(image, api, canvas, onClose) {
-        this.image = image;
-        this.api = api;
-        this.gl = api.getGlContext();
-        this.canvas = canvas;
-        this.onClose = onClose;
-
-        // --- Interaction State ---
-        this.scale = 1.0;
-        this.targetScale = 1.0;
-        this.originX = 0;
-        this.originY = 0;
-        this.targetOriginX = 0;
-        this.targetOriginY = 0;
-        this.panning = false;
-        this.panVelocityX = 0;
-        this.panVelocityY = 0;
-        this.startX = 0;
-        this.startY = 0;
-        this.lastMouseX = 0;
-        this.lastMouseY = 0;
-        this.animationId = null;
-
-        this.init();
-    }
-
-    // --- Core Methods ---
-
-    init() {
-        const initialScaleX = this.canvas.width / this.image.originalWidth;
-        const initialScaleY = this.canvas.height / this.image.originalHeight;
-        this.scale = Math.min(initialScaleX, initialScaleY);
-        this.targetScale = this.scale;
-        
-        this.originX = (this.canvas.width - this.image.originalWidth * this.scale) / (2 * this.scale);
-        this.originY = (this.canvas.height - this.image.originalHeight * this.scale) / (2 * this.scale);
-        this.targetOriginX = this.originX;
-        this.targetOriginY = this.originY;
-
-        this.injectCloseButton();
-    }
-
-    destroy() {
-        cancelAnimationFrame(this.animationId);
-        if (this.closeButton && this.closeButton.parentElement) {
-            this.closeButton.parentElement.removeChild(this.closeButton);
+class Quadtree {
+    constructor(boundary, capacity = 4) {
+        if (!boundary) {
+            throw new Error("boundary is a required argument");
         }
+        this.boundary = boundary; // { x, y, width, height }
+        this.capacity = capacity;
+        this.items = [];
+        this.divided = false;
     }
 
-    render = () => {
-        // Smoothly interpolate to the target pan/zoom
-        this.scale += (this.targetScale - this.scale) * 0.2;
-        this.originX += (this.targetOriginX - this.originX) * 0.2;
-        this.originY += (this.targetOriginY - this.originY) * 0.2;
-        
-        // Inertial panning
-        if (Math.abs(this.panVelocityX) > 0.1 || Math.abs(this.panVelocityY) > 0.1) {
-            this.panVelocityX *= 0.95;
-            this.panVelocityY *= 0.95;
-            this.originX += this.panVelocityX / this.scale;
-            this.originY += this.panVelocityY / this.scale;
-            this.targetOriginX = this.originX;
-            this.targetOriginY = this.originY;
-        } else {
-            this.panVelocityX = 0;
-            this.panVelocityY = 0;
+    subdivide() {
+        const { x, y, width, height } = this.boundary;
+        const w2 = width / 2;
+        const h2 = height / 2;
+
+        const ne = { x: x + w2, y: y, width: w2, height: h2 };
+        this.northeast = new Quadtree(ne, this.capacity);
+
+        const nw = { x: x, y: y, width: w2, height: h2 };
+        this.northwest = new Quadtree(nw, this.capacity);
+
+        const se = { x: x + w2, y: y + h2, width: w2, height: h2 };
+        this.southeast = new Quadtree(se, this.capacity);
+
+        const sw = { x: x, y: y + h2, width: w2, height: h2 };
+        this.southwest = new Quadtree(sw, this.capacity);
+
+        this.divided = true;
+
+        // Move existing items to the new children
+        for (const item of this.items) {
+            this.northeast.insert(item);
+            this.northwest.insert(item);
+            this.southeast.insert(item);
+            this.southwest.insert(item);
+        }
+        this.items = []; // Clear items from parent after moving them down
+    }
+
+    insert(item) {
+        // If the item does not intersect this quad's boundary, do nothing
+        if (!this.intersects(item)) {
+            return false;
         }
 
-        this.checkEdges();
+        if (!this.divided) {
+            // If we have space, add it to this node
+            if (this.items.length < this.capacity) {
+                this.items.push(item);
+                return true;
+            }
+            // Otherwise, we're at capacity, so subdivide
+            this.subdivide();
+        }
 
-        const gl = this.gl;
-        const program = this.api.getProgram();
-        const uniformLocations = this.api.getUniformLocations();
-
-        const viewProjMtx = this.api.makeMatrix(this.originX, this.originY, this.scale);
-        gl.uniformMatrix3fv(uniformLocations.viewProjection, false, viewProjMtx);
-
-        this.image.highResTiles.forEach(tile => {
-            gl.bindTexture(gl.TEXTURE_2D, tile.texture);
-            this.api.setRectangle(gl, tile.x, tile.y, tile.width, tile.height);
-            gl.drawArrays(gl.TRIANGLES, 0, 6);
-        });
-
-        this.animationId = requestAnimationFrame(this.render);
-    }
-
-    checkEdges() {
-        const viewWidth = this.canvas.width / this.scale;
-        const viewHeight = this.canvas.height / this.scale;
-
-        const minOriginX = viewWidth > this.image.originalWidth ? (viewWidth - this.image.originalWidth) / 2 : viewWidth - this.image.originalWidth;
-        const maxOriginX = viewWidth > this.image.originalWidth ? (viewWidth - this.image.originalWidth) / 2 : 0;
-        const minOriginY = viewHeight > this.image.originalHeight ? (viewHeight - this.image.originalHeight) / 2 : viewHeight - this.image.originalHeight;
-        const maxOriginY = viewHeight > this.image.originalHeight ? (viewHeight - this.image.originalHeight) / 2 : 0;
+        // If we are already divided, try to insert the item into a child node.
+        // If it fails to insert into a child (e.g., it spans the boundary),
+        // it will be handled by the parent, but since we already moved items down,
+        // we just attempt to insert into the children. A more complex implementation
+        // would keep track of spanning items in the parent. This simplified one
+        // relies on the children being able to contain the items.
+        if (this.northeast.insert(item)) return true;
+        if (this.northwest.insert(item)) return true;
+        if (this.southeast.insert(item)) return true;
+        if (this.southwest.insert(item)) return true;
         
-        this.targetOriginX = Math.max(minOriginX, Math.min(maxOriginX, this.targetOriginX));
-        this.targetOriginY = Math.max(minOriginY, Math.min(maxOriginY, this.targetOriginY));
-    }
-
-    // --- Event Handlers ---
-
-    onMouseDown = (e) => {
-        this.panning = true;
-        this.panVelocityX = 0;
-        this.panVelocityY = 0;
-        this.startX = (e.clientX / this.scale) - this.originX;
-        this.startY = (e.clientY / this.scale) - this.originY;
-        this.lastMouseX = e.clientX;
-        this.lastMouseY = e.clientY;
-    }
-
-    onMouseMove = (e) => {
-        if (!this.panning) return;
-        this.targetOriginX = (e.clientX / this.scale) - this.startX;
-        this.targetOriginY = (e.clientY / this.scale) - this.startY;
-        this.panVelocityX = e.clientX - this.lastMouseX;
-        this.panVelocityY = e.clientY - this.lastMouseY;
-        this.lastMouseX = e.clientX;
-        this.lastMouseY = e.clientY;
-    }
-
-    onMouseUp = () => {
-        this.panning = false;
-    }
-
-    onWheel = (e) => {
-        e.preventDefault();
-        const zoomFactor = 1.1;
-        const scaleAmount = e.deltaY > 0 ? 1 / zoomFactor : zoomFactor;
-        
-        const mouseX = e.clientX;
-        const mouseY = e.clientY;
-        const worldX = (mouseX / this.scale) - this.originX;
-        const worldY = (mouseY / this.scale) - this.originY;
-
-        this.targetScale = Math.max(0.01, this.targetScale * scaleAmount);
-        this.targetOriginX = (mouseX / this.targetScale) - worldX;
-        this.targetOriginY = (mouseY / this.targetScale) - worldY;
+        // This case should be rare if the world bounds are correct, but it prevents lost items.
+        // It means the item is within this node's boundary but could not fit into any child.
+        return false;
     }
     
-    injectCloseButton() {
-        this.closeButton = document.createElement('button');
-        this.closeButton.textContent = '✕ Close';
-        this.closeButton.style.cssText = `position: absolute; top: 15px; right: 15px; z-index: 1001; padding: 8px 12px; background: rgba(0,0,0,0.5); color: white; border: 1px solid white; border-radius: 4px; cursor: pointer;`;
-        this.closeButton.onclick = this.onClose;
-        this.canvas.parentElement.appendChild(this.closeButton);
+    query(range, found = []) {
+        if (!this.intersects(range)) {
+            return found;
+        }
+
+        for (const item of this.items) {
+            if (this.intersects(item, range)) { // Check intersection with the item
+                found.push(item);
+            }
+        }
+
+        if (this.divided) {
+            this.northwest.query(range, found);
+            this.northeast.query(range, found);
+            this.southwest.query(range, found);
+            this.southeast.query(range, found);
+        }
+
+        return found;
+    }
+
+    // A utility function to check if two rectangles intersect
+    intersects(rect1, rect2) {
+        const r2 = rect2 || this.boundary;
+        return !(
+            rect1.x + rect1.width < r2.x ||
+            rect1.y + rect1.height < r2.y ||
+            rect1.x > r2.x + r2.width ||
+            rect1.y > r2.y + r2.height
+        );
     }
 }
 
-
-
-// Make the plugin discoverable by Smoozoo
 window.smoozooPlugins = window.smoozooPlugins || {};
 window.smoozooPlugins.SmoozooCollection = SmoozooCollection;
