@@ -169,8 +169,10 @@ export class SmoozooCollection
         image.highResState = 'loading';
 
         try {
-            const imageUrl = this.config.apiOrigin + image.highRes;
-            // const response = await fetch(image.highRes);
+            // --- THIS IS THE FIX ---
+            // The URL is now encoded to handle the '#' character, just like in the thumbnail loader.
+            const imageUrl = (this.config.apiOrigin + image.highRes).replace(/#/g, '%23');
+            
             const response = await fetch(imageUrl);
             if (!response.ok) {
                 throw new Error(`HTTP error! status: ${response.status}`);
@@ -217,7 +219,6 @@ export class SmoozooCollection
         } catch (e) {
             console.error(`High-res load failed for ${image.highRes}:`, e);
             image.highResState = 'error';
-            // Also request a render on error to show any error state (should I then have one)
             this.api.requestRender();
         }
     }
@@ -238,6 +239,7 @@ export class SmoozooCollection
     {
         const {
             status,
+            id, // The worker now sends back the ID
             imageUrl,
             pixelData,
             width,
@@ -245,15 +247,14 @@ export class SmoozooCollection
             error
         } = event.data;
 
-        // Find the image by checking if the full URL from the worker
-        // ends with the relative path we have stored.
-        const image = this.images.find(img => imageUrl.endsWith(img.highRes));
+        // --- THIS IS THE ROBUST FIX ---
+        // Find the image by its unique ID, not the fragile URL
+        const image = this.images.find(img => img.id === id);
         
-        // If the image is not found, we can't proceed.
         if (!image) {
-            console.error("Could not find matching image for worker URL:", imageUrl);
-            // We still need to notify the queue that a job (even a failed one) has finished.
-            this.onRequestFinished({ id: null }); // Pass a dummy object or handle differently
+            // This error should no longer happen
+            console.error("Could not find matching image for worker ID:", id);
+            this.onRequestFinished({ id: id }); 
             return;
         }
 
@@ -266,7 +267,6 @@ export class SmoozooCollection
             image.thumbTex = this.createTextureFromPixels(pixelData, width, height);
             image.state = 'ready';
 
-            // This recalculates the layout with the new thumbnail dimensions
             this.onResize();
 
             const thumbBlob = await this.imageDataToBlob(pixelData);
@@ -279,7 +279,6 @@ export class SmoozooCollection
             this.api.requestRender();
         }
 
-        // Notify the queue that this request is complete
         this.onRequestFinished(image);
     }
 
@@ -328,12 +327,10 @@ export class SmoozooCollection
     async loadThumbnail(image)
     {
         try {
-            // PRIORITY 1: Check IndexedDB cache for the thumbnail
             const cachedBlob = await this.cache.get(image.id);
             if (cachedBlob) {
                 const bmp = await createImageBitmap(cachedBlob);
                 
-                // Set final dimensions and create the WebGL texture
                 image.width = bmp.width;
                 image.height = bmp.height;
                 image.thumbWidth = bmp.width;
@@ -341,28 +338,25 @@ export class SmoozooCollection
                 image.thumbTex = this.createTextureFromImageBitmap(bmp);
                 image.state = 'ready';
 
-                // Recalculate layout and render, just like the worker path
                 this.onResize();
-
-                // Notify the queue that this slot is free
                 this.onRequestFinished(image);
                 return;
             }
 
-            // PRIORITY 2: Fallback to the worker to download and generate a new thumbnail
+            // --- ROBUST FIX ---
+            // Use encodeURI() to correctly handle spaces, '#', and other special characters.
+            const safeImageUrl = encodeURI(this.config.apiOrigin + image.highRes);
+            
             this.worker.postMessage({
-                // imageUrl: image.highRes,
-                imageUrl: this.config.apiOrigin + image.highRes, 
+                id: image.id,
+                imageUrl: safeImageUrl, 
                 thumbnailSize: this.config.thumbnailSize,
             });
-
-            // Note: onRequestFinished() is called from handleWorkerMessage for this path
 
         } catch (error) {
             console.error(`Failed to load image ${image.id}:`, error);
             image.state = 'error';
             this.api.requestRender();
-            // Still notify the queue to free up the slot on error
             this.onRequestFinished(image);
         }
     }

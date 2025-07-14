@@ -1,17 +1,18 @@
 // This worker downloads an image and creates thumbnail pixel data.
 
 self.onmessage = async (event) => {
-    const { imageUrl, thumbnailSize } = event.data;
-console.log({imageUrl})
-    try {
-        // 1. Download the image data in the worker
-        const response = await fetch(imageUrl);
-        const blob = await response.blob();
+    // Now accepting 'id' from the main thread
+    const { id, imageUrl, thumbnailSize } = event.data;
 
-        // 2. Decode the image into a bitmap off the main thread
+    try {
+        const response = await fetch(imageUrl);
+        if (!response.ok) {
+            // Throw an error if the fetch resulted in a 404 or other HTTP error
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        const blob = await response.blob();
         const imageBitmap = await createImageBitmap(blob);
 
-        // 3. Calculate aspect-ratio correct dimensions
         const ratio = imageBitmap.width / imageBitmap.height;
         let thumbWidth, thumbHeight;
         if (ratio > 1) { // Landscape
@@ -22,20 +23,16 @@ console.log({imageUrl})
             thumbWidth = Math.round(thumbnailSize * ratio);
         }
 
-        // 4. Use an OffscreenCanvas for rendering (designed for workers)
         const canvas = new OffscreenCanvas(thumbWidth, thumbHeight);
         const ctx = canvas.getContext('2d');
-        
-        // 5. Draw the bitmap to the offscreen canvas to resize it
         ctx.drawImage(imageBitmap, 0, 0, thumbWidth, thumbHeight);
 
-        // 6. Get the raw pixel data
         const imageData = ctx.getImageData(0, 0, thumbWidth, thumbHeight);
         
-        // 7. Send the finished data back to the main thread.
-        // The imageData.data.buffer is marked as "transferable" for a zero-copy, instant transfer.
+        // Include the 'id' when sending data back
         self.postMessage({
             status: 'success',
+            id: id, // Pass the id back
             imageUrl: imageUrl,
             pixelData: imageData,
             width: thumbWidth,
@@ -43,7 +40,8 @@ console.log({imageUrl})
         }, [imageData.data.buffer]);
 
     } catch (error) {
-        console.error(`Worker failed for ${imageUrl}:`, error);
-        self.postMessage({ status: 'error', imageUrl: imageUrl, error: error.message });
+        console.error(`Worker failed for ${imageUrl}:`, error.message);
+        // Also include the 'id' on error
+        self.postMessage({ status: 'error', id: id, imageUrl: imageUrl, error: error.message });
     }
 };
