@@ -1,12 +1,11 @@
+
 /**
  * Smoozoo Collection Plugin
  *
  * This plugin transforms the Smoozoo viewer into a navigable gallery of images.
  */
-export class SmoozooCollection
-{
-    constructor(api, options, targetElement)
-    {
+export class SmoozooCollection {
+    constructor(api, options, targetElement) {
         this.api = api;
         this.options = options;
         this.gl = api.getGlContext();
@@ -15,7 +14,8 @@ export class SmoozooCollection
 
         // --- Caching and Worker Setup ---
         this.cache = new ThumbnailCache();
-        this.worker = new Worker(new URL('../js/thumbnail.worker.js', import.meta.url));
+        this.worker = new Worker(new URL('../js/thumbnail.worker.js',
+            import.meta.url));
         this.worker.onmessage = this.handleWorkerMessage.bind(this);
 
         // --- Configuration ---
@@ -29,8 +29,7 @@ export class SmoozooCollection
             backgroundColor: options.backgroundColor || '#0e0422',
 
             layoutMode: options.layoutMode || 'masonry', // 'masonry' or 'row'
-            cols: options.cols || 5,                     // For masonry mode
-            maxRowWidth: options.maxRowWidth || 8000,    // For row mode
+            maxRowWidth: options.maxRowWidth || 8000, // For row mode
             minWorldHeight: options.minWorldHeight || 0,
             maxWorldHeight: options.maxWorldHeight || 0,
 
@@ -52,20 +51,26 @@ export class SmoozooCollection
         // --- State ---
         this.images = []; // { id, src, thumbTex, x, y, width, height }
         this.highResLoadDebounceTimer = null; // to hold timer ID
-        this.worldSize = { width: 0, height: 0 };
+        this.worldSize = {
+            width: 0,
+            height: 0
+        };
         this.selection = new Set();
         this.isDraggingSelection = false;
         this.selectionBox = null;
-        this.lastMouseWorldPos = { x: 0, y: 0 };
+        this.lastMouseWorldPos = {
+            x: 0,
+            y: 0
+        };
         this.isSelectModeActive = false;
 
         this.imageLoadQueue = new Set(); // Tracks images that need loading
 
-        this.highResCache = new Map();       // Stores the actual textures
-        this.highResUsageList = [];    // Tracks usage order for LRU logic        
+        this.highResCache = new Map(); // Stores the actual textures
+        this.highResUsageList = []; // Tracks usage order for LRU logic      
 
         this.quadtree = null;
-        
+
         this.requestQueue = []; // Holds images waiting to be loaded
         this.currentlyProcessing = 0; // Count of active network requests
 
@@ -76,8 +81,7 @@ export class SmoozooCollection
         this.init();
     }
 
-    init()
-    {
+    init() {
         console.log("🖼️ Smoozoo Collection Plugin Initializing...");
         this.api.preventInitialLoad();
         this.api.overrideRenderer(this.render.bind(this));
@@ -85,31 +89,32 @@ export class SmoozooCollection
         this.injectUI();
 
         this.images = this.config.images.map(imgData => {
-            const estimatedHeight = this.config.layoutMode === 'masonry'
-                ? this.config.thumbnailSize * 1.25 // Estimate portrait for masonry
-                : this.config.thumbnailSize;        // Use fixed height for rows
+            const estimatedHeight = this.config.layoutMode === 'masonry' ?
+                this.config.thumbnailSize * 1.25 // Estimate portrait for masonry
+                :
+                this.config.thumbnailSize; // Use fixed height for rows
 
             return {
                 ...imgData,
                 filename: imgData.highRes.split('/').pop().split('?')[0],
                 state: 'placeholder',
-                thumb: imgData.thumb || null, 
+                thumb: imgData.thumb || null,
                 thumbTex: null,
                 width: this.config.thumbnailSize,
                 height: estimatedHeight,
                 thumbWidth: this.config.thumbnailSize, // Initial estimate
-                thumbHeight: estimatedHeight,           // Initial estimate
+                thumbHeight: estimatedHeight, // Initial estimate
                 highResState: 'none',
                 highResTexture: null,
-                x: 0, y: 0
+                x: 0,
+                y: 0
             };
         });
 
         this.onResize(); // Run initial layout and render
     }
 
-    rebuildQuadtree()
-    {
+    rebuildQuadtree() {
         // Define the boundary of the entire gallery world
         const bounds = {
             x: 0,
@@ -117,26 +122,24 @@ export class SmoozooCollection
             width: this.worldSize.width,
             height: this.worldSize.height || 10000 // Fallback height if 0
         };
-        
+
         // console.log("Rebuilding Quadtree with bounds:", bounds);
         this.quadtree = new Quadtree(bounds);
-        
+
         for (const image of this.images) {
             this.quadtree.insert(image);
         }
     }
-
 
     onResize = () => {
         // console.log("Recalculating layout due to resize...");
         this.calculateLayout();
         this.api.setWorldSize(this.worldSize);
         this.api.requestRender();
-    }    
+    }
 
     // --- Core Logic ---
-    addTextureToCache(image)
-    {
+    addTextureToCache(image) {
         // Add the new texture to our cache
         this.highResCache.set(image.id, image.highResTexture);
         this.updateCacheUsage(image); // Mark as most recently used
@@ -145,7 +148,7 @@ export class SmoozooCollection
         if (this.highResCache.size > this.config.highResCacheLimit) {
             const lruImageId = this.highResUsageList.pop(); // Get the ID of the least-used image
             const textureToUnload = this.highResCache.get(lruImageId);
-            
+
             // Find the corresponding image object to reset its state
             const imageToReset = this.images.find(img => img.id === lruImageId);
             if (imageToReset) {
@@ -159,12 +162,10 @@ export class SmoozooCollection
         }
     }
 
-
     /**
      * Loads the high-resolution texture for a single image on-demand.
      */
-    async requestHighResLoad(image)
-    {
+    async requestHighResLoad(image) {
         if (image.highResState !== 'none') return;
         image.highResState = 'loading';
 
@@ -172,7 +173,7 @@ export class SmoozooCollection
             // --- THIS IS THE FIX ---
             // The URL is now encoded to handle the '#' character, just like in the thumbnail loader.
             const imageUrl = (this.config.apiOrigin + image.highRes).replace(/#/g, '%23');
-            
+
             const response = await fetch(imageUrl);
             if (!response.ok) {
                 throw new Error(`HTTP error! status: ${response.status}`);
@@ -205,13 +206,15 @@ export class SmoozooCollection
                         const tileTexture = this.createTextureFromImageBitmap(tileCanvas);
                         image.highResTiles.push({
                             texture: tileTexture,
-                            x: sx, y: sy,
-                            width: sw, height: sh
+                            x: sx,
+                            y: sy,
+                            width: sw,
+                            height: sh
                         });
                     }
                 }
             }
-            
+
             image.highResState = 'ready';
             this.addTextureToCache(image);
             this.api.requestRender();
@@ -223,8 +226,7 @@ export class SmoozooCollection
         }
     }
 
-    updateCacheUsage(image)
-    {
+    updateCacheUsage(image) {
         // Remove the item from its current position in the list
         const index = this.highResUsageList.indexOf(image.id);
         if (index > -1) {
@@ -234,9 +236,7 @@ export class SmoozooCollection
         this.highResUsageList.unshift(image.id);
     }
 
-
-    async handleWorkerMessage(event)
-    {
+    async handleWorkerMessage(event) {
         const {
             status,
             id, // The worker now sends back the ID
@@ -250,11 +250,13 @@ export class SmoozooCollection
         // --- THIS IS THE ROBUST FIX ---
         // Find the image by its unique ID, not the fragile URL
         const image = this.images.find(img => img.id === id);
-        
+
         if (!image) {
             // This error should no longer happen
             console.error("Could not find matching image for worker ID:", id);
-            this.onRequestFinished({ id: id }); 
+            this.onRequestFinished({
+                id: id
+            });
             return;
         }
 
@@ -272,7 +274,7 @@ export class SmoozooCollection
             const thumbBlob = await this.imageDataToBlob(pixelData);
             this.cache.set(image.id, thumbBlob).catch(console.error);
             this.uploadThumbnail(image, thumbBlob);
-            
+
         } else {
             console.error(`Worker failed for ${imageUrl}:`, error);
             image.state = 'error';
@@ -282,21 +284,20 @@ export class SmoozooCollection
         this.onRequestFinished(image);
     }
 
-
-    async imageDataToBlob(imageData)
-    {
+    async imageDataToBlob(imageData) {
         const canvas = new OffscreenCanvas(imageData.width, imageData.height);
         const ctx = canvas.getContext('2d');
         ctx.putImageData(imageData, 0, 0);
-        return await canvas.convertToBlob({ type: 'image/png' });
-    }    
+        return await canvas.convertToBlob({
+            type: 'image/png'
+        });
+    }
 
     /**
      * Processes the image request queue, respecting the concurrency limit.
      * This is the main engine for throttled loading.
      */
-    processRequestQueue()
-    {
+    processRequestQueue() {
         // Stop if we are already processing the maximum number of requests
         if (this.currentlyProcessing >= this.config.maxConcurrentRequests) {
             return;
@@ -316,7 +317,7 @@ export class SmoozooCollection
             // Mark the image as 'loading' and start the fetch process
             nextImage.state = 'loading';
             this.currentlyProcessing++;
-            
+
             this.loadThumbnail(nextImage);
         }
     }
@@ -324,13 +325,12 @@ export class SmoozooCollection
     /**
      * Loads a single thumbnail, first checking cache and then falling back to the worker.
      */
-    async loadThumbnail(image)
-    {
+    async loadThumbnail(image) {
         try {
             const cachedBlob = await this.cache.get(image.id);
             if (cachedBlob) {
                 const bmp = await createImageBitmap(cachedBlob);
-                
+
                 image.width = bmp.width;
                 image.height = bmp.height;
                 image.thumbWidth = bmp.width;
@@ -346,10 +346,10 @@ export class SmoozooCollection
             // --- ROBUST FIX ---
             // Use encodeURI() to correctly handle spaces, '#', and other special characters.
             const safeImageUrl = encodeURI(this.config.apiOrigin + image.highRes);
-            
+
             this.worker.postMessage({
                 id: image.id,
-                imageUrl: safeImageUrl, 
+                imageUrl: safeImageUrl,
                 thumbnailSize: this.config.thumbnailSize,
             });
 
@@ -361,14 +361,11 @@ export class SmoozooCollection
         }
     }
 
-
-
     /**
      * Callback that runs when an image request (success or fail) is complete.
      * It frees up a processing slot and continues the queue.
      */
-    onRequestFinished(image)
-    {
+    onRequestFinished(image) {
         // Remove the completed image from the queue
         const queueIndex = this.requestQueue.findIndex(req => req.id === image.id);
         if (queueIndex > -1) {
@@ -382,9 +379,7 @@ export class SmoozooCollection
         this.processRequestQueue();
     }
 
-
-    async generateAllThumbnails()
-    {
+    async generateAllThumbnails() {
         const loader = document.getElementById('smoozoo-loader');
         if (loader) loader.classList.remove('hidden');
         document.querySelector('#smoozoo-loader .loader-text').textContent = 'Generating Thumbnails...';
@@ -395,7 +390,11 @@ export class SmoozooCollection
             tempCanvas.style.display = 'none';
             document.body.appendChild(tempCanvas);
 
-            const tempSmoozooApi = window.smoozoo(src, { canvas: tempCanvas, loadingAnimation: false, plugins: [] });
+            const tempSmoozooApi = window.smoozoo(src, {
+                canvas: tempCanvas,
+                loadingAnimation: false,
+                plugins: []
+            });
             await tempSmoozooApi.ready();
 
             const originalSize = tempSmoozooApi.getImageSize();
@@ -422,7 +421,7 @@ export class SmoozooCollection
                 const flipCtx = flipCanvas.getContext('2d');
 
                 const imageData = new ImageData(new Uint8ClampedArray(pixelData.buffer), thumbWidth, thumbHeight);
-                
+
                 // Create a bitmap that can be drawn with transforms
                 const imageBitmap = await createImageBitmap(imageData);
 
@@ -430,7 +429,7 @@ export class SmoozooCollection
                 flipCtx.save();
                 flipCtx.scale(1, -1);
                 flipCtx.translate(0, -thumbHeight);
-                
+
                 // Use drawImage, which respects the flip transform
                 flipCtx.drawImage(imageBitmap, 0, 0);
                 flipCtx.restore();
@@ -439,7 +438,9 @@ export class SmoozooCollection
 
                 // Store the thumbnail's native dimensions separately
                 this.images.push({
-                    id: src, src, thumbTex,
+                    id: src,
+                    src,
+                    thumbTex,
 
                     // Layout dimensions (will be changed by calculateLayout)
                     width: thumbWidth,
@@ -450,11 +451,11 @@ export class SmoozooCollection
                     thumbHeight: thumbHeight,
 
                     // ... other properties
-                    x: 0, y: 0,
+                    x: 0,
+                    y: 0,
                     highResState: 'none',
                     highResTexture: null,
                 });
-
             }
             document.body.removeChild(tempCanvas);
         }
@@ -462,14 +463,12 @@ export class SmoozooCollection
         if (loader) loader.classList.add('hidden');
     }
 
-
     /**
      * Creates a WebGL texture from an ImageBitmap.
      * @param {ImageBitmap} bitmap The image bitmap to upload.
      * @returns {WebGLTexture} The created WebGL texture.
      */
-    createTextureFromImageBitmap(bitmap)
-    {
+    createTextureFromImageBitmap(bitmap) {
         const gl = this.gl;
         const texture = gl.createTexture();
         gl.bindTexture(gl.TEXTURE_2D, texture);
@@ -478,7 +477,7 @@ export class SmoozooCollection
 
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-        
+
         // Use a filter that works for all texture sizes. (?)
         // gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
         // gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
@@ -490,17 +489,18 @@ export class SmoozooCollection
         return texture;
     }
 
-
-    calculateLayout()
-    {
+    calculateLayout() {
         if (!this.images.length) return;
 
         // --- Option A: Masonry (Column-based) Layout ---
         if (this.config.layoutMode === 'masonry') {
-            const { cols, padding } = this.config;
+            const {
+                cols,
+                padding
+            } = this.config;
             const colWidth = (this.canvas.width - (padding * (cols + 1))) / cols;
             const columnHeights = Array(cols).fill(padding);
-            
+
             this.images.forEach(img => {
                 const scaleRatio = colWidth / img.thumbWidth;
                 const imgHeight = img.thumbHeight * scaleRatio;
@@ -525,9 +525,13 @@ export class SmoozooCollection
             this.worldSize.width = this.canvas.width;
             this.worldSize.height = Math.max(...columnHeights);
 
-        // --- Option B: Row-based Layout ---
+            // --- Option B: Row-based Layout ---
         } else {
-            const { padding, thumbnailSize, maxRowWidth } = this.config;
+            const {
+                padding,
+                thumbnailSize,
+                maxRowWidth
+            } = this.config;
             let x = padding;
             let y = padding;
             let currentRowHeight = 0;
@@ -552,7 +556,7 @@ export class SmoozooCollection
                     currentRowHeight = thumbnailSize;
                 }
             });
-            
+
             this.worldSize.width = maxRowWidth;
             this.worldSize.height = y + currentRowHeight + padding;
         }
@@ -568,9 +572,7 @@ export class SmoozooCollection
         this.rebuildQuadtree();
     }
 
-
-    createTextureFromPixels(pixelData, width, height)
-    {
+    createTextureFromPixels(pixelData, width, height) {
         const gl = this.gl;
         const texture = gl.createTexture();
         gl.bindTexture(gl.TEXTURE_2D, texture);
@@ -587,14 +589,17 @@ export class SmoozooCollection
         // gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-        
+
         return texture;
     }
 
-
     render = () => {
         // --- 1. Setup ---
-        const { scale, originX, originY } = this.api.getTransform();
+        const {
+            scale,
+            originX,
+            originY
+        } = this.api.getTransform();
         const gl = this.gl;
         const canvas = this.canvas;
         const smoozooSettings = this.api.getSettings();
@@ -641,7 +646,7 @@ export class SmoozooCollection
         }
 
         // --- 3. Query Quadtree for Relevant Images ---
-        const potentialImages = this.quadtree.query(loadArea);
+        const potentialImages = this.quadtree.query(loadArea, scale);
 
         // --- 4. Process Potential Images ---
         const viewportCenterX = viewX + viewWidth / 2;
@@ -698,7 +703,9 @@ export class SmoozooCollection
                     } else {
                         // The user is likely panning. Use the timeout to prevent choppiness.
                         this.highResLoadDebounceTimer = setTimeout(() => {
-                            const { scale: currentScale } = this.api.getTransform();
+                            const {
+                                scale: currentScale
+                            } = this.api.getTransform();
                             if (currentScale > this.config.highResThreshold) {
                                 this.requestHighResLoad(focusedImage);
                             }
@@ -775,14 +782,12 @@ export class SmoozooCollection
         }
     }
 
-
     /**
      * Uploads a generated thumbnail blob to the server in the background.
      * @param {object} image The image object associated with the thumbnail.
      * @param {Blob} blob The thumbnail data as a Blob.
      */
-    async uploadThumbnail(image, blob)
-    {
+    async uploadThumbnail(image, blob) {
         // Exit if no upload URL is configured
         if (!this.config.uploadConfig?.url) {
             return;
@@ -794,7 +799,7 @@ export class SmoozooCollection
 
         try {
             const uploadUrl = this.config.apiOrigin + this.config.uploadConfig.url;
-            
+
             const response = await fetch(uploadUrl, {
                 method: 'POST',
                 body: formData,
@@ -812,10 +817,8 @@ export class SmoozooCollection
         }
     }
 
-
     // --- Event Handlers ---
-    addKeyListeners()
-    {
+    addKeyListeners() {
         window.addEventListener('keydown', (e) => {
             if (e.key === 'Shift') {
                 this.isSelectModeActive = true;
@@ -831,7 +834,6 @@ export class SmoozooCollection
         });
     }
 
-
     /*
     temporary hack until I can fix "this" issue in Smoozoo itself -- properly.
     TODO: One would WANT to do this (but "this" gets fucked up):
@@ -844,14 +846,17 @@ export class SmoozooCollection
     onMouseDown = (e) => {
         // Only start drag-to-select if Shift key is held down
         if (this.isSelectModeActive) {
-            if (e.button !== 0) return true; 
+            if (e.button !== 0) return true;
             this.isDraggingSelection = true;
-            this.selectionBox = { startX: this.lastMouseWorldPos.x, startY: this.lastMouseWorldPos.y };
+            this.selectionBox = {
+                startX: this.lastMouseWorldPos.x,
+                startY: this.lastMouseWorldPos.y
+            };
             this.api.cancelAllAnimations();
             return false; // Prevent panning
         }
         // If Shift is not held, let the default panning behavior pass through
-        return true; 
+        return true;
     }
 
     onDrag = (e) => {
@@ -870,16 +875,21 @@ export class SmoozooCollection
         return false;
     }
 
-    onMouseMove = (e, { worldX, worldY } = {}) => {
+    onMouseMove = (e, {
+        worldX,
+        worldY
+    } = {}) => {
         if (worldX !== undefined && worldY !== undefined) {
-            this.lastMouseWorldPos = { x: worldX, y: worldY };
+            this.lastMouseWorldPos = {
+                x: worldX,
+                y: worldY
+            };
         }
     }
 
     // --- UI and Actions ---
 
-    injectUI()
-    {
+    injectUI() {
         const html = `
             <div id="smoozoo-collection-actions" class="smoozoo-ui-panel">
                 <h3>Collection</h3>
@@ -900,14 +910,12 @@ export class SmoozooCollection
         });
     }
 
-    updateActionUI()
-    {
+    updateActionUI() {
         const info = document.getElementById('smoozoo-selection-info');
         info.textContent = `${this.selection.size} item(s) selected`;
     }
 
-    updateSelection(isFinal = false)
-    {
+    updateSelection(isFinal = false) {
         if (!this.selectionBox) return;
         if (!isFinal) this.selection.clear(); // Recalculate on each drag frame
 
@@ -926,9 +934,8 @@ export class SmoozooCollection
             }
         });
     }
-    
-    clearSelection()
-    {
+
+    clearSelection() {
         this.selection.clear();
         this.updateActionUI();
         this.api.requestRender();
@@ -936,8 +943,7 @@ export class SmoozooCollection
 
     // --- Tagging Logic ---
 
-    handleTagAction()
-    {
+    handleTagAction() {
         if (this.selection.size === 0) {
             alert("Please select one or more images to tag.");
             return;
@@ -961,10 +967,8 @@ export class SmoozooCollection
     }
 }
 
-
 // Simple wrapper for localStorage to act as a key-value store
-class LocalStorageDB
-{
+class LocalStorageDB {
     constructor(dbName) {
         this.dbName = dbName;
     }
@@ -982,18 +986,14 @@ class LocalStorageDB
     }
 }
 
-
-class ThumbnailCache
-{
-    constructor(dbName = 'smoozoo-thumb-cache', storeName = 'thumbnails')
-    {
+class ThumbnailCache {
+    constructor(dbName = 'smoozoo-thumb-cache', storeName = 'thumbnails') {
         this.dbName = dbName;
         this.storeName = storeName;
         this.db = null;
     }
 
-    async open()
-    {
+    async open() {
         return new Promise((resolve, reject) => {
             if (this.db) {
                 resolve(this.db);
@@ -1012,8 +1012,7 @@ class ThumbnailCache
         });
     }
 
-    async get(key)
-    {
+    async get(key) {
         await this.open();
         return new Promise((resolve, reject) => {
             const transaction = this.db.transaction(this.storeName, 'readonly');
@@ -1024,8 +1023,7 @@ class ThumbnailCache
         });
     }
 
-    async set(key, value)
-    {
+    async set(key, value) {
         await this.open();
         return new Promise((resolve, reject) => {
             const transaction = this.db.transaction(this.storeName, 'readwrite');
@@ -1037,119 +1035,161 @@ class ThumbnailCache
     }
 }
 
+window.smoozooPlugins = window.smoozooPlugins || {};
+window.smoozooPlugins.SmoozooCollection = SmoozooCollection;
+
+
 /**
- * Quadtree implementation for 2D spatial partitioning and quick lookups.
- * Should handle rectangular items that span boundaries.
+ * Smoozoo Advanced Quadtree (Corrected)
+ *
+ * This quadtree implementation correctly handles objects that span boundaries by storing them
+ * in parent nodes, which prevents rendering artifacts and disappearing objects at high zoom levels.
+ * It also includes screen-size culling to skip rendering nodes that are too small to be visible,
+ * ensuring optimal performance for massive collections.
  */
-class Quadtree
-{
-    constructor(boundary, capacity = 4)
-    {
+export class Quadtree {
+    /**
+     * @param {object} boundary - The { x, y, width, height } of the node.
+     * @param {number} [capacity=4] - The maximum number of items a node can hold before it subdivides.
+     * @param {number} [level=0] - The depth of the node in the tree.
+     */
+    constructor(boundary, capacity = 4, level = 0) {
         if (!boundary) {
-            throw new Error("boundary is a required argument");
+            throw new Error("Boundary is a required argument for Quadtree constructor.");
         }
-        this.boundary = boundary; // { x, y, width, height }
+        this.boundary = boundary;
         this.capacity = capacity;
+        this.level = level;
+
+        // All items in this node. In a parent node, these are items that span child boundaries.
+        // In a leaf node, these are all items within that node.
         this.items = [];
+        this.children = [];
         this.divided = false;
     }
 
-    subdivide()
-    {
+    /**
+     * Creates four child nodes and moves items from this node down to them.
+     */
+    subdivide() {
         const { x, y, width, height } = this.boundary;
         const w2 = width / 2;
         const h2 = height / 2;
+        const nextLevel = this.level + 1;
 
-        const ne = { x: x + w2, y: y, width: w2, height: h2 };
-        this.northeast = new Quadtree(ne, this.capacity);
-
-        const nw = { x: x, y: y, width: w2, height: h2 };
-        this.northwest = new Quadtree(nw, this.capacity);
-
-        const se = { x: x + w2, y: y + h2, width: w2, height: h2 };
-        this.southeast = new Quadtree(se, this.capacity);
-
-        const sw = { x: x, y: y + h2, width: w2, height: h2 };
-        this.southwest = new Quadtree(sw, this.capacity);
+        this.children[0] = new Quadtree({ x: x + w2, y: y,      width: w2, height: h2 }, this.capacity, nextLevel); // Northeast
+        this.children[1] = new Quadtree({ x: x,      y: y,      width: w2, height: h2 }, this.capacity, nextLevel); // Northwest
+        this.children[2] = new Quadtree({ x: x,      y: y + h2, width: w2, height: h2 }, this.capacity, nextLevel); // Southwest
+        this.children[3] = new Quadtree({ x: x + w2, y: y + h2, width: w2, height: h2 }, this.capacity, nextLevel); // Southeast
 
         this.divided = true;
 
-        // Move existing items from this node down to the new children
-        for (const item of this.items) {
-            this.northeast.insert(item);
-            this.northwest.insert(item);
-            this.southeast.insert(item);
-            this.southwest.insert(item);
+        // Re-distribute the items from this node (which is now a parent)
+        const currentItems = this.items;
+        this.items = [];
+        for (const item of currentItems) {
+            this.insert(item); // Re-insert items, which will now filter into children or stay here
         }
-        this.items = []; // Clear items from this parent node
     }
 
-    insert(item)
-    {
-        // Do not insert if the item is outside this quadrant's boundary
-        if (!this.intersects(item)) {
+    /**
+     * Gets the index of the child node that an item completely fits within.
+     * @param {object} item - The item to check, with { x, y, width, height }.
+     * @returns {number} - The index of the child (0-3) or -1 if it spans multiple children.
+     */
+    getChildIndex(item) {
+        const midX = this.boundary.x + this.boundary.width / 2;
+        const midY = this.boundary.y + this.boundary.height / 2;
+
+        const fitsTop = item.y + item.height < midY;
+        const fitsBottom = item.y > midY;
+        const fitsLeft = item.x + item.width < midX;
+        const fitsRight = item.x > midX;
+
+        if (fitsTop && fitsRight) return 0; // Northeast
+        if (fitsTop && fitsLeft)  return 1; // Northwest
+        if (fitsBottom && fitsLeft) return 2; // Southwest
+        if (fitsBottom && fitsRight) return 3; // Southeast
+
+        return -1; // Doesn't fit cleanly, belongs to the parent
+    }
+
+    /**
+     * Inserts an item into the quadtree.
+     * @param {object} item - The item to insert, must have x, y, width, height.
+     */
+    insert(item) {
+        if (!this.intersects(item, this.boundary)) {
             return false;
         }
 
         if (this.divided) {
-            // If we are already divided, pass the item down to all children.
-            // They will perform their own intersection test.
-            this.northeast.insert(item);
-            this.northwest.insert(item);
-            this.southeast.insert(item);
-            this.southwest.insert(item);
-            return true;
+            const index = this.getChildIndex(item);
+            if (index !== -1) {
+                // The item fits completely into a child node
+                this.children[index].insert(item);
+                return;
+            }
         }
         
-        // If we are not divided, add the item to this node.
+        // Add the item to this node if it's a leaf or if it spans children
         this.items.push(item);
         
-        // If adding the item exceeds capacity, subdivide this node.
-        if (this.items.length > this.capacity) {
+        // If we've exceeded capacity and we're not yet divided, subdivide
+        if (!this.divided && this.items.length > this.capacity && this.level < 8) {
             this.subdivide();
         }
-        
-        return true;
+    }
+
+    /**
+     * Queries the quadtree for items within a given range, with LOD culling.
+     * @param {object} range - The rectangular range to query { x, y, width, height }.
+     * @param {number} scale - The current zoom scale of the viewport.
+     * @returns {Array} - An array of found items (guaranteed to be unique).
+     */
+    query(range, scale) {
+        const found = new Set();
+        this._queryRecursive(range, scale, found);
+        return Array.from(found);
     }
     
-    query(range, found = [])
-    {
-        // Don't bother searching children if the range doesn't overlap with this quadrant
-        if (!this.intersects(range)) {
-            return found;
+    _queryRecursive(range, scale, found) {
+        if (!this.intersects(range, this.boundary)) {
+            return;
         }
 
-        // Check all items in this quadrant
+        // **LOD Culling**: If the node's on-screen size is less than a pixel, ignore it.
+        const projectedWidth = this.boundary.width * scale;
+        if (projectedWidth < 1) {
+            return;
+        }
+
+        // Add items from the current node that intersect the range
         for (const item of this.items) {
             if (this.intersects(item, range)) {
-                found.push(item);
+                found.add(item);
             }
         }
 
-        // If we are divided, pass the query down to the children
+        // If this node is divided, query its children
         if (this.divided) {
-            this.northwest.query(range, found);
-            this.northeast.query(range, found);
-            this.southwest.query(range, found);
-            this.southeast.query(range, found);
+            for (const child of this.children) {
+                child._queryRecursive(range, scale, found);
+            }
         }
-
-        return found;
     }
-
-    // A utility function to check if two rectangles intersect
-    intersects(rect1, rect2)
-    {
-        const r2 = rect2 || this.boundary;
-        // Check for no overlap
+    
+    /**
+     * Utility function to check for intersection between two rectangles.
+     */
+    intersects(rect1, rect2) {
         return !(
-            rect1.x + rect1.width < r2.x ||    // rect1 is entirely to the left of r2
-            rect1.y + rect1.height < r2.y ||   // rect1 is entirely above r2
-            rect1.x > r2.x + r2.width ||     // rect1 is entirely to the right of r2
-            rect1.y > r2.y + r2.height       // rect1 is entirely below r2
+            rect1.x >= rect2.x + rect2.width ||  // rect1 is right of rect2
+            rect1.x + rect1.width <= rect2.x || // rect1 is left of rect2
+            rect1.y >= rect2.y + rect2.height || // rect1 is below rect2
+            rect1.y + rect1.height <= rect2.y    // rect1 is above rect2
         );
     }
 }
-
 window.smoozooPlugins = window.smoozooPlugins || {};
 window.smoozooPlugins.SmoozooCollection = SmoozooCollection;
