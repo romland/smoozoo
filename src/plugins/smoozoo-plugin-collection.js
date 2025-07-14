@@ -486,9 +486,12 @@ export class SmoozooCollection
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
         
         // Use a filter that works for all texture sizes. (?)
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
-        
+        // gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+        // gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+
         gl.bindTexture(gl.TEXTURE_2D, null);
         return texture;
     }
@@ -585,7 +588,10 @@ export class SmoozooCollection
         gl.generateMipmap(gl.TEXTURE_2D);
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+
+        // gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+        // gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
         
         return texture;
@@ -1043,7 +1049,8 @@ class ThumbnailCache
  */
 class Quadtree
 {
-    constructor(boundary, capacity = 4) {
+    constructor(boundary, capacity = 4)
+    {
         if (!boundary) {
             throw new Error("boundary is a required argument");
         }
@@ -1073,60 +1080,59 @@ class Quadtree
 
         this.divided = true;
 
-        // Move existing items to the new children
+        // Move existing items from this node down to the new children
         for (const item of this.items) {
             this.northeast.insert(item);
             this.northwest.insert(item);
             this.southeast.insert(item);
             this.southwest.insert(item);
         }
-        this.items = []; // Clear items from parent after moving them down
+        this.items = []; // Clear items from this parent node
     }
 
     insert(item)
     {
-        // If the item does not intersect this quad's boundary, do nothing
+        // Do not insert if the item is outside this quadrant's boundary
         if (!this.intersects(item)) {
             return false;
         }
 
-        if (!this.divided) {
-            // If we have space, add it to this node
-            if (this.items.length < this.capacity) {
-                this.items.push(item);
-                return true;
-            }
-            // Otherwise, we're at capacity, so subdivide
+        if (this.divided) {
+            // If we are already divided, pass the item down to all children.
+            // They will perform their own intersection test.
+            this.northeast.insert(item);
+            this.northwest.insert(item);
+            this.southeast.insert(item);
+            this.southwest.insert(item);
+            return true;
+        }
+        
+        // If we are not divided, add the item to this node.
+        this.items.push(item);
+        
+        // If adding the item exceeds capacity, subdivide this node.
+        if (this.items.length > this.capacity) {
             this.subdivide();
         }
-
-        // If we are already divided, try to insert the item into a child node.
-        // If it fails to insert into a child (e.g., it spans the boundary),
-        // it will be handled by the parent, but since we already moved items down,
-        // we just attempt to insert into the children. A more complex implementation
-        // would keep track of spanning items in the parent. This simplified one
-        // relies on the children being able to contain the items.
-        if (this.northeast.insert(item)) return true;
-        if (this.northwest.insert(item)) return true;
-        if (this.southeast.insert(item)) return true;
-        if (this.southwest.insert(item)) return true;
         
-        // This case should be rare if the world bounds are correct, but it prevents lost items.
-        // It means the item is within this node's boundary but could not fit into any child.
-        return false;
+        return true;
     }
     
-    query(range, found = []) {
+    query(range, found = [])
+    {
+        // Don't bother searching children if the range doesn't overlap with this quadrant
         if (!this.intersects(range)) {
             return found;
         }
 
+        // Check all items in this quadrant
         for (const item of this.items) {
-            if (this.intersects(item, range)) { // Check intersection with the item
+            if (this.intersects(item, range)) {
                 found.push(item);
             }
         }
 
+        // If we are divided, pass the query down to the children
         if (this.divided) {
             this.northwest.query(range, found);
             this.northeast.query(range, found);
@@ -1138,13 +1144,15 @@ class Quadtree
     }
 
     // A utility function to check if two rectangles intersect
-    intersects(rect1, rect2) {
+    intersects(rect1, rect2)
+    {
         const r2 = rect2 || this.boundary;
+        // Check for no overlap
         return !(
-            rect1.x + rect1.width < r2.x ||
-            rect1.y + rect1.height < r2.y ||
-            rect1.x > r2.x + r2.width ||
-            rect1.y > r2.y + r2.height
+            rect1.x + rect1.width < r2.x ||    // rect1 is entirely to the left of r2
+            rect1.y + rect1.height < r2.y ||   // rect1 is entirely above r2
+            rect1.x > r2.x + r2.width ||     // rect1 is entirely to the right of r2
+            rect1.y > r2.y + r2.height       // rect1 is entirely below r2
         );
     }
 }
