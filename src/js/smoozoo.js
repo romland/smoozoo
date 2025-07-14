@@ -2177,6 +2177,7 @@ window.smoozoo = (imageUrl, settings) => {
         getTransform: () => ({ scale, originX, originY }),
         getCanvas: () => canvas,
         getGlContext: () => gl,
+        hexToNormalizedRGB: hexToNormalizedRGB,
         
         // --- Core Rendering Primitives ---
         getProgram: () => program,
