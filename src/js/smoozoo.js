@@ -892,6 +892,10 @@ window.smoozoo = (imageUrl, settings) => {
                      plugin.instance?.update && plugin.instance?.update();
                  }
             }
+            
+            zoomLevelSpan.textContent = scale.toFixed(2);
+            updatePanSlider();
+
             return;
         }
 
