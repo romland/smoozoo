@@ -23,8 +23,8 @@
                     await fetch(SMOOZOO_GALLERY_SERVER + '/api/images')
                         .then(res => res.json())
                         .then(images => {
-                            console.log({images})
-                            imageCollection = images;
+                            // console.log({images})
+                            imageCollection = images.data;
                         })
                         .catch(console.error);
                     
@@ -119,7 +119,7 @@
                     useHighPrecisionFloat:      true,   // this may or may not fix some float-overflows on large imges
                     windowResizeDebounce:       100,
                     allowDeepLinks:             true,   // Allow going to e.g. ?x=2777&y=1879&scale=20.000000&animate=true
-                    pixelatedZoom:              true,   // Can also be toggled with p, or overridden with dynamic below
+                    pixelatedZoom:              false,   // Can also be toggled with p, or overridden with dynamic below
                     dynamicFilteringThreshold:  2.0,    // The scale where we toggle filtering (if enabled)
                     dynamicTextureFiltering:    true,   // If greater or less than dynamicFilteringThreshold,
                                                         // automatically toggle texture filtering (pixelated or not)
@@ -146,6 +146,7 @@
                             options: {
                                 images: imageCollection,
                                 padding: 20,
+                                thumbnailSize: 256,
                                 apiOrigin: SMOOZOO_SERVER_AVAILABLE ? SMOOZOO_GALLERY_SERVER : undefined,
                                 // uploadConfig: SMOOZOO_SERVER_AVAILABLE ? {
                                 //     url: "/api/upload"
@@ -155,7 +156,7 @@
                                 // cols: 6                                
 
                                 layoutMode: 'row',
-                                maxRowWidth: 10000,
+                                maxRowWidth: 25000,
 
                                 // To prevent flickering, increase the cache size. Uses more memory.
                                 highResCacheLimit: 15,

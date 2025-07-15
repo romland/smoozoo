@@ -1,4 +1,3 @@
-
 /**
  * Smoozoo Collection Plugin
  *
