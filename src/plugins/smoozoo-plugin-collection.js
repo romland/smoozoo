@@ -103,8 +103,10 @@ export class SmoozooCollection {
                 thumbTex: null,
                 width: this.config.thumbnailSize,
                 height: estimatedHeight,
-                thumbWidth: this.config.thumbnailSize, // Initial estimate
-                thumbHeight: estimatedHeight, // Initial estimate
+                // thumbWidth: this.config.thumbnailSize, // Initial estimate
+                // thumbHeight: estimatedHeight, // Initial estimate
+                thumbWidth: imgData.thumbWidth || this.config.thumbnailSize,
+                thumbHeight: imgData.thumbHeight || this.config.thumbnailSize,
                 highResState: 'none',
                 highResTexture: null,
                 x: 0,
