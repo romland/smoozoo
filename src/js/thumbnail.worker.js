@@ -11,6 +11,7 @@ self.onmessage = async (event) => {
             throw new Error(`HTTP error! status: ${response.status}`);
         }
         const blob = await response.blob();
+        // const imageBitmap = await createImageBitmap(blob, { imageOrientation: 'none' });
         const imageBitmap = await createImageBitmap(blob);
 
         const ratio = imageBitmap.width / imageBitmap.height;

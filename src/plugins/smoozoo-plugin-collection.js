@@ -45,6 +45,8 @@ export class SmoozooCollection {
 
             apiOrigin: options.apiOrigin || '',
             maxConcurrentRequests: options.maxConcurrentRequests || 5,
+
+            thumbnailStrategy: options.thumbnailStrategy || 'server',
         };
 
         // --- State ---
@@ -178,6 +180,8 @@ export class SmoozooCollection {
                 throw new Error(`HTTP error! status: ${response.status}`);
             }
             const blob = await response.blob();
+
+            // const bmp = await createImageBitmap(blob, { imageOrientation: 'none' });
             const bmp = await createImageBitmap(blob);
 
             const maxTexSize = this.gl.getParameter(this.gl.MAX_TEXTURE_SIZE);
@@ -293,6 +297,26 @@ export class SmoozooCollection {
     }
 
     /**
+     * Processes a thumbnail blob (from server or cache) into a texture and updates the image state.
+     * This helper centralizes the logic for handling a successful thumbnail load.
+     * @param {object} image The image object to update.
+     * @param {Blob} blob The thumbnail data as a Blob.
+     */
+    async processThumbnailBlob(image, blob) {
+        const bmp = await createImageBitmap(blob);
+
+        image.width = bmp.width;
+        image.height = bmp.height;
+        image.thumbWidth = bmp.width;
+        image.thumbHeight = bmp.height;
+        image.thumbTex = this.createTextureFromImageBitmap(bmp);
+        image.state = 'ready';
+
+        this.onResize(); // Recalculate layout with new dimensions
+        this.onRequestFinished(image); // Signal that this image is loaded
+    }    
+
+    /**
      * Processes the image request queue, respecting the concurrency limit.
      * This is the main engine for throttled loading.
      */
@@ -322,43 +346,63 @@ export class SmoozooCollection {
     }
 
     /**
-     * Loads a single thumbnail, first checking cache and then falling back to the worker.
+     * Loads a single thumbnail based on the configured strategy.
+     * This method orchestrates the loading process by trying server, cache, and generation in order.
+     * * @param {object} image The image object to load the thumbnail for.
      */
     async loadThumbnail(image) {
-        try {
-            const cachedBlob = await this.cache.get(image.id);
-            if (cachedBlob) {
-                const bmp = await createImageBitmap(cachedBlob);
+        const strategy = this.config.thumbnailStrategy;
 
-                image.width = bmp.width;
-                image.height = bmp.height;
-                image.thumbWidth = bmp.width;
-                image.thumbHeight = bmp.height;
-                image.thumbTex = this.createTextureFromImageBitmap(bmp);
-                image.state = 'ready';
-
-                this.onResize();
-                this.onRequestFinished(image);
-                return;
+        // --- Attempt 1: Download from Server URL ---
+        // Active if strategy is 'server' and a thumb URL is provided.
+        if (strategy === 'server' && image.thumb) {
+            try {
+                const thumbUrl = (this.config.apiOrigin + image.thumb).replace(/#/g, '%23');
+                const response = await fetch(thumbUrl);
+                if (!response.ok) throw new Error(`Server fetch failed with status ${response.status}`);
+                
+                const blob = await response.blob();
+                await this.processThumbnailBlob(image, blob);
+                
+                // If successful, also cache it for future offline/fast access.
+                this.cache.set(image.id, blob).catch(console.error);
+                return; // Success
+            } catch (e) {
+                console.warn(`Server thumbnail download for ${image.id} failed: ${e.message}. Falling back...`);
             }
+        }
 
-            // --- ROBUST FIX ---
-            // Use encodeURI() to correctly handle spaces, '#', and other special characters.
+        // --- Attempt 2: Retrieve from Local Cache ---
+        // Active if strategy is 'cache', or as a fallback for 'server'.
+        if (strategy === 'server' || strategy === 'cache') {
+            try {
+                const cachedBlob = await this.cache.get(image.id);
+                if (cachedBlob) {
+                    await this.processThumbnailBlob(image, cachedBlob);
+                    return; // Success
+                }
+            } catch (e) {
+                console.warn(`IndexedDB cache lookup for ${image.id} failed: ${e.message}. Falling back...`);
+            }
+        }
+        
+        // --- Attempt 3: Generate via Worker ---
+        // The final fallback for all strategies, or the primary for 'generate'.
+        try {
             const safeImageUrl = encodeURI(this.config.apiOrigin + image.highRes);
-
             this.worker.postMessage({
                 id: image.id,
                 imageUrl: safeImageUrl,
                 thumbnailSize: this.config.thumbnailSize,
             });
-
         } catch (error) {
-            console.error(`Failed to load image ${image.id}:`, error);
+            console.error(`Failed to post to thumbnail worker for ${image.id}:`, error);
             image.state = 'error';
+            this.onRequestFinished(image); // Still need to finish the request, even on error
             this.api.requestRender();
-            this.onRequestFinished(image);
         }
     }
+
 
     /**
      * Callback that runs when an image request (success or fail) is complete.
