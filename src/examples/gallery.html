@@ -23,7 +23,7 @@
                     await fetch(SMOOZOO_GALLERY_SERVER + '/api/images')
                         .then(res => res.json())
                         .then(images => {
-                            // console.log({images})
+                            console.log(images.data)
                             imageCollection = images.data;
                         })
                         .catch(console.error);

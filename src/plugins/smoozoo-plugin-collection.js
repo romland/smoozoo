@@ -101,8 +101,10 @@ export class SmoozooCollection {
                 state: 'placeholder',
                 thumb: imgData.thumb || null,
                 thumbTex: null,
-                width: this.config.thumbnailSize,
-                height: estimatedHeight,
+                // width: this.config.thumbnailSize,
+                // height: estimatedHeight,
+                width: imgData.thumbWidth,
+                height: imgData.thumbHeight,                
                 // thumbWidth: this.config.thumbnailSize, // Initial estimate
                 // thumbHeight: estimatedHeight, // Initial estimate
                 thumbWidth: imgData.thumbWidth || this.config.thumbnailSize,
@@ -173,18 +175,17 @@ export class SmoozooCollection {
         image.highResState = 'loading';
 
         try {
-            // --- THIS IS THE FIX ---
-            // The URL is now encoded to handle the '#' character, just like in the thumbnail loader.
             const imageUrl = (this.config.apiOrigin + image.highRes).replace(/#/g, '%23');
-
             const response = await fetch(imageUrl);
             if (!response.ok) {
                 throw new Error(`HTTP error! status: ${response.status}`);
             }
             const blob = await response.blob();
-
-            // const bmp = await createImageBitmap(blob, { imageOrientation: 'none' });
             const bmp = await createImageBitmap(blob);
+
+            // Always store the original dimensions of the high-res bitmap.
+            image.originalWidth = bmp.width;
+            image.originalHeight = bmp.height;
 
             const maxTexSize = this.gl.getParameter(this.gl.MAX_TEXTURE_SIZE);
 
@@ -252,7 +253,6 @@ export class SmoozooCollection {
             error
         } = event.data;
 
-        // --- THIS IS THE ROBUST FIX ---
         // Find the image by its unique ID, not the fragile URL
         const image = this.images.find(img => img.id === id);
 
@@ -311,12 +311,14 @@ export class SmoozooCollection {
         image.height = bmp.height;
         image.thumbWidth = bmp.width;
         image.thumbHeight = bmp.height;
+
         image.thumbTex = this.createTextureFromImageBitmap(bmp);
         image.state = 'ready';
 
-        this.onResize(); // Recalculate layout with new dimensions
-        this.onRequestFinished(image); // Signal that this image is loaded
-    }    
+        this.onResize();
+        
+        this.onRequestFinished(image);
+    }
 
     /**
      * Processes the image request queue, respecting the concurrency limit.
@@ -767,8 +769,31 @@ export class SmoozooCollection {
 
             if (img === focusedImage && img.highResState === 'ready' && (img.highResTexture || img.highResTiles)) {
                 this.updateCacheUsage(img);
+
                 if (img.highResTexture) {
-                    textureToDisplay = img.highResTexture;
+                    // Calculate how to fit the high-res image inside its layout box
+                    // without stretching, preserving its aspect ratio.
+                    const boxAspect = img.width / img.height;
+                    const imageAspect = img.originalWidth / img.originalHeight;
+                    let finalWidth, finalHeight, offsetX, offsetY;
+
+                    if (imageAspect > boxAspect) { // Image is wider than the box
+                        finalWidth = img.width;
+                        finalHeight = img.width / imageAspect;
+                        offsetX = 0;
+                        offsetY = (img.height - finalHeight) / 2;
+                    } else { // Image is taller than the box
+                        finalHeight = img.height;
+                        finalWidth = img.height * imageAspect;
+                        offsetY = 0;
+                        offsetX = (img.width - finalWidth) / 2;
+                    }
+                    
+                    gl.bindTexture(gl.TEXTURE_2D, img.highResTexture);
+                    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, filter);
+                    this.api.setRectangle(gl, img.x + offsetX, img.y + offsetY, finalWidth, finalHeight);
+                    gl.drawArrays(gl.TRIANGLES, 0, 6);
+                    drawn = true; // Mark as drawn to prevent the default renderer from running
                 } else if (img.highResTiles) {
                     const boxAspect = img.width / img.height;
                     const imageAspect = img.originalWidth / img.originalHeight;
