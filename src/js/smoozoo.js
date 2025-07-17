@@ -438,9 +438,13 @@ window.smoozoo = (imageUrl, settings) => {
     const fragmentShaderSource = `
         precision ${settings.useHighPrecisionFloat ? "highp" : "mediump"} float;
         varying vec2 v_texcoord;
-        uniform sampler2D u_image;
+        uniform sampler2D u_texture;
+        uniform float u_brightness; // uniform for brightness control
+
         void main() {
-            gl_FragColor = texture2D(u_image, v_texcoord);
+            vec4 textureColor = texture2D(u_texture, v_texcoord);
+            // Multiply the color by the brightness to dim it if needed
+            gl_FragColor = vec4(textureColor.rgb * u_brightness, textureColor.a);
         }
     `;
 
@@ -892,7 +896,7 @@ window.smoozoo = (imageUrl, settings) => {
                      plugin.instance?.update && plugin.instance?.update();
                  }
             }
-            
+
             zoomLevelSpan.textContent = scale.toFixed(2);
             updatePanSlider();
 
