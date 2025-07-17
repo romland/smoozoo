@@ -1,56 +1,3 @@
-/*
-Step 1.
-So, I have this plugin, there is currently some "selection" code in there -- I need to get rid of that. We will revisit the whole "drag to select" later on. So let's ditch all that.
-
-But, what I _do_ want now is that I can press a key (say 'space') to select a picture and it will fly to some container in a configurable corner of the screen. There a "deck" of selected images will sit which I will later on want to perform some actions on. 
-
-Step 2.
-alright, nice-to-have's:
-- first of all, real bug: The aspect ratio is not correct, and it seems to change
-  depending on what images appear in the "deck"
-- real problem: it should look where mouse pointer is on desktop, and that is the
-  image that should go into deck -- if that was the intention with the current code,
-  then it is not working
-- the deck's width should be adjustable -- perhaps I don't want it to take up
-  entire width
-- when allowed width of the deck is taken, place images above each-other (like in
-  a deck of cards -- not sure how to simulate that look -- perhaps with a border/shadow?)
-
-Step 3.
-- When a new picture lands in the deck, I want the existing images already in there to
-  animate to the left (or right) (to their new end position)
-- Would it be too costly to give an indicator on the "real canvas" which images are 
-  selected?
-  -- also, if a change like this would require huge changes in the code, I don't think
-  it's worth it. But if you can think of a tiny-impact kind of way, great.
-- I want to be able to specify how many rows the selected deck can be too -- the IDEAL
-  way is that the images start stacking above eachother -- if there are too many. In
-  most cases I will want to have just 1 row. For the record.
-
-Step 4.
--  Earlier -- Oh, you misunderstood me, the selected image that flew to the deck was awesome! I was talking about the cards already _in_ the deck, how they should animate instead of just plop to their new position 
-
-- It seems the _first_ selected image does not fly down there -- is that possible?
-
-Step 5.
-- the deck should probably have an overflow set to none 
-- the images don't really stack like a deck of cards (you know how you drag a 
-  deck of cards and you only see an edge of each card -- except the top 
-  one -- which you see in full). This should then respect the constraints of
-  the width of the container.
-  As I type this, I realize this is hard to make it look good. Hmm. Seeing as
-  the images have different aspect ratios? Is what I am asking for even doable?
-
-...next
-So, in my example here, for some reason, the first image added to the deck gets a landscape shape but all subsequent ones are in portrait -- so the deck looks very weird with that first card 
-There are no broken images. It just adds the first image to the deck in a landscape shape -- despite it even being a portrait shaped thumbnail 
-
-...next
-Newly selected images still fly outside the deck after a while, they existing images in the deck should move out of the way to make room for the new one -- until there is no new room, then they can lie "spread out so only an edge of each card is seen" -- but the _last_ card is always fully visible -- since it's on top
-
-
-*/
-
 /**
  * SelectionDeck Class (Stacking Layout Version)
  *
@@ -193,44 +140,80 @@ export class SelectionDeck {
         });
     }
 
-    animateFlyerAndLayout(deckCard, image) {
-        // --- Create the Flyer ---
-        const { scale, originX, originY } = this.api.getTransform();
-        const canvasRect = this.plugin.canvas.getBoundingClientRect();
-        const flyer = document.createElement('img');
-        flyer.src = this.plugin.config.apiOrigin + (image.thumb || image.highRes);
-        flyer.style.position = 'fixed';
-        flyer.style.left = `${(image.x + originX) * scale + canvasRect.left}px`;
-        flyer.style.top = `${(image.y + originY) * scale + canvasRect.top}px`;
-        flyer.style.width = `${image.width * scale}px`;
-        flyer.style.height = `${image.height * scale}px`;
-        flyer.style.zIndex = '101';
-        flyer.style.transition = 'all 0.6s cubic-bezier(0.5, 0, 0.1, 1)';
-        flyer.style.borderRadius = '5px';
-        document.body.appendChild(flyer);
-        flyer.offsetHeight; // Force reflow
+animateFlyerAndLayout(deckCard, image) {
+    // --- Part 1: Get initial and final coordinates ---
+    const { scale, originX, originY } = this.api.getTransform();
+    const canvasRect = this.plugin.canvas.getBoundingClientRect();
+    const cardOptions = this.options;
 
-        // --- Animate Layout and Flyer ---
-        this.updateDeckLayout(true); // Animate existing cards to new positions
+    // The flyer's starting point
+    const initialRect = {
+        left: (image.x + originX) * scale + canvasRect.left,
+        top: (image.y + originY) * scale + canvasRect.top,
+        width: image.width * scale,
+        height: image.height * scale,
+    };
 
-        // Because the final card's position is predictable (always on the far right),
-        // we can calculate its destination without waiting for a frame.
-        const containerRect = this.container.getBoundingClientRect();
-        const destinationX = containerRect.right - this.options.cardWidth - 10; // 10 for padding
-        const destinationY = containerRect.top + 10;
-
-        requestAnimationFrame(() => {
-            flyer.style.left = `${destinationX}px`;
-            flyer.style.top = `${destinationY}px`;
-            flyer.style.width = `${this.options.cardWidth}px`;
-            flyer.style.height = `${this.options.cardHeight}px`;
-        });
-
-        flyer.addEventListener('transitionend', () => {
-            deckCard.style.opacity = '1';
-            if (flyer.parentNode) flyer.remove();
-        }, { once: true });
+    // The flyer's final destination
+    const containerRect = this.container.getBoundingClientRect();
+    const finalRect = {
+        width: cardOptions.cardWidth,
+        height: cardOptions.cardHeight,
+        top: containerRect.top + 10, // 10px for container padding
+    };
+    const [yPos, xPos] = cardOptions.position.split('-');
+    if (xPos === 'right') {
+        const cardRightEdge = window.innerWidth - 20; // 10px window offset + 10px container padding
+        finalRect.left = cardRightEdge - cardOptions.cardWidth;
+    } else {
+        const lastCardIndex = this.selectedImages.size - 1;
+        const offset = this.calculateOffset();
+        finalRect.left = containerRect.left + 10 + (lastCardIndex * offset);
     }
+
+    // --- Part 2: Create the Flyer with its FINAL dimensions ---
+    const flyer = document.createElement('img');
+    flyer.src = this.plugin.config.apiOrigin + (image.thumb || image.highRes);
+    flyer.style.position = 'fixed';
+    flyer.style.zIndex = '101';
+    flyer.style.objectFit = 'cover';
+    flyer.style.borderRadius = '5px';
+    // Position it at its final destination immediately
+    flyer.style.left = `${finalRect.left}px`;
+    flyer.style.top = `${finalRect.top}px`;
+    flyer.style.width = `${finalRect.width}px`;
+    flyer.style.height = `${finalRect.height}px`;
+
+    // --- Part 3: Calculate the initial transform ---
+    // This makes the flyer start at the source image's position and scale.
+    const scaleX = initialRect.width / finalRect.width;
+    const scaleY = initialRect.height / finalRect.height;
+    const translateX = initialRect.left - finalRect.left;
+    const translateY = initialRect.top - finalRect.top;
+
+    // Apply the initial transform without animation
+    flyer.style.transform = `translate(${translateX}px, ${translateY}px) scale(${scaleX}, ${scaleY})`;
+    flyer.style.transition = 'transform 0.6s cubic-bezier(0.5, 0, 0.1, 1), opacity 0.3s';
+
+    document.body.appendChild(flyer);
+
+    // --- Part 4: Play the animation ---
+    // In the next frame, set the transform to its final state (identity).
+    // The browser will smoothly animate from the initial state to this final state.
+    requestAnimationFrame(() => {
+        // Animate existing cards into their new place
+        this.updateDeckLayout(true);
+        // Animate the flyer
+        flyer.style.transform = 'translate(0, 0) scale(1)';
+    });
+
+    // --- Part 5: Cleanup ---
+    flyer.addEventListener('transitionend', () => {
+        deckCard.style.opacity = '1';
+        if (flyer.parentNode) flyer.remove();
+    }, { once: true });
+}
+
 
     createDeckCard(image) {
         const deckCard = document.createElement('div');
