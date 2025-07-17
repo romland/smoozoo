@@ -483,21 +483,33 @@ export class OverlayBasePlugin
 
 
     /**
-     * Draws a tooltip for a given shape.
+     * Draws a tooltip for a given shape, with support for multi-line text.
+     * The tooltip string is split by '\n' to create multiple lines.
      */
     drawTooltip(shape, anchorX, anchorY, scale)
     {
-        const fontSize = 12; // Fixed font size for readability.
-        const padding = 8;   // Fixed padding.
+        // --- Configuration ---
+        const fontSize = 12;      // Fixed font size for readability.
+        const padding = 8;        // Fixed padding inside the tooltip box.
+        const lineGap = 4;        // Vertical gap between lines of text for readability.
         this.ctx.font = `${fontSize}px sans-serif`;
-        
-        const textMetrics = this.ctx.measureText(shape.tooltip);
-        const boxWidth = textMetrics.width + padding * 2;
-        const boxHeight = fontSize + padding * 2;
-        
+
+        // --- Calculate Dimensions for Multi-line Text ---
+        const lines = shape.tooltip.split('\n');
+
+        // Find the width of the longest line to determine the box width.
+        const maxWidth = Math.max(...lines.map(line => this.ctx.measureText(line).width));
+        const boxWidth = maxWidth + padding * 2;
+
+        // Calculate box height based on the number of lines and font size.
+        // This handles both single and multi-line cases.
+        const textBlockHeight = (lines.length * fontSize) + ((lines.length - 1) * lineGap);
+        const boxHeight = textBlockHeight + padding * 2;
+
+        // --- Calculate Tooltip Position ---
         // Define the base offset you want at 1x zoom.
-        const baseOffset = 15; 
-        
+        const baseOffset = 15;
+
         // Calculate the offset based on the current scale.
         const scaledOffset = baseOffset * scale;
 
@@ -509,14 +521,23 @@ export class OverlayBasePlugin
         const boxX = anchorX - boxWidth / 2;
         const boxY = anchorY - boxHeight - offset;
 
+        // --- Draw Tooltip ---
         // Draw the tooltip box.
         this.ctx.fillStyle = 'rgba(0, 0, 0, 0.75)';
         this.ctx.fillRect(boxX, boxY, boxWidth, boxHeight);
 
-        // Draw the tooltip text.
+        // Draw the tooltip text, line by line.
         this.ctx.fillStyle = 'white';
-        this.ctx.fillText(shape.tooltip, boxX + padding, boxY + fontSize + padding / 2);
+        // Set the starting Y position for the baseline of the first line of text.
+        let currentY = boxY + padding + fontSize;
+
+        for (const line of lines) {
+            this.ctx.fillText(line, boxX + padding, currentY);
+            // Move the Y position down for the next line.
+            currentY += fontSize + lineGap;
+        }
     }
+
 
 
     // TODO: This is not yet called by the viewer
