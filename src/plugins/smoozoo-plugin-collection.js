@@ -36,6 +36,8 @@ export class SmoozooCollection {
             highResCacheLimit: options.highResCacheLimit || 10,
             highResLoadBuffer: options.highResLoadBuffer || 0.5,
 
+            fetchTags: options.fetchTags || false, // Default to not fetching tags
+
             loadBuffer: options.loadBuffer || 1.0, // Load 1 viewport height/width around the visible area
 
             highResLoadDelay: options.highResLoadDelay || 250, // time in ms to wait before loading
@@ -44,7 +46,7 @@ export class SmoozooCollection {
             instantLoadThreshold: options.instantLoadThreshold || 0.8,
 
             apiOrigin: options.apiOrigin || '',
-            maxConcurrentRequests: options.maxConcurrentRequests || 5,
+            maxConcurrentRequests: options.maxConcurrentRequests || 15,
 
             thumbnailStrategy: options.thumbnailStrategy || 'server',
         };
@@ -95,6 +97,11 @@ export class SmoozooCollection {
                 :
                 this.config.thumbnailSize; // Use fixed height for rows
 
+            // If tags were included in the response, store them in our local DB
+            if (imgData.tags && Array.isArray(imgData.tags)) {
+                this.tags[imgData.id] = imgData.tags;
+            }
+
             return {
                 ...imgData,
                 filename: imgData.highRes.split('/').pop().split('?')[0],
@@ -115,6 +122,8 @@ export class SmoozooCollection {
                 y: 0
             };
         });
+
+        this.db.setAll(this.tags);
 
         this.onResize(); // Run initial layout and render
     }
@@ -738,13 +747,16 @@ export class SmoozooCollection {
         if (focusedImage) {
             if (focusedImage.state === 'ready' && scale > this.config.highResThreshold) {
                 if (focusedImage.highResState === 'none') {
-
-                    // Calculate how much horizontal space the image takes up on the screen.
+                    // Check if the image's width OR height dominates the corresponding canvas dimension.
                     const imageScreenWidth = focusedImage.width * scale;
-                    const isDominantOnScreen = (imageScreenWidth / this.canvas.width) >= this.config.instantLoadThreshold;
+                    const imageScreenHeight = focusedImage.height * scale;
+
+                    const isDominantOnScreen =
+                        (imageScreenWidth / this.canvas.width >= this.config.instantLoadThreshold) ||
+                        (imageScreenHeight / this.canvas.height >= this.config.instantLoadThreshold);
 
                     if (isDominantOnScreen) {
-                        // The image is big enough on screen that the user clearly wants to see it.
+                        // The image is dominant in at least one dimension.
                         // Bypass the debounce and load the high-res version immediately.
                         this.requestHighResLoad(focusedImage);
                     } else {
@@ -758,6 +770,7 @@ export class SmoozooCollection {
                             }
                         }, this.config.highResLoadDelay);
                     }
+
                 }
             }
         }
