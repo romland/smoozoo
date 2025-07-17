@@ -766,8 +766,8 @@ export class SmoozooCollection {
                     const imageScreenHeight = this.imageUnderCursor.height * scale;
                     
                     const isDominantOnScreen =
-                    (imageScreenWidth / this.canvas.width >= this.config.instantLoadThreshold) ||
-                    (imageScreenHeight / this.canvas.height >= this.config.instantLoadThreshold);
+                        (imageScreenWidth / this.canvas.width >= this.config.instantLoadThreshold) ||
+                        (imageScreenHeight / this.canvas.height >= this.config.instantLoadThreshold);
                     
                     if (isDominantOnScreen) {
                         // Bypass the debounce and load the high-res version immediately.
@@ -790,8 +790,19 @@ export class SmoozooCollection {
         // --- 6. Draw Visible Images ---
         for (const img of visibleImages) {
             let textureToDisplay = img.thumbTex;
-            let drawn = false;
+            if (!textureToDisplay) continue; // Don't draw if texture isn't ready
+
+            // --- NEW: On-Canvas Selection Indicator ---
+            // Get the location of the new 'u_brightness' uniform from your shader.
+            const brightnessLocation = gl.getUniformLocation(program, "u_brightness");
+            if (this.selectionDeck.isSelected(img.id)) {
+                gl.uniform1f(brightnessLocation, 0.5); // Dim selected images
+            } else {
+                gl.uniform1f(brightnessLocation, 1.0); // Full brightness for others
+            }
             
+            let drawn = false;
+
             if (img === this.imageUnderCursor && img.highResState === 'ready' && (img.highResTexture || img.highResTiles)) {
                 this.updateCacheUsage(img);
                 
