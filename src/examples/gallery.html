@@ -110,12 +110,13 @@
                                 //     url: "/api/upload"
                                 // } : undefined,
 
-                                // layoutMode: 'masonry', // or omit, since it's the default
-                                // cols: 6                                
-
+                                layoutMode: 'masonry',
+                                cols: 12,
+/*
+                                // For row layout: 75 images per row (~width + padding)
                                 layoutMode: 'row',
-                                maxRowWidth: 25000,
-
+                                maxRowWidth: 75 * (256 + 20),
+*/
                                 // To prevent flickering, increase the cache size. Uses more memory.
                                 highResCacheLimit: 15,
 

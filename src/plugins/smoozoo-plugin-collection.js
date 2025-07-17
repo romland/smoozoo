@@ -3,6 +3,8 @@
  *
  * This plugin transforms the Smoozoo viewer into a navigable gallery of images.
  */
+import { SelectionDeck } from './smoozoo-plugin-collection-selectiondeck.js';
+
 export class SmoozooCollection {
     constructor(api, options, targetElement) {
         this.api = api;
@@ -65,7 +67,13 @@ export class SmoozooCollection {
             x: 0,
             y: 0
         };
+
         this.isSelectModeActive = false;
+
+
+        this.imageUnderCursor = null; // Replaces 'focusedImage'
+        this.lastMouseWorldPos = { x: 0, y: 0 }; // Track mouse in world coordinates
+        this.selectionDeck = null; // Will hold the SelectionDeck instance
 
         this.imageLoadQueue = new Set(); // Tracks images that need loading
 
@@ -88,6 +96,11 @@ export class SmoozooCollection {
         console.log("🖼️ Smoozoo Collection Plugin Initializing...");
         this.api.preventInitialLoad();
         this.api.overrideRenderer(this.render.bind(this));
+
+        this.selectionDeck = new SelectionDeck(this, this.config.deckConfig, this.targetElement);
+        this.selectionDeck.init();
+        this.injectFocusUI();
+
         this.addKeyListeners();
         this.injectUI();
 
@@ -664,7 +677,7 @@ export class SmoozooCollection {
         const buffers = this.api.getBuffers();
         const attribLocations = this.api.getAttribLocations();
         const uniformLocations = this.api.getUniformLocations();
-
+        
         gl.useProgram(program);
         gl.clearColor(0.055, 0.016, 0.133, 1.0);
         gl.clear(gl.COLOR_BUFFER_BIT);
@@ -674,19 +687,19 @@ export class SmoozooCollection {
         gl.enableVertexAttribArray(attribLocations.texcoord);
         gl.bindBuffer(gl.ARRAY_BUFFER, buffers.texcoord);
         gl.vertexAttribPointer(attribLocations.texcoord, 2, gl.FLOAT, false, 0, 0);
-
+        
         const mainViewProjMtx = this.api.makeMatrix(originX, originY, scale);
         gl.uniformMatrix3fv(uniformLocations.viewProjection, false, mainViewProjMtx);
         const identityMatrix = [1, 0, 0, 0, 1, 0, 0, 0, 1];
         gl.uniformMatrix3fv(uniformLocations.rotation, false, identityMatrix);
         gl.uniform2f(uniformLocations.texCoordScale, 1, 1);
-
+        
         // --- 2. Calculate Query Area ---
         const viewWidth = canvas.width / scale;
         const viewHeight = canvas.height / scale;
         const viewX = -originX;
         const viewY = -originY;
-
+        
         const verticalBuffer = viewHeight * this.config.loadBuffer;
         const horizontalBuffer = viewWidth * this.config.loadBuffer;
         const loadArea = {
@@ -695,22 +708,20 @@ export class SmoozooCollection {
             width: viewWidth + horizontalBuffer * 2,
             height: viewHeight + verticalBuffer * 2,
         };
-
+        
         // Abort if the quadtree isn't ready
         if (!this.quadtree) {
             return;
         }
-
+        
         // --- 3. Query Quadtree for Relevant Images ---
         const potentialImages = this.quadtree.query(loadArea, scale);
-
-        // --- 4. Process Potential Images ---
-        const viewportCenterX = viewX + viewWidth / 2;
-        const viewportCenterY = viewY + viewHeight / 2;
-        let focusedImage = null;
-        let minDistance = Infinity;
+        
+        // --- 4. Process Images ---
+        // Find visible images and the specific image under the mouse cursor
         const visibleImages = [];
-
+        let newImageUnderCursor = null;
+        
         for (const img of potentialImages) {
             // Check which of the potential images are actually visible to draw
             const isVisible = (
@@ -718,18 +729,20 @@ export class SmoozooCollection {
                 img.y < viewY + viewHeight && img.y + img.height > viewY
             );
             img.isVisible = isVisible; // For network queue prioritization
-
+            
             if (isVisible) {
                 visibleImages.push(img);
-                const imgCenterX = img.x + img.width / 2;
-                const imgCenterY = img.y + img.height / 2;
-                const distance = Math.sqrt(Math.pow(imgCenterX - viewportCenterX, 2) + Math.pow(imgCenterY - viewportCenterY, 2));
-                if (distance < minDistance) {
-                    minDistance = distance;
-                    focusedImage = img;
+                // Check if this image contains the last known mouse position
+                if (
+                    this.lastMouseWorldPos.x >= img.x &&
+                    this.lastMouseWorldPos.x <= img.x + img.width &&
+                    this.lastMouseWorldPos.y >= img.y &&
+                    this.lastMouseWorldPos.y <= img.y + img.height
+                ) {
+                    newImageUnderCursor = img;
                 }
             }
-
+            
             // If an image is in the load area and is a placeholder, queue it
             if (img.state === 'placeholder') {
                 const isQueued = this.requestQueue.some(req => req.id === img.id);
@@ -738,27 +751,27 @@ export class SmoozooCollection {
                 }
             }
         }
-
+        
+        this.imageUnderCursor = newImageUnderCursor;
+        
         // --- 5. High-Resolution Logic ---
-
         // Always clear any high-res load request that was scheduled in the previous frame.
         clearTimeout(this.highResLoadDebounceTimer);
-
-        if (focusedImage) {
-            if (focusedImage.state === 'ready' && scale > this.config.highResThreshold) {
-                if (focusedImage.highResState === 'none') {
+        
+        if (this.imageUnderCursor) {
+            if (this.imageUnderCursor.state === 'ready' && scale > this.config.highResThreshold) {
+                if (this.imageUnderCursor.highResState === 'none') {
                     // Check if the image's width OR height dominates the corresponding canvas dimension.
-                    const imageScreenWidth = focusedImage.width * scale;
-                    const imageScreenHeight = focusedImage.height * scale;
-
+                    const imageScreenWidth = this.imageUnderCursor.width * scale;
+                    const imageScreenHeight = this.imageUnderCursor.height * scale;
+                    
                     const isDominantOnScreen =
-                        (imageScreenWidth / this.canvas.width >= this.config.instantLoadThreshold) ||
-                        (imageScreenHeight / this.canvas.height >= this.config.instantLoadThreshold);
-
+                    (imageScreenWidth / this.canvas.width >= this.config.instantLoadThreshold) ||
+                    (imageScreenHeight / this.canvas.height >= this.config.instantLoadThreshold);
+                    
                     if (isDominantOnScreen) {
-                        // The image is dominant in at least one dimension.
                         // Bypass the debounce and load the high-res version immediately.
-                        this.requestHighResLoad(focusedImage);
+                        this.requestHighResLoad(this.imageUnderCursor);
                     } else {
                         // The user is likely panning. Use the timeout to prevent choppiness.
                         this.highResLoadDebounceTimer = setTimeout(() => {
@@ -766,30 +779,27 @@ export class SmoozooCollection {
                                 scale: currentScale
                             } = this.api.getTransform();
                             if (currentScale > this.config.highResThreshold) {
-                                this.requestHighResLoad(focusedImage);
+                                this.requestHighResLoad(this.imageUnderCursor);
                             }
                         }, this.config.highResLoadDelay);
                     }
-
                 }
             }
         }
-
+        
         // --- 6. Draw Visible Images ---
         for (const img of visibleImages) {
             let textureToDisplay = img.thumbTex;
             let drawn = false;
-
-            if (img === focusedImage && img.highResState === 'ready' && (img.highResTexture || img.highResTiles)) {
+            
+            if (img === this.imageUnderCursor && img.highResState === 'ready' && (img.highResTexture || img.highResTiles)) {
                 this.updateCacheUsage(img);
-
+                
                 if (img.highResTexture) {
-                    // Calculate how to fit the high-res image inside its layout box
-                    // without stretching, preserving its aspect ratio.
                     const boxAspect = img.width / img.height;
                     const imageAspect = img.originalWidth / img.originalHeight;
                     let finalWidth, finalHeight, offsetX, offsetY;
-
+                    
                     if (imageAspect > boxAspect) { // Image is wider than the box
                         finalWidth = img.width;
                         finalHeight = img.width / imageAspect;
@@ -808,6 +818,7 @@ export class SmoozooCollection {
                     gl.drawArrays(gl.TRIANGLES, 0, 6);
                     drawn = true; // Mark as drawn to prevent the default renderer from running
                 } else if (img.highResTiles) {
+                    
                     const boxAspect = img.width / img.height;
                     const imageAspect = img.originalWidth / img.originalHeight;
                     let finalWidth, finalHeight, offsetX, offsetY;
@@ -836,7 +847,7 @@ export class SmoozooCollection {
                     drawn = true;
                 }
             }
-
+            
             if (!drawn && textureToDisplay) {
                 gl.bindTexture(gl.TEXTURE_2D, textureToDisplay);
                 gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, filter);
@@ -844,25 +855,12 @@ export class SmoozooCollection {
                 gl.drawArrays(gl.TRIANGLES, 0, 6);
             }
         }
-
+        
         // --- 7. Final Processing and UI ---
         this.processRequestQueue();
-
-        const selectionDiv = document.getElementById('smoozoo-selection-box');
-        if (this.isDraggingSelection && this.selectionBox) {
-            const canvasRect = this.canvas.getBoundingClientRect();
-            const screenStartX = (this.selectionBox.startX + originX) * scale + canvasRect.left;
-            const screenStartY = (this.selectionBox.startY + originY) * scale + canvasRect.top;
-            const screenEndX = (this.lastMouseWorldPos.x + originX) * scale + canvasRect.left;
-            const screenEndY = (this.lastMouseWorldPos.y + originY) * scale + canvasRect.top;
-            selectionDiv.style.left = `${Math.min(screenStartX, screenEndX)}px`;
-            selectionDiv.style.top = `${Math.min(screenStartY, screenEndY)}px`;
-            selectionDiv.style.width = `${Math.abs(screenEndX - screenStartX)}px`;
-            selectionDiv.style.height = `${Math.abs(screenEndY - screenStartY)}px`;
-            selectionDiv.style.display = 'block';
-        } else {
-            selectionDiv.style.display = 'none';
-        }
+        
+        // Update the position of the focus highlight UI element
+        this.updateFocusHighlight();
     }
 
     /**
@@ -903,19 +901,21 @@ export class SmoozooCollection {
     // --- Event Handlers ---
     addKeyListeners() {
         window.addEventListener('keydown', (e) => {
-            if (e.key === 'Shift') {
-                this.isSelectModeActive = true;
-                this.canvas.style.cursor = 'crosshair';
-            }
-        });
-
-        window.addEventListener('keyup', (e) => {
-            if (e.key === 'Shift') {
-                this.isSelectModeActive = false;
-                this.canvas.style.cursor = 'grab';
+            // Press space to select/deselect the focused image
+            if (e.code === 'Space') {
+                e.preventDefault(); // Prevents page from scrolling
+                this.handleSelectAction();
             }
         });
     }
+
+    handleSelectAction() {
+        // Now selects the image under the cursor
+        if (this.imageUnderCursor) {
+            this.selectionDeck.toggle(this.imageUnderCursor);
+        }
+    }
+
 
     /*
     temporary hack until I can fix "this" issue in Smoozoo itself -- properly.
@@ -958,19 +958,63 @@ export class SmoozooCollection {
         return false;
     }
 
-    onMouseMove = (e, {
-        worldX,
-        worldY
-    } = {}) => {
+    onMouseMove = (e, { worldX, worldY } = {}) => {
         if (worldX !== undefined && worldY !== undefined) {
             this.lastMouseWorldPos = {
                 x: worldX,
                 y: worldY
             };
+
+            // We need to request a render to update the highlight in real-time
+            // TODO: can this be slow?
+            this.api.requestRender();
         }
     }
 
     // --- UI and Actions ---
+
+    /**
+     * Injects a div used to highlight the currently focused image.
+     */
+    injectFocusUI() {
+        const html = `<div id="smoozoo-focus-highlight"></div>`;
+        this.targetElement.insertAdjacentHTML('beforeend', html);
+        const highlightStyle = document.getElementById('smoozoo-focus-highlight').style;
+        highlightStyle.position = 'absolute';
+        highlightStyle.display = 'none';
+        highlightStyle.border = `3px solid ${this.config.focusHighlightColor}`;
+        highlightStyle.borderRadius = '5px';
+        highlightStyle.zIndex = '50';
+        highlightStyle.pointerEvents = 'none';
+        highlightStyle.transition = 'all 0.15s ease-out';
+    }
+
+    /**
+     * Updates the position and size of the focus highlight div in the render loop.
+     */
+    updateFocusHighlight() {
+        const highlightDiv = document.getElementById('smoozoo-focus-highlight');
+        // Now highlights the image under the cursor
+        if (this.imageUnderCursor) {
+            const { scale, originX, originY } = this.api.getTransform();
+            const canvasRect = this.canvas.getBoundingClientRect();
+            
+            const screenX = (this.imageUnderCursor.x + originX) * scale + canvasRect.left;
+            const screenY = (this.imageUnderCursor.y + originY) * scale + canvasRect.top;
+            const screenWidth = this.imageUnderCursor.width * scale;
+            const screenHeight = this.imageUnderCursor.height * scale;
+            
+            highlightDiv.style.display = 'block';
+            highlightDiv.style.left = `${screenX - 3}px`;
+            highlightDiv.style.top = `${screenY - 3}px`;
+            highlightDiv.style.width = `${screenWidth}px`;
+            highlightDiv.style.height = `${screenHeight}px`;
+
+        } else {
+            highlightDiv.style.display = 'none';
+        }
+    }
+
 
     injectUI() {
         const html = `
