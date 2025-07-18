@@ -239,9 +239,9 @@ export class SelectionDeck
 
         // --- Part 5: Cleanup ---
         flyer.addEventListener('transitionend', () => {
-            deckCard.style.transition = 'opacity 0.15s ease-out';
+            deckCard.style.transition = 'opacity 0.015s ease-out';
             deckCard.style.opacity = '1';
-            flyer.style.transition = 'opacity 0.15s ease-out';
+            flyer.style.transition = 'opacity 0.015s ease-out';
             flyer.style.opacity = '0';
             flyer.addEventListener('transitionend', () => {
                 if (flyer.parentNode) flyer.remove();
