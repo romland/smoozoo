@@ -1,3 +1,70 @@
+/**
+ * Fetches all available information for a single image ID from the server.
+ * server
+ * @param {string} imageId The unique ID of the image.
+ * @returns {Promise<object>} A promise that resolves with the image details object.
+ */
+export async function fetchImageInfo(apiOrigin, imageId)
+{
+    if (!imageId) {
+        throw new Error('Image ID must be provided.');
+    }
+
+    try {
+        const response = await fetch(`${apiOrigin}/api/info/${imageId}`);
+
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(`Failed to fetch image info for ${imageId}. Status: ${response.status}. Reason: ${errorData.error}`);
+        }
+
+        const data = await response.json();
+        console.log(`✅ Successfully fetched info for ${imageId}:`, data);
+        return data;
+
+    } catch (error) {
+        console.error('🚨 Error in fetchImageInfo:', error);
+        throw error; // Re-throw the error so the calling code can handle it
+    }
+}
+
+
+/**
+ * Fetches all available information for an array of image IDs in a single batch request.
+ * server
+ * @param {string[]} imageIds An array of image IDs.
+ * @returns {Promise<object[]>} A promise that resolves with an array of image detail objects.
+ */
+export async function fetchMultipleImageInfo(apiOrigin, imageIds)
+{
+    if (!Array.isArray(imageIds) || imageIds.length === 0) {
+        throw new Error('An array of image IDs must be provided.');
+    }
+
+    try {
+        const response = await fetch(`${apiOrigin}/api/info/batch`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ ids: imageIds }),
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(`Failed to fetch batch image info. Status: ${response.status}. Reason: ${errorData.error}`);
+        }
+
+        const data = await response.json();
+        console.log(`✅ Successfully fetched batch info for ${data.length} images:`, data);
+        return data;
+
+    } catch (error) {
+        console.error('🚨 Error in fetchMultipleImageInfo:', error);
+        throw error; // Re-throw the error so the calling code can handle it
+    }
+}
+
 
 // Simple wrapper for localStorage to act as a key-value store
 export class LocalStorageDB {
@@ -17,6 +84,7 @@ export class LocalStorageDB {
         localStorage.setItem(this.dbName, JSON.stringify(data));
     }
 }
+
 export class ThumbnailCache {
     constructor(dbName = 'smoozoo-thumb-cache', storeName = 'thumbnails') {
         this.dbName = dbName;
@@ -65,16 +133,15 @@ export class ThumbnailCache {
         });
     }
 }
+
 /**
- * Smoozoo Advanced Quadtree (Corrected)
+ * Smoozoo Advanced Quadtree
  *
  * This quadtree implementation correctly handles objects that span boundaries by storing them
  * in parent nodes, which prevents rendering artifacts and disappearing objects at high zoom levels.
  * It also includes screen-size culling to skip rendering nodes that are too small to be visible,
  * ensuring optimal performance for massive collections.
  */
-
-
 export class Quadtree {
     /**
      * @param {object} boundary - The { x, y, width, height } of the node.

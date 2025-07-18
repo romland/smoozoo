@@ -4,6 +4,7 @@
  * This plugin transforms the Smoozoo viewer into a navigable gallery of images.
  */
 import { ThumbnailCache, LocalStorageDB, Quadtree } from './smoozoo-plugin-collection-helpers.js';
+import { ImageInfoCache } from './smoozoo-plugin-collection-imageinfocache.js';
 import { SelectionDeck } from './smoozoo-plugin-collection-selectiondeck.js';
 
 export class SmoozooCollection
@@ -17,9 +18,13 @@ export class SmoozooCollection
 
         // --- Caching and Worker Setup ---
         this.cache = new ThumbnailCache();
-        this.worker = new Worker(new URL('../js/thumbnail.worker.js',
-            import.meta.url));
+        this.imageInfoCache = new ImageInfoCache(this.options.apiOrigin);        
+        this.worker = new Worker(new URL('../js/thumbnail.worker.js', import.meta.url));
         this.worker.onmessage = this.handleWorkerMessage.bind(this);
+
+        this.collectionName = options.collectionName;
+
+        console.log("Collection name:", this.collectionName);
 
         // --- Configuration ---
         this.config = {
@@ -53,6 +58,10 @@ export class SmoozooCollection
             maxConcurrentRequests: options.maxConcurrentRequests || 15,
 
             thumbnailStrategy: options.thumbnailStrategy || 'server',
+
+            deckConfig: {
+                apiOrigin: this.options.apiOrigin
+            }
         };
 
         // --- State ---
@@ -99,7 +108,7 @@ export class SmoozooCollection
         this.api.preventInitialLoad();
         this.api.overrideRenderer(this.render.bind(this));
 
-        this.selectionDeck = new SelectionDeck(this, this.config.deckConfig, this.targetElement);
+        this.selectionDeck = new SelectionDeck(this, this.imageInfoCache, this.config.deckConfig, this.targetElement);
         this.selectionDeck.init();
 
         this.addKeyListeners();
@@ -129,7 +138,8 @@ export class SmoozooCollection
                 highResState: 'none',
                 highResTexture: null,
                 x: 0,
-                y: 0
+                y: 0,
+                details: null 
             };
         });
 
@@ -193,6 +203,37 @@ export class SmoozooCollection
     async requestHighResLoad(image) {
         if (image.highResState !== 'none') return;
         image.highResState = 'loading';
+
+        // Fetch and log (for now) image info when high-res is requested
+        this.imageInfoCache.getSingleInfo(image.id).then(details => {
+            if (details) {
+                // Store details on the image object for potential future use (e.g., drawing on canvas)
+                image.details = details; 
+                
+                // For now, just log the full details object
+                console.log("Details for zoomed image:", details);
+
+                // This is how you would extract and print specific info as requested
+                // This will be useful when you want to draw this text over the image.
+                const geo = details.geo ? `${details.geo.city || 'N/A'}, ${details.geo.country || 'N/A'}` : null;
+                const dateTime = details.exif?.DateTimeOriginal?.rawValue;
+                
+                let infoString = "";
+                
+                if (dateTime) {
+                    infoString += `Date: ${dateTime}`;
+                }
+
+                if (geo) {
+                    infoString += `${infoString ? ' | ' : ''}Location: ${geo}`;
+                }
+                
+                if (infoString) {
+                    // In the future, you could draw this `infoString` in the bottom right corner.
+                    console.log(`Formatted Info: ${infoString}`);
+                }
+            }
+        });
 
         try {
             const imageUrl = (this.config.apiOrigin + image.highRes).replace(/#/g, '%23');
@@ -932,8 +973,8 @@ export class SmoozooCollection
         });
     }
 
-    handleSelectAction() {
-        // Now selects the image under the cursor
+    handleSelectAction()
+    {
         if (this.imageUnderCursor) {
             this.selectionDeck.toggle(this.imageUnderCursor);
         }
@@ -1004,8 +1045,15 @@ export class SmoozooCollection
 
             // Find intersecting images.
             const intersectingImages = this.quadtree.query(selectionRect);
+
+            // Batch fetch info for all drag-selected images
+            if (intersectingImages.length > 0) {
+                const ids = intersectingImages.map(img => img.id);
+                this.imageInfoCache.getInfo(ids).then(detailsMap => {
+                    console.log("Details for drag-selected images:", Object.fromEntries(detailsMap));
+                });
+            }
             
-            // --- THIS IS THE FIX ---
             // Toggle each image's selection status instead of just adding.
             intersectingImages.forEach(image => {
                 this.selectionDeck.toggle(image);
@@ -1034,28 +1082,38 @@ export class SmoozooCollection
     }
 
 
-    tagSelectedDeckImages() {
+    tagSelectedDeckImages()
+    {
         const selectionSize = this.selectionDeck.selectedImages.size;
+
         if (selectionSize === 0) {
             alert("No images are selected in the deck.");
             return;
         }
 
         const newTags = prompt(`Enter tags for the ${selectionSize} selected images (comma-separated):`, "");
-        if (newTags === null || newTags.trim() === '') return;
+        if (newTags === null || newTags.trim() === '') {
+            return;
+        }
 
         const tagsToAdd = newTags.split(',').map(t => t.trim()).filter(Boolean);
-        if (tagsToAdd.length === 0) return;
+        if (tagsToAdd.length === 0) {
+            return;
+        }
 
         // Apply tags to all images currently in the selection deck
         for (const id of this.selectionDeck.selectedImages.keys()) {
-            if (!this.tags[id]) this.tags[id] = [];
+            if (!this.tags[id]) {
+                this.tags[id] = [];
+            }
+
             const tagSet = new Set(this.tags[id]);
             tagsToAdd.forEach(tag => tagSet.add(tag));
             this.tags[id] = [...tagSet];
         }
 
         this.db.setAll(this.tags);
+
         alert(`Tags added to ${selectionSize} images.`);
         console.log("Updated Tags DB:", this.tags);
     }

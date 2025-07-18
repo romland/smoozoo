@@ -1,3 +1,5 @@
+import { fetchImageInfo, fetchMultipleImageInfo } from "./smoozoo-plugin-collection-helpers";
+
 /**
  * SelectionDeck Class - Stacking Layout Version
  *
@@ -6,10 +8,11 @@
  */
 export class SelectionDeck
 {
-    constructor(plugin, options, targetElement)
+    constructor(plugin, imageInfoCache, options, targetElement)
     {
         this.plugin = plugin;
         this.api = plugin.api;
+        this.imageInfoCache = imageInfoCache;        
         this.options = {
             position: 'bottom-right',
             cardWidth: 80,
@@ -40,7 +43,8 @@ export class SelectionDeck
     }
 
 
-    init() {
+    init()
+    {
         this.injectUI();
         this.applyStyles();
 
@@ -56,6 +60,7 @@ export class SelectionDeck
             e.stopPropagation();
             menuPanel.classList.toggle('visible');
         });
+
         menuPanel.addEventListener('click', (e) => {
             const button = e.target.closest('button');
             if (!button) return;
@@ -73,6 +78,7 @@ export class SelectionDeck
 
             menuPanel.classList.remove('visible');
         });
+        
         document.addEventListener('click', () => {
             if (menuPanel.classList.contains('visible')) {
                 menuPanel.classList.remove('visible');
@@ -200,6 +206,14 @@ export class SelectionDeck
         if (this.selectedImages.has(image.id)) {
             return;
         }
+
+        this.imageInfoCache.getSingleInfo(image.id)
+            .then(details => {
+                if(details) {
+                     console.log({details});
+                }
+            }
+        );
 
         // This ensures the card that fades in has the correct picture.
         const deckCard = this.createDeckCard(image);

@@ -28,9 +28,10 @@
                 if(SMOOZOO_SERVER_AVAILABLE) {
                     await fetch(apiUrl)
                         .then(res => res.json())
-                        .then(images => {
-                            console.log(images.data)
-                            imageCollection = images.data;
+                        .then(data => {
+                            console.log(data.data);
+                            collectionName = data.collectionName;
+                            imageCollection = data.data;
                         })
                         .catch(console.error);
                     
@@ -101,6 +102,7 @@
                         {
                             name: window.smoozooPlugins.SmoozooCollection,
                             options: {
+                                collectionName: collectionName,
                                 images: imageCollection,
                                 padding: 20,
                                 thumbnailSize: 256,
