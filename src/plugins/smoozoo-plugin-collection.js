@@ -92,6 +92,9 @@ export class SmoozooCollection
         this.tags = this.db.getAll() || {};
 
         this.init();
+
+        // Now that the main images are loaded, tell the deck to load its saved state.
+        this.selectionDeck.loadSelection();
     }
 
     init() {
@@ -264,7 +267,7 @@ export class SmoozooCollection
         this.highResUsageList.unshift(image.id);
     }
 
-    
+
     async handleWorkerMessage(event) {
         const {
             status,

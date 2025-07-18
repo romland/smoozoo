@@ -25,18 +25,51 @@ export class SelectionDeck
     }
 
 
-    init()
-    {
+    init() {
         this.injectUI();
         this.applyStyles();
+
+        const clearButton = document.getElementById('smoozoo-deck-clear-btn');
+        if (clearButton) {
+            clearButton.addEventListener('click', () => this.clearAll());
+        }
     }
 
 
+    // Load selection from localStorage
+    loadSelection()
+    {
+        const savedIdsJson = localStorage.getItem('smoozooDeckSelection');
+        if (savedIdsJson) {
+            const savedIds = JSON.parse(savedIdsJson);
+            if (!savedIds || savedIds.length === 0) return;
+
+            savedIds.forEach(id => {
+                // Find the full image object from the now-populated main list
+                const image = this.plugin.images.find(img => img.id === id);
+                if (image) {
+                    // Add the card to the deck without the flyer animation
+                    const card = this.createDeckCard(image);
+                    card.style.opacity = '1';
+                    this.container.appendChild(card);
+                    this.selectedImages.set(id, { image, element: card });
+                }
+            });
+            // Update the layout once all saved cards have been added
+            this.updateDeckLayout(false);
+        }
+    }
+
     injectUI()
     {
-        // Add the counter element inside the main container
         const html = `
             <div id="smoozoo-deck-container">
+                <button id="smoozoo-deck-clear-btn" title="Clear selection">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
+                </button>
                 <div id="smoozoo-deck-count"></div>
             </div>
         `;
@@ -92,6 +125,8 @@ export class SelectionDeck
         this.container.appendChild(deckCard);
         this.selectedImages.set(image.id, { image, element: deckCard });
         this.animateFlyerAndLayout(deckCard, image);
+
+        this._saveSelection();
     }
 
 
@@ -119,6 +154,7 @@ export class SelectionDeck
             cardElement.addEventListener('transitionend', () => {
                 cardElement.remove();
                 this.updateDeckLayout(true);
+                this._saveSelection();
             }, { once: true });
         }
     }
@@ -148,8 +184,11 @@ export class SelectionDeck
 
     updateDeckLayout(animate = true)
     {
+        const clearButton = document.getElementById('smoozoo-deck-clear-btn');
         const cards = this.container.querySelectorAll('.smoozoo-deck-card');
         const cardCount = cards.length;
+
+        if (clearButton) clearButton.style.display = cardCount > 0 ? 'block' : 'none';
 
         const counter = this.container.querySelector('#smoozoo-deck-count');
 
@@ -183,7 +222,6 @@ export class SelectionDeck
 
         this.container.style.width = `${finalContainerWidth}px`;
 
-        // This loop now works correctly because `cards` contains only the cards.
         cards.forEach((card, index) => {
             card.style.transition = animate ? 'right 0.3s ease-out, opacity 0.2s' : 'none';
             const reversedIndex = cardCount - 1 - index;
@@ -306,4 +344,43 @@ export class SelectionDeck
     isSelected(imageId) {
         return this.selectedImages.has(imageId);
     }
+
+    _saveSelection() {
+        const ids = Array.from(this.selectedImages.keys());
+        if (ids.length > 0) {
+            localStorage.setItem('smoozooDeckSelection', JSON.stringify(ids));
+        } else {
+            localStorage.removeItem('smoozooDeckSelection');
+        }
+    }
+
+    clearAll() {
+        const cards = this.container.querySelectorAll('.smoozoo-deck-card');
+        
+        if (cards.length === 0) {
+            return;
+        }
+
+        // Start the removal animation on all cards at once.
+        cards.forEach(card => {
+            card.classList.add('removing');
+        });
+
+        // Clear the logical state immediately.
+        this.selectedImages.clear();
+        this._saveSelection();
+        
+        // After 350ms (just longer than the 0.3s animation), clean up the DOM.
+        setTimeout(() => {
+            // Remove all the animated card elements.
+            cards.forEach(card => card.remove());
+
+            // Update the layout for the now-empty deck.
+            this.updateDeckLayout(false);
+            
+            // Redraw the main canvas.
+            this.api.requestRender();
+        }, 350);
+    }
+
 }
