@@ -34,7 +34,7 @@ init() {
 
     // Logic to open/close the menu
     menuButton.addEventListener('click', (e) => {
-        e.stopPropagation(); // Prevent click from closing menu immediately
+        e.stopPropagation();
         menuPanel.classList.toggle('visible');
     });
 
@@ -43,25 +43,21 @@ init() {
         const action = e.target.dataset.action;
         if (action === 'tag') {
             this.plugin.tagSelectedDeckImages();
+        } else if (action === 'clear') {
+            this.clearAll();
         }
         // Hide menu after action
         menuPanel.classList.remove('visible');
     });
 
-    // Global listener to close the menu when clicking elsewhere
+    // Global listener to close the menu
     document.addEventListener('click', () => {
         if (menuPanel.classList.contains('visible')) {
             menuPanel.classList.remove('visible');
         }
     });
-
-    // Wire up the clear button
-    const clearButton = document.getElementById('smoozoo-deck-clear-btn');
-    if (clearButton) {
-        clearButton.addEventListener('click', () => this.clearAll());
-    }
     
-    // The rest of the init method (loading from localStorage) remains the same.
+    // The call to load from localStorage remains in your SmoozooCollection's init
 }
 
 
@@ -90,16 +86,13 @@ init() {
     }
 
 
-    injectUI()
-    {
+    injectUI() {
         const html = `
             <div id="smoozoo-deck-container">
                 <div id="smoozoo-deck-actions-menu" class="smoozoo-deck-menu">
                     <button data-action="tag">Tag Selection</button>
+                    <button data-action="clear">Clear Selection</button>
                 </div>
-                <button id="smoozoo-deck-clear-btn" title="Clear selection">
-                    <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-                </button>
                 <button id="smoozoo-deck-menu-btn" title="Actions">
                     <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="1"></circle><circle cx="12" cy="5" r="1"></circle><circle cx="12" cy="19" r="1"></circle></svg>
                 </button>
@@ -215,17 +208,17 @@ init() {
     }
 
 
-    updateDeckLayout(animate = true)
-    {
-        const clearButton = document.getElementById('smoozoo-deck-clear-btn');
+    updateDeckLayout(animate = true) {
         const menuButton = document.getElementById('smoozoo-deck-menu-btn');
-        
         const cards = this.container.querySelectorAll('.smoozoo-deck-card');
         const cardCount = cards.length;
 
+        // Show menu button only if there are cards
+        if (menuButton) menuButton.style.display = cardCount > 0 ? 'block' : 'none';
+
         // Show buttons only if there are cards
         const hasCards = cardCount > 0;
-        if (clearButton) clearButton.style.display = hasCards ? 'block' : 'none';
+        // if (clearButton) clearButton.style.display = hasCards ? 'block' : 'none';
         if (menuButton) menuButton.style.display = hasCards ? 'block' : 'none';
         
         // ... rest of the method is unchanged ...

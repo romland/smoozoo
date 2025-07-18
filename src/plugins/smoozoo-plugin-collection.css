@@ -105,24 +105,24 @@ body.ui-hidden #smoozoo-collection-actions {
     pointer-events: none; /* Allows mouse events to pass through the box */
 }
 
-/* Styling for "..." menu */
+/* Styling for the "..." menu button */
 #smoozoo-deck-menu-btn {
     position: absolute;
-    top: 4px;
-    left: 4px; /* Positioned left, next to the clear button */
+    top: 3px;
+    left: 4px; /* Moved back to the left */
     z-index: 101;
-    width: 20px;
-    height: 20px;
-    padding: 3px;
-    background-color: rgba(0, 0, 0, 0.5);
-    border: 1px solid rgba(255, 255, 255, 0.4);
+    width: 22px;   /* Made slightly larger */
+    height: 22px;
+    padding: 4px;
+    background-color: rgba(0, 0, 0, 0.7); /* Made more opaque */
+    border: 1px solid rgba(255, 255, 255, 0.6);
     border-radius: 50%;
     color: white;
     cursor: pointer;
-    display: none; /* Hidden by default */
+    display: none;
 }
 #smoozoo-deck-menu-btn:hover {
-    background-color: rgba(80, 80, 80, 0.8);
+    background-color: rgba(80, 80, 80, 0.9);
 }
 #smoozoo-deck-menu-btn svg {
     stroke: currentColor;
@@ -131,18 +131,12 @@ body.ui-hidden #smoozoo-collection-actions {
     stroke-linejoin: round;
 }
 
-/* Move the clear button to the right */
-#smoozoo-deck-clear-btn {
-    left: auto;
-    right: 4px;
-}
-
 /* Styling for the dropdown menu panel */
 .smoozoo-deck-menu {
-    display: none; /* Hidden by default */
+    display: none;
     position: absolute;
-    bottom: 100%; /* Appears above the button */
-    left: 4px;
+    bottom: 100%;
+    left: 4px; /* Aligned to the left side */
     z-index: 102;
     background-color: #2c2c2c;
     border-radius: 6px;
@@ -150,6 +144,7 @@ body.ui-hidden #smoozoo-collection-actions {
     padding: 5px;
     margin-bottom: 5px;
 }
+
 .smoozoo-deck-menu.visible {
     display: block;
 }
