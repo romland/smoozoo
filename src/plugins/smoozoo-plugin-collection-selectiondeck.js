@@ -25,15 +25,44 @@ export class SelectionDeck
     }
 
 
-    init() {
-        this.injectUI();
-        this.applyStyles();
+init() {
+    this.injectUI();
+    this.applyStyles();
 
-        const clearButton = document.getElementById('smoozoo-deck-clear-btn');
-        if (clearButton) {
-            clearButton.addEventListener('click', () => this.clearAll());
+    const menuButton = document.getElementById('smoozoo-deck-menu-btn');
+    const menuPanel = document.getElementById('smoozoo-deck-actions-menu');
+
+    // Logic to open/close the menu
+    menuButton.addEventListener('click', (e) => {
+        e.stopPropagation(); // Prevent click from closing menu immediately
+        menuPanel.classList.toggle('visible');
+    });
+
+    // Logic to handle clicks on actions inside the menu
+    menuPanel.addEventListener('click', (e) => {
+        const action = e.target.dataset.action;
+        if (action === 'tag') {
+            this.plugin.tagSelectedDeckImages();
         }
+        // Hide menu after action
+        menuPanel.classList.remove('visible');
+    });
+
+    // Global listener to close the menu when clicking elsewhere
+    document.addEventListener('click', () => {
+        if (menuPanel.classList.contains('visible')) {
+            menuPanel.classList.remove('visible');
+        }
+    });
+
+    // Wire up the clear button
+    const clearButton = document.getElementById('smoozoo-deck-clear-btn');
+    if (clearButton) {
+        clearButton.addEventListener('click', () => this.clearAll());
     }
+    
+    // The rest of the init method (loading from localStorage) remains the same.
+}
 
 
     // Load selection from localStorage
@@ -60,15 +89,19 @@ export class SelectionDeck
         }
     }
 
+
     injectUI()
     {
         const html = `
             <div id="smoozoo-deck-container">
+                <div id="smoozoo-deck-actions-menu" class="smoozoo-deck-menu">
+                    <button data-action="tag">Tag Selection</button>
+                </div>
                 <button id="smoozoo-deck-clear-btn" title="Clear selection">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <line x1="18" y1="6" x2="6" y2="18"></line>
-                        <line x1="6" y1="6" x2="18" y2="18"></line>
-                    </svg>
+                    <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                </button>
+                <button id="smoozoo-deck-menu-btn" title="Actions">
+                    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="1"></circle><circle cx="12" cy="5" r="1"></circle><circle cx="12" cy="19" r="1"></circle></svg>
                 </button>
                 <div id="smoozoo-deck-count"></div>
             </div>
@@ -185,27 +218,28 @@ export class SelectionDeck
     updateDeckLayout(animate = true)
     {
         const clearButton = document.getElementById('smoozoo-deck-clear-btn');
+        const menuButton = document.getElementById('smoozoo-deck-menu-btn');
+        
         const cards = this.container.querySelectorAll('.smoozoo-deck-card');
         const cardCount = cards.length;
 
-        if (clearButton) clearButton.style.display = cardCount > 0 ? 'block' : 'none';
-
+        // Show buttons only if there are cards
+        const hasCards = cardCount > 0;
+        if (clearButton) clearButton.style.display = hasCards ? 'block' : 'none';
+        if (menuButton) menuButton.style.display = hasCards ? 'block' : 'none';
+        
+        // ... rest of the method is unchanged ...
         const counter = this.container.querySelector('#smoozoo-deck-count');
-
         if (cardCount === 0) {
             this.container.style.width = '0px';
             if (counter) counter.style.display = 'none';
             return;
         }
-
         const { cardWidth, defaultOffset, maxWidth } = this.options;
         const containerContentWidth = maxWidth - 20;
-
         const uncompressedWidth = cardWidth + (cardCount - 1) * defaultOffset;
-
         let finalOffset;
         let finalContainerWidth;
-
         if (uncompressedWidth <= containerContentWidth) {
             finalOffset = defaultOffset;
             finalContainerWidth = uncompressedWidth;
@@ -219,9 +253,7 @@ export class SelectionDeck
                 counter.style.display = 'block';
             }
         }
-
         this.container.style.width = `${finalContainerWidth}px`;
-
         cards.forEach((card, index) => {
             card.style.transition = animate ? 'right 0.3s ease-out, opacity 0.2s' : 'none';
             const reversedIndex = cardCount - 1 - index;
@@ -382,5 +414,4 @@ export class SelectionDeck
             this.api.requestRender();
         }, 350);
     }
-
 }

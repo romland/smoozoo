@@ -62,9 +62,6 @@ export class SmoozooCollection
             width: 0,
             height: 0
         };
-        this.selection = new Set();
-        this.isDraggingSelection = false;
-        this.selectionBox = null;
         this.lastMouseWorldPos = {
             x: 0,
             y: 0
@@ -104,10 +101,8 @@ export class SmoozooCollection
 
         this.selectionDeck = new SelectionDeck(this, this.config.deckConfig, this.targetElement);
         this.selectionDeck.init();
-        this.injectFocusUI();
 
         this.addKeyListeners();
-        this.injectUI();
 
         this.images = this.config.images.map(imgData => {
             const estimatedHeight = this.config.layoutMode === 'masonry' ?
@@ -889,9 +884,6 @@ export class SmoozooCollection
         
         // --- 7. Final Processing and UI ---
         this.processRequestQueue();
-        
-        // Update the position of the focus highlight UI element
-        this.updateFocusHighlight();
     }
 
     /**
@@ -1041,128 +1033,33 @@ export class SmoozooCollection
         }
     }
 
-    // --- UI and Actions ---
 
-    
-    /**
-     * Injects a div used to highlight the currently focused image.
-     */
-    injectFocusUI() {
-        const html = `<div id="smoozoo-focus-highlight"></div>`;
-        this.targetElement.insertAdjacentHTML('beforeend', html);
-        const highlightStyle = document.getElementById('smoozoo-focus-highlight').style;
-        highlightStyle.position = 'absolute';
-        highlightStyle.display = 'none';
-        highlightStyle.border = `3px solid ${this.config.focusHighlightColor}`;
-        highlightStyle.borderRadius = '5px';
-        highlightStyle.zIndex = '50';
-        highlightStyle.pointerEvents = 'none';
-        highlightStyle.transition = 'all 0.15s ease-out';
-    }
-
-    /**
-     * Updates the position and size of the focus highlight div in the render loop.
-     */
-    updateFocusHighlight() {
-        const highlightDiv = document.getElementById('smoozoo-focus-highlight');
-        // Now highlights the image under the cursor
-        if (this.imageUnderCursor) {
-            const { scale, originX, originY } = this.api.getTransform();
-            const canvasRect = this.canvas.getBoundingClientRect();
-            
-            const screenX = (this.imageUnderCursor.x + originX) * scale + canvasRect.left;
-            const screenY = (this.imageUnderCursor.y + originY) * scale + canvasRect.top;
-            const screenWidth = this.imageUnderCursor.width * scale;
-            const screenHeight = this.imageUnderCursor.height * scale;
-            
-            highlightDiv.style.display = 'block';
-            highlightDiv.style.left = `${screenX - 3}px`;
-            highlightDiv.style.top = `${screenY - 3}px`;
-            highlightDiv.style.width = `${screenWidth}px`;
-            highlightDiv.style.height = `${screenHeight}px`;
-
-        } else {
-            highlightDiv.style.display = 'none';
-        }
-    }
-
-
-    injectUI() {
-        const html = `
-            <div id="smoozoo-collection-actions" class="smoozoo-ui-panel">
-                <h3>Collection</h3>
-                <div id="smoozoo-selection-info">No items selected</div>
-                <div id="smoozoo-action-buttons">
-                    <button data-action="tag">Tag Selected</button>
-                    <button data-action="clear">Clear Selection</button>
-                </div>
-            </div>
-            <div id="smoozoo-selection-box"></div>
-        `;
-        this.targetElement.insertAdjacentHTML('beforeend', html);
-
-        document.getElementById('smoozoo-action-buttons').addEventListener('click', e => {
-            const action = e.target.dataset.action;
-            if (action === 'tag') this.handleTagAction();
-            if (action === 'clear') this.clearSelection();
-        });
-    }
-
-    updateActionUI() {
-        const info = document.getElementById('smoozoo-selection-info');
-        info.textContent = `${this.selection.size} item(s) selected`;
-    }
-
-    updateSelection(isFinal = false) {
-        if (!this.selectionBox) return;
-        if (!isFinal) this.selection.clear(); // Recalculate on each drag frame
-
-        const box = {
-            x1: Math.min(this.selectionBox.startX, this.lastMouseWorldPos.x),
-            y1: Math.min(this.selectionBox.startY, this.lastMouseWorldPos.y),
-            x2: Math.max(this.selectionBox.startX, this.lastMouseWorldPos.x),
-            y2: Math.max(this.selectionBox.startY, this.lastMouseWorldPos.y)
-        };
-
-        this.images.forEach(img => {
-            // AABB intersection test
-            if (img.x < box.x2 && img.x + img.width > box.x1 &&
-                img.y < box.y2 && img.y + img.height > box.y1) {
-                this.selection.add(img.id);
-            }
-        });
-    }
-
-    clearSelection() {
-        this.selection.clear();
-        this.updateActionUI();
-        this.api.requestRender();
-    }
-
-    // --- Tagging Logic ---
-
-    handleTagAction() {
-        if (this.selection.size === 0) {
-            alert("Please select one or more images to tag.");
+    tagSelectedDeckImages() {
+        const selectionSize = this.selectionDeck.selectedImages.size;
+        if (selectionSize === 0) {
+            alert("No images are selected in the deck.");
             return;
         }
 
-        const newTags = prompt("Enter tags, separated by commas:", "");
+        const newTags = prompt(`Enter tags for the ${selectionSize} selected images (comma-separated):`, "");
         if (newTags === null || newTags.trim() === '') return;
 
         const tagsToAdd = newTags.split(',').map(t => t.trim()).filter(Boolean);
+        if (tagsToAdd.length === 0) return;
 
-        this.selection.forEach(imgId => {
-            if (!this.tags[imgId]) this.tags[imgId] = [];
-            const tagSet = new Set(this.tags[imgId]);
+        // Apply tags to all images currently in the selection deck
+        for (const id of this.selectionDeck.selectedImages.keys()) {
+            if (!this.tags[id]) this.tags[id] = [];
+            const tagSet = new Set(this.tags[id]);
             tagsToAdd.forEach(tag => tagSet.add(tag));
-            this.tags[imgId] = [...tagSet];
-        });
+            this.tags[id] = [...tagSet];
+        }
 
         this.db.setAll(this.tags);
-        alert(`Tags added to ${this.selection.size} images.`);
+        alert(`Tags added to ${selectionSize} images.`);
         console.log("Updated Tags DB:", this.tags);
     }
+
 }
 
 window.smoozooPlugins = window.smoozooPlugins || {};
