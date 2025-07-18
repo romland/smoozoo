@@ -53,3 +53,18 @@ body.ui-hidden #smoozoo-collection-actions {
     z-index: 100;
     pointer-events: none; /* IMPORTANT */
 }
+
+#smoozoo-deck-count {
+    display: none; /* Hidden by default */
+    position: absolute;
+    top: 5px;
+    right: 8px;
+    z-index: 100; /* Ensure it's on top of the cards */
+    padding: 1px 6px;
+    background-color: rgba(0, 0, 0, 0.6);
+    color: white;
+    font-size: 11px;
+    font-family: sans-serif;
+    border-radius: 8px;
+    pointer-events: none; /* Make sure it's not clickable */
+}

@@ -34,7 +34,12 @@ export class SelectionDeck
 
     injectUI()
     {
-        const html = `<div id="smoozoo-deck-container"></div>`;
+        // Add the counter element inside the main container
+        const html = `
+            <div id="smoozoo-deck-container">
+                <div id="smoozoo-deck-count"></div>
+            </div>
+        `;
         this.targetElement.insertAdjacentHTML('beforeend', html);
         this.container = document.getElementById('smoozoo-deck-container');
     }
@@ -130,43 +135,42 @@ export class SelectionDeck
 
     updateDeckLayout(animate = true)
     {
-        const cards = Array.from(this.container.children);
+        const cards = this.container.querySelectorAll('.smoozoo-deck-card');
         const cardCount = cards.length;
+
+        const counter = this.container.querySelector('#smoozoo-deck-count');
 
         if (cardCount === 0) {
             this.container.style.width = '0px';
+            if (counter) counter.style.display = 'none';
             return;
         }
 
         const { cardWidth, defaultOffset, maxWidth } = this.options;
-        const containerContentWidth = maxWidth - 20; // Account for 10px padding on each side
+        const containerContentWidth = maxWidth - 20;
 
-        // Calculate the width needed if all cards were spaced out normally
         const uncompressedWidth = cardWidth + (cardCount - 1) * defaultOffset;
 
         let finalOffset;
         let finalContainerWidth;
 
         if (uncompressedWidth <= containerContentWidth) {
-            // Phase 1: There's enough room. The container grows with the cards.
             finalOffset = defaultOffset;
             finalContainerWidth = uncompressedWidth;
+            if (counter) counter.style.display = 'none';
         } else {
-            // Phase 2: We've hit the max width. The container stops growing.
             finalContainerWidth = containerContentWidth;
-
-            // Compress the spacing to fit all cards inside the max width.
             const availableSpace = finalContainerWidth - cardWidth;
-
-            // The offset is determined purely by the available space.
-            // We no longer enforce a minimum offset, which was causing an overflow bug.
             finalOffset = cardCount > 1 ? availableSpace / (cardCount - 1) : 0;
+            if (counter) {
+                counter.textContent = cardCount;
+                counter.style.display = 'block';
+            }
         }
 
-        // Set the final, capped width on the container.
         this.container.style.width = `${finalContainerWidth}px`;
 
-        // Position each card within the container using the calculated offset.
+        // This loop now works correctly because `cards` contains only the cards.
         cards.forEach((card, index) => {
             card.style.transition = animate ? 'right 0.3s ease-out, opacity 0.2s' : 'none';
             const reversedIndex = cardCount - 1 - index;
@@ -174,7 +178,7 @@ export class SelectionDeck
             card.style.zIndex = index;
         });
     }
-
+    
 
     animateFlyerAndLayout(deckCard, image)
     {
