@@ -145,63 +145,75 @@ updateDeckLayout(animate = true) {
     });
 }
 
-    animateFlyerAndLayout(deckCard, image) {
-        const { scale, originX, originY } = this.api.getTransform();
-        const canvasRect = this.plugin.canvas.getBoundingClientRect();
-        const cardOptions = this.options;
-        const initialRect = {
-            left: (image.x + originX) * scale + canvasRect.left,
-            top: (image.y + originY) * scale + canvasRect.top,
-            width: image.width * scale,
-            height: image.height * scale,
-        };
-        const finalRect = {
-            width: cardOptions.cardWidth,
-            height: cardOptions.cardHeight,
-            top: this.container.getBoundingClientRect().top + 10,
-        };
-        const [yPos, xPos] = cardOptions.position.split('-');
-        if (xPos === 'right') {
-            const cardRightEdge = window.innerWidth - 20;
-            finalRect.left = cardRightEdge - cardOptions.cardWidth;
-        } else {
-            const lastCardIndex = this.selectedImages.size - 1;
-            const offset = this.calculateOffset();
-            finalRect.left = this.container.getBoundingClientRect().left + 10 + (lastCardIndex * offset);
-        }
+animateFlyerAndLayout(deckCard, image) {
+    const { scale, originX, originY } = this.api.getTransform();
+    const canvasRect = this.plugin.canvas.getBoundingClientRect();
+    const cardOptions = this.options;
 
-        const flyer = this.createDeckCard();
-        const flyerImg = flyer.querySelector('img');
-        flyerImg.src = this.plugin.config.apiOrigin + (image.thumb || image.highRes);
-        flyer.style.position = 'fixed';
-        flyer.style.zIndex = '101';
-        flyer.style.left = `${finalRect.left}px`;
-        flyer.style.top = `${finalRect.top}px`;
-        const scaleX = initialRect.width / finalRect.width;
-        const scaleY = initialRect.height / finalRect.height;
-        const translateX = initialRect.left - finalRect.left;
-        const translateY = initialRect.top - finalRect.top;
-        flyer.style.transform = `translate(${translateX}px, ${translateY}px) scale(${scaleX}, ${scaleY})`;
-        flyer.style.opacity = '1';
+    // --- Part 1: Calculate initial and final geometry ---
+    const initialRect = {
+        left: (image.x + originX) * scale + canvasRect.left,
+        top: (image.y + originY) * scale + canvasRect.top,
+        width: image.width * scale,
+        height: image.height * scale,
+    };
 
-        document.body.appendChild(flyer);
-
-        requestAnimationFrame(() => {
-            this.updateDeckLayout(true);
-            flyer.style.transition = 'transform 0.6s ease-out';
-            flyer.style.transform = 'translate(0, 0) scale(1)';
-        });
-
-        flyer.addEventListener('transitionend', () => {
-            deckCard.style.transition = 'opacity 0.15s ease-out';
-            deckCard.style.opacity = '1';
-            flyer.style.transition = 'opacity 0.15s ease-out';
-            flyer.style.opacity = '0';
-            flyer.addEventListener('transitionend', () => {
-                if (flyer.parentNode) flyer.remove();
-            }, { once: true });
-        }, { once: true });
+    const finalRect = {
+        width: cardOptions.cardWidth,
+        height: cardOptions.cardHeight,
+        top: this.container.getBoundingClientRect().top + 10,
+    };
+    const [yPos, xPos] = cardOptions.position.split('-');
+    if (xPos === 'right') {
+        const cardRightEdge = window.innerWidth - 20;
+        finalRect.left = cardRightEdge - cardOptions.cardWidth;
+    } else {
+        const lastCardIndex = this.selectedImages.size - 1;
+        const offset = this.calculateOffset();
+        finalRect.left = this.container.getBoundingClientRect().left + 10 + (lastCardIndex * offset);
     }
+
+    // --- Part 2: Create the Flyer ---
+    const flyer = this.createDeckCard(image);
+    flyer.style.position = 'fixed';
+    flyer.style.zIndex = '101';
+    flyer.style.left = `${finalRect.left}px`;
+    flyer.style.top = `${finalRect.top}px`;
+    flyer.style.opacity = '1';
+    
+    // --- Part 3: Calculate transform based on CENTERS for perfect alignment ---
+    const initialCenterX = initialRect.left + initialRect.width / 2;
+    const initialCenterY = initialRect.top + initialRect.height / 2;
+    const finalCenterX = finalRect.left + finalRect.width / 2;
+    const finalCenterY = finalRect.top + finalRect.height / 2;
+
+    const scaleX = initialRect.width / finalRect.width;
+    const scaleY = initialRect.height / finalRect.height;
+    const translateX = initialCenterX - finalCenterX;
+    const translateY = initialCenterY - finalCenterY;
+    
+    flyer.style.transform = `translate(${translateX}px, ${translateY}px) scale(${scaleX}, ${scaleY})`;
+    
+    document.body.appendChild(flyer);
+
+    // --- Part 4: Animate ---
+    requestAnimationFrame(() => {
+        this.updateDeckLayout(true);
+        flyer.style.transition = 'transform 0.6s ease-out';
+        flyer.style.transform = 'translate(0, 0) scale(1)';
+    });
+
+    // --- Part 5: Cleanup ---
+    flyer.addEventListener('transitionend', () => {
+        deckCard.style.transition = 'opacity 0.15s ease-out';
+        deckCard.style.opacity = '1';
+        flyer.style.transition = 'opacity 0.15s ease-out';
+        flyer.style.opacity = '0';
+        flyer.addEventListener('transitionend', () => {
+            if (flyer.parentNode) flyer.remove();
+        }, { once: true });
+    }, { once: true });
+}
 
 createDeckCard(image) {
     const deckCard = document.createElement('div');
