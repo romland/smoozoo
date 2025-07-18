@@ -146,7 +146,6 @@ animateFlyerAndLayout(deckCard, image) {
     const canvasRect = this.plugin.canvas.getBoundingClientRect();
     const cardOptions = this.options;
 
-    // The flyer's starting point
     const initialRect = {
         left: (image.x + originX) * scale + canvasRect.left,
         top: (image.y + originY) * scale + canvasRect.top,
@@ -154,88 +153,84 @@ animateFlyerAndLayout(deckCard, image) {
         height: image.height * scale,
     };
 
-    // The flyer's final destination
-    const containerRect = this.container.getBoundingClientRect();
     const finalRect = {
         width: cardOptions.cardWidth,
         height: cardOptions.cardHeight,
-        top: containerRect.top + 10, // 10px for container padding
+        top: this.container.getBoundingClientRect().top + 10,
     };
     const [yPos, xPos] = cardOptions.position.split('-');
     if (xPos === 'right') {
-        const cardRightEdge = window.innerWidth - 20; // 10px window offset + 10px container padding
+        const cardRightEdge = window.innerWidth - 20;
         finalRect.left = cardRightEdge - cardOptions.cardWidth;
     } else {
         const lastCardIndex = this.selectedImages.size - 1;
         const offset = this.calculateOffset();
-        finalRect.left = containerRect.left + 10 + (lastCardIndex * offset);
+        finalRect.left = this.container.getBoundingClientRect().left + 10 + (lastCardIndex * offset);
     }
 
-    // --- Part 2: Create the Flyer with its FINAL dimensions ---
-    const flyer = document.createElement('img');
-    flyer.src = this.plugin.config.apiOrigin + (image.thumb || image.highRes);
+    // --- Part 2: Create the Flyer as an EXACT CLONE of the card ---
+    // createDeckCard sets its opacity to 0, which is what we want initially.
+    const flyer = this.createDeckCard(image);
     flyer.style.position = 'fixed';
     flyer.style.zIndex = '101';
-    flyer.style.objectFit = 'cover';
-    flyer.style.borderRadius = '5px';
-    // Position it at its final destination immediately
     flyer.style.left = `${finalRect.left}px`;
     flyer.style.top = `${finalRect.top}px`;
-    flyer.style.width = `${finalRect.width}px`;
-    flyer.style.height = `${finalRect.height}px`;
 
-    // --- Part 3: Calculate the initial transform ---
-    // This makes the flyer start at the source image's position and scale.
+    // --- Part 3: Calculate and apply the initial transform ---
     const scaleX = initialRect.width / finalRect.width;
     const scaleY = initialRect.height / finalRect.height;
     const translateX = initialRect.left - finalRect.left;
     const translateY = initialRect.top - finalRect.top;
 
-    // Apply the initial transform without animation
     flyer.style.transform = `translate(${translateX}px, ${translateY}px) scale(${scaleX}, ${scaleY})`;
-    flyer.style.transition = 'transform 0.6s cubic-bezier(0.5, 0, 0.1, 1), opacity 0.3s';
-
+    
     document.body.appendChild(flyer);
 
     // --- Part 4: Play the animation ---
-    // In the next frame, set the transform to its final state (identity).
-    // The browser will smoothly animate from the initial state to this final state.
     requestAnimationFrame(() => {
         // Animate existing cards into their new place
         this.updateDeckLayout(true);
-        // Animate the flyer
+
+        // --- FIX: Add opacity to the transition and set it to 1 ---
+        // This makes the flyer fade in as it moves.
+        flyer.style.transition = 'transform 0.6s cubic-bezier(0.5, 0, 0.1, 1), opacity 0.3s';
+        flyer.style.opacity = '1';
         flyer.style.transform = 'translate(0, 0) scale(1)';
     });
 
     // --- Part 5: Cleanup ---
     flyer.addEventListener('transitionend', () => {
-        deckCard.style.opacity = '1';
+        deckCard.style.opacity = '1'; // Reveal the permanent card
         if (flyer.parentNode) flyer.remove();
     }, { once: true });
 }
 
 
-    createDeckCard(image) {
-        const deckCard = document.createElement('div');
-        deckCard.className = 'smoozoo-deck-card';
-        deckCard.style.width = `${this.options.cardWidth}px`;
-        deckCard.style.height = `${this.options.cardHeight}px`;
-        deckCard.style.position = 'absolute';
-        deckCard.style.top = '10px';
-        deckCard.style.border = '2px solid white';
-        deckCard.style.borderRadius = '8px';
-        deckCard.style.boxShadow = '0 4px 12px rgba(0,0,0,0.4)';
-        deckCard.style.backgroundColor = '#333';
-        deckCard.style.opacity = '0'; // Start invisible
+createDeckCard(image) {
+    const deckCard = document.createElement('div');
+    deckCard.className = 'smoozoo-deck-card';
 
-        const deckThumb = document.createElement('img');
-        deckThumb.src = this.plugin.config.apiOrigin + (image.thumb || image.highRes);
-        deckThumb.style.width = '100%';
-        deckThumb.style.height = '100%';
-        deckThumb.style.objectFit = 'cover';
-        deckThumb.style.borderRadius = '6px';
+    deckCard.style.position = 'absolute';
+    deckCard.style.width = `${this.options.cardWidth}px`;
+    deckCard.style.height = `${this.options.cardHeight}px`;
+    deckCard.style.top = '10px';
+    deckCard.style.border = '2px solid white';
+    deckCard.style.borderRadius = '8px';
+    deckCard.style.boxShadow = '0 4px 12px rgba(0,0,0,0.4)';
+    deckCard.style.backgroundColor = '#333';
+    // --- FIX: Ensure the permanent card starts invisible ---
+    deckCard.style.opacity = '0';
 
-        deckCard.appendChild(deckThumb);
-        return deckCard;
-    }
+    const deckThumb = document.createElement('img');
+    const imageUrl = image.thumb || image.highRes;
+    deckThumb.src = this.plugin.config.apiOrigin + imageUrl;
+    deckThumb.style.width = '100%';
+    deckThumb.style.height = '100%';
+    deckThumb.style.objectFit = 'cover';
+    deckThumb.style.borderRadius = '6px';
+
+    deckCard.appendChild(deckThumb);
+    return deckCard;
+}
+
 }
