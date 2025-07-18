@@ -1,9 +1,8 @@
 /**
- * SelectionDeck Class (Stacking Layout Version)
+ * SelectionDeck Class - Stacking Layout Version
  *
  * Manages the UI and logic for a "deck" of selected images,
  * using absolute positioning to create a true fanned-out stack effect.
- * Features flyer animation, layout animation, and correct growth direction.
  */
 export class SelectionDeck
 {
@@ -60,8 +59,7 @@ export class SelectionDeck
     }
 
 
-    toggle(image)
-    {
+    toggle(image) {
         if (!image) {
             return;
         }
@@ -72,6 +70,7 @@ export class SelectionDeck
             this.add(image);
         }
 
+        // This ensures the main canvas redraws to show the dimming effect
         this.api.requestRender();
     }
 
@@ -251,8 +250,7 @@ export class SelectionDeck
     }
 
 
-    createDeckCard(image)
-    {
+    createDeckCard(image) {
         const deckCard = document.createElement('div');
         deckCard.className = 'smoozoo-deck-card';
 
@@ -271,7 +269,13 @@ export class SelectionDeck
 
         // Use the passed-in image data to set the source
         if (image) {
-            deckThumb.src = this.plugin.config.apiOrigin + (image.thumb || image.highRes);
+            // Check for the pre-loaded URL first.
+            if (image.thumbObjectUrl) {
+                deckThumb.src = image.thumbObjectUrl;
+            } else {
+                // Fallback to the original network request method.
+                deckThumb.src = this.plugin.config.apiOrigin + (image.thumb || image.highRes);
+            }
         }
         deckThumb.style.width = '100%';
         deckThumb.style.height = '100%';
@@ -281,7 +285,6 @@ export class SelectionDeck
         deckCard.appendChild(deckThumb);
         return deckCard;
     }
-
         
     isSelected(imageId) {
         return this.selectedImages.has(imageId);
