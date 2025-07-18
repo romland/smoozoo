@@ -26,59 +26,59 @@ export class SelectionDeck
         // Define the entire menu structure here.
         this.menuStructure = [
             { label: 'Tag Selection', action: 'tag' },
-            { type: 'separator' },
-            { label: 'Clear Selection', action: 'clear' }
-            // Example of a future sub-menu:
+            // // Example of a future sub-menu:
             // { 
             //   label: 'Apply Tag',
             //   children: [
             //     { label: 'Landscape', action: 'apply-tag', value: 'landscape' },
             //     { label: 'Portrait', action: 'apply-tag', value: 'portrait' }
             //   ]
-            // }
+            // },
+            { type: 'separator' },
+            { label: 'Clear Selection', action: 'clear' },
         ];
     }
 
 
-init() {
-    this.injectUI();
-    this.applyStyles();
+    init() {
+        this.injectUI();
+        this.applyStyles();
 
-    const menuButton = document.getElementById('smoozoo-deck-menu-btn');
-    const menuPanel = document.getElementById('smoozoo-deck-actions-menu');
+        const menuButton = document.getElementById('smoozoo-deck-menu-btn');
+        const menuPanel = document.getElementById('smoozoo-deck-actions-menu');
 
-    // Build the menu from our data structure
-    this._buildMenuHTML(this.menuStructure, menuPanel);
+        // Build the menu from our data structure
+        this._buildMenuHTML(this.menuStructure, menuPanel);
 
-    // This event handling logic remains the same and works perfectly
-    // with the new dynamically-generated buttons.
-    menuButton.addEventListener('click', (e) => {
-        e.stopPropagation();
-        menuPanel.classList.toggle('visible');
-    });
-    menuPanel.addEventListener('click', (e) => {
-        const button = e.target.closest('button');
-        if (!button) return;
+        // This event handling logic remains the same and works perfectly
+        // with the new dynamically-generated buttons.
+        menuButton.addEventListener('click', (e) => {
+            e.stopPropagation();
+            menuPanel.classList.toggle('visible');
+        });
+        menuPanel.addEventListener('click', (e) => {
+            const button = e.target.closest('button');
+            if (!button) return;
 
-        const action = button.dataset.action;
-        const value = button.dataset.value;
+            const action = button.dataset.action;
+            const value = button.dataset.value;
 
-        if (action === 'tag') {
-            this.plugin.tagSelectedDeckImages();
-        } else if (action === 'clear') {
-            this.clearAll();
-        } else if (action === 'apply-tag') {
-            console.log(`Applying tag: ${value}`); // Logic for this would be added
-        }
+            if (action === 'tag') {
+                this.plugin.tagSelectedDeckImages();
+            } else if (action === 'clear') {
+                this.clearAll();
+            } else if (action === 'apply-tag') {
+                console.log(`Applying tag: ${value}`); // Logic for this would be added
+            }
 
-        menuPanel.classList.remove('visible');
-    });
-    document.addEventListener('click', () => {
-        if (menuPanel.classList.contains('visible')) {
             menuPanel.classList.remove('visible');
-        }
-    });
-}
+        });
+        document.addEventListener('click', () => {
+            if (menuPanel.classList.contains('visible')) {
+                menuPanel.classList.remove('visible');
+            }
+        });
+    }
 
 
     // Load selection from localStorage
