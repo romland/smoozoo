@@ -22,6 +22,21 @@ export class SelectionDeck
         this.targetElement = targetElement;
         this.container = null;
         this.selectedImages = new Map();
+
+        // Define the entire menu structure here.
+        this.menuStructure = [
+            { label: 'Tag Selection', action: 'tag' },
+            { type: 'separator' },
+            { label: 'Clear Selection', action: 'clear' }
+            // Example of a future sub-menu:
+            // { 
+            //   label: 'Apply Tag',
+            //   children: [
+            //     { label: 'Landscape', action: 'apply-tag', value: 'landscape' },
+            //     { label: 'Portrait', action: 'apply-tag', value: 'portrait' }
+            //   ]
+            // }
+        ];
     }
 
 
@@ -32,32 +47,37 @@ init() {
     const menuButton = document.getElementById('smoozoo-deck-menu-btn');
     const menuPanel = document.getElementById('smoozoo-deck-actions-menu');
 
-    // Logic to open/close the menu
+    // Build the menu from our data structure
+    this._buildMenuHTML(this.menuStructure, menuPanel);
+
+    // This event handling logic remains the same and works perfectly
+    // with the new dynamically-generated buttons.
     menuButton.addEventListener('click', (e) => {
         e.stopPropagation();
         menuPanel.classList.toggle('visible');
     });
-
-    // Logic to handle clicks on actions inside the menu
     menuPanel.addEventListener('click', (e) => {
-        const action = e.target.dataset.action;
+        const button = e.target.closest('button');
+        if (!button) return;
+
+        const action = button.dataset.action;
+        const value = button.dataset.value;
+
         if (action === 'tag') {
             this.plugin.tagSelectedDeckImages();
         } else if (action === 'clear') {
             this.clearAll();
+        } else if (action === 'apply-tag') {
+            console.log(`Applying tag: ${value}`); // Logic for this would be added
         }
-        // Hide menu after action
+
         menuPanel.classList.remove('visible');
     });
-
-    // Global listener to close the menu
     document.addEventListener('click', () => {
         if (menuPanel.classList.contains('visible')) {
             menuPanel.classList.remove('visible');
         }
     });
-    
-    // The call to load from localStorage remains in your SmoozooCollection's init
 }
 
 
@@ -80,6 +100,7 @@ init() {
                     this.selectedImages.set(id, { image, element: card });
                 }
             });
+            
             // Update the layout once all saved cards have been added
             this.updateDeckLayout(false);
         }
@@ -89,18 +110,47 @@ init() {
     injectUI() {
         const html = `
             <div id="smoozoo-deck-container">
-                <div id="smoozoo-deck-actions-menu" class="smoozoo-deck-menu">
-                    <button data-action="tag">Tag Selection</button>
-                    <button data-action="clear">Clear Selection</button>
-                </div>
+                <ul id="smoozoo-deck-actions-menu" class="smoozoo-deck-menu"></ul>
                 <button id="smoozoo-deck-menu-btn" title="Actions">
-                    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="1"></circle><circle cx="12" cy="5" r="1"></circle><circle cx="12" cy="19" r="1"></circle></svg>
+                    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="2"></circle><circle cx="12" cy="5" r="2"></circle><circle cx="12" cy="19" r="2"></circle></svg>
                 </button>
                 <div id="smoozoo-deck-count"></div>
             </div>
         `;
         this.targetElement.insertAdjacentHTML('beforeend', html);
         this.container = document.getElementById('smoozoo-deck-container');
+    }
+
+    _buildMenuHTML(items, parentElement) {
+        items.forEach(item => {
+            // Create a list item for spacing and structure
+            const li = document.createElement('li');
+
+            if (item.type === 'separator') {
+                li.className = 'menu-separator';
+                li.appendChild(document.createElement('hr'));
+            } else {
+                const button = document.createElement('button');
+                button.textContent = item.label;
+                
+                // Add data attributes for the event listener to use
+                if (item.action) button.dataset.action = item.action;
+                if (item.value) button.dataset.value = item.value;
+                
+                li.appendChild(button);
+
+                // If the item has children, it's a sub-menu
+                if (item.children && item.children.length > 0) {
+                    li.className = 'has-submenu';
+                    const submenu = document.createElement('ul');
+                    submenu.className = 'submenu';
+                    // Recursively build the sub-menu
+                    this._buildMenuHTML(item.children, submenu);
+                    li.appendChild(submenu);
+                }
+            }
+            parentElement.appendChild(li);
+        });
     }
 
 
@@ -117,8 +167,14 @@ init() {
         style.borderRadius = '8px';
         style.transition = 'width 0.3s ease-out';
 
+        // Ugh, clever but annoying.
         const [yPos, xPos] = this.options.position.split('-');
-        style[yPos] = '10px';
+        if(this.options.position === "buttom-right") {
+            // need it to be above the status bar that sits at the bottom
+            style[yPos] = '30px';
+        } else {
+            style[yPos] = '10px';
+        }
         style[xPos] = '10px';
     }
 
@@ -339,7 +395,7 @@ init() {
         deckCard.style.width = `${this.options.cardWidth}px`;
         deckCard.style.height = `${this.options.cardHeight}px`;
         deckCard.style.top = '10px';
-        deckCard.style.border = '2px solid white';
+        deckCard.style.border = '1px solid rgba(255, 255, 255, 0.7)'; //'2px solid white';
         deckCard.style.borderRadius = '8px';
         deckCard.style.boxShadow = '0 4px 12px rgba(0,0,0,0.4)';
         deckCard.style.backgroundColor = '#333';
