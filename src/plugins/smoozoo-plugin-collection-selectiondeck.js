@@ -95,14 +95,27 @@ export class SelectionDeck
     }
 
 
-    remove(image)
-    {
+    remove(image) {
         const selectionData = this.selectedImages.get(image.id);
 
         if (selectionData) {
             const cardElement = selectionData.element;
+
+            if (cardElement.dataset.objectUrl) {
+                URL.revokeObjectURL(cardElement.dataset.objectUrl);
+            }
+
+            // 1. Define the specific transition for this removal animation.
+            //    This temporarily overrides any existing transitions.
+            cardElement.style.transition = 'transform 0.3s ease-out, opacity 0.3s ease-out';
+
+            // 2. Apply the styles that trigger the animation.
+            cardElement.style.transform = 'translateY(20px)';
             cardElement.style.opacity = '0';
+
             this.selectedImages.delete(image.id);
+
+            // 3. The listener waits for our new animation to finish, then cleans up.
             cardElement.addEventListener('transitionend', () => {
                 cardElement.remove();
                 this.updateDeckLayout(true);
@@ -178,7 +191,7 @@ export class SelectionDeck
             card.style.zIndex = index;
         });
     }
-    
+
 
     animateFlyerAndLayout(deckCard, image)
     {
