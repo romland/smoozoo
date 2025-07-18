@@ -5,13 +5,6 @@
  * using absolute positioning to create a true fanned-out stack effect.
  * Features flyer animation, layout animation, and correct growth direction.
  */
-/**
- * SelectionDeck Class (Two-Phase Stacking Layout)
- *
- * Manages the UI and logic for a "deck" of selected images.
- * Phase 1: Expands to show full cards until a max-width is reached.
- * Phase 2: Compresses cards into a fanned-out stack.
- */
 export class SelectionDeck {
     constructor(plugin, options, targetElement) {
         this.plugin = plugin;
@@ -51,7 +44,6 @@ export class SelectionDeck {
         style.pointerEvents = 'auto';
         style.backgroundColor = 'rgba(0, 0, 0, 0.5)';
         style.borderRadius = '8px';
-        // Animate the container's width for a smooth expansion effect
         style.transition = 'width 0.3s ease-out';
 
         const [yPos, xPos] = this.options.position.split('-');
@@ -76,12 +68,10 @@ export class SelectionDeck {
     add(image) {
         if (this.selectedImages.has(image.id)) return;
 
-        // Create and add the card; it will be positioned by updateDeckLayout
         const deckCard = this.createDeckCard(image);
         this.container.appendChild(deckCard);
         this.selectedImages.set(image.id, { image, element: deckCard });
 
-        // Animate the flyer AND the layout of existing cards
         this.animateFlyerAndLayout(deckCard, image);
     }
 
@@ -93,14 +83,11 @@ export class SelectionDeck {
             this.selectedImages.delete(image.id);
             cardElement.addEventListener('transitionend', () => {
                 cardElement.remove();
-                this.updateDeckLayout(true); // Animate remaining cards into place
+                this.updateDeckLayout(true);
             }, { once: true });
         }
     }
 
-    /**
-     * Calculates the required offset between cards based on the container's state.
-     */
     calculateOffset() {
         const cardCount = this.selectedImages.size;
         if (cardCount <= 1) return this.options.defaultOffset;
@@ -109,39 +96,34 @@ export class SelectionDeck {
         const cardWidth = this.options.cardWidth;
         const defaultTotalWidth = cardWidth + (cardCount - 1) * this.options.defaultOffset;
 
-        let offset;
         if (defaultTotalWidth <= containerMaxWidth) {
-            // Phase 1: There's enough room, use the default offset
-            offset = this.options.defaultOffset;
+            return this.options.defaultOffset;
         } else {
-            // Phase 2: Not enough room, compress the stack
             const availableSpace = containerMaxWidth - cardWidth;
             const compressedOffset = availableSpace / (cardCount - 1);
-            offset = Math.max(this.options.minOffset, compressedOffset);
+            return Math.max(this.options.minOffset, compressedOffset);
         }
-        return offset;
     }
 
     updateDeckLayout(animate = true) {
         const cards = Array.from(this.container.children);
         const offset = this.calculateOffset();
-        const [yPos, xPos] = this.options.position.split('-');
+        const cardCount = cards.length;
 
-        // Update container width to fit all cards
-        const newContainerWidth = this.options.cardWidth + (cards.length - 1) * offset;
-        this.container.style.width = `${newContainerWidth}px`;
+        // --- FIX: Calculate the container's width correctly and cap it at maxWidth ---
+        const desiredWidth = this.options.cardWidth + (cardCount > 1 ? (cardCount - 1) * offset : 0);
+        this.container.style.width = `${desiredWidth}px`;
 
         cards.forEach((card, index) => {
-            card.style.transition = animate ? 'right 0.3s ease-out, left 0.3s ease-out, opacity 0.2s' : 'opacity 0.2s';
-            // Position from the right edge, ensuring the last card (highest index) is most visible
-            const reversedIndex = cards.length - 1 - index;
+            card.style.transition = animate ? 'right 0.3s ease-out, left 0.3s ease-out, opacity 0.2s' : 'none';
+            const reversedIndex = cardCount - 1 - index;
             card.style.right = `${10 + (reversedIndex * offset)}px`;
             card.style.zIndex = index;
         });
     }
 
 animateFlyerAndLayout(deckCard, image) {
-    // --- Part 1: Get initial and final coordinates ---
+    // This first part of the method remains the same
     const { scale, originX, originY } = this.api.getTransform();
     const canvasRect = this.plugin.canvas.getBoundingClientRect();
     const cardOptions = this.options;
@@ -168,69 +150,67 @@ animateFlyerAndLayout(deckCard, image) {
         finalRect.left = this.container.getBoundingClientRect().left + 10 + (lastCardIndex * offset);
     }
 
-    // --- Part 2: Create the Flyer as an EXACT CLONE of the card ---
-    // createDeckCard sets its opacity to 0, which is what we want initially.
     const flyer = this.createDeckCard(image);
     flyer.style.position = 'fixed';
     flyer.style.zIndex = '101';
     flyer.style.left = `${finalRect.left}px`;
     flyer.style.top = `${finalRect.top}px`;
+    flyer.style.opacity = '1';
 
-    // --- Part 3: Calculate and apply the initial transform ---
     const scaleX = initialRect.width / finalRect.width;
     const scaleY = initialRect.height / finalRect.height;
     const translateX = initialRect.left - finalRect.left;
     const translateY = initialRect.top - finalRect.top;
-
     flyer.style.transform = `translate(${translateX}px, ${translateY}px) scale(${scaleX}, ${scaleY})`;
-    
+
     document.body.appendChild(flyer);
 
-    // --- Part 4: Play the animation ---
     requestAnimationFrame(() => {
-        // Animate existing cards into their new place
         this.updateDeckLayout(true);
-
-        // --- FIX: Add opacity to the transition and set it to 1 ---
-        // This makes the flyer fade in as it moves.
-        flyer.style.transition = 'transform 0.6s cubic-bezier(0.5, 0, 0.1, 1), opacity 0.3s';
-        flyer.style.opacity = '1';
+        flyer.style.transition = 'transform 0.6s ease-out';
         flyer.style.transform = 'translate(0, 0) scale(1)';
     });
 
-    // --- Part 5: Cleanup ---
+
+    // --- UPDATED CLEANUP LOGIC ---
+    // This now performs a seamless crossfade to eliminate the flicker.
     flyer.addEventListener('transitionend', () => {
-        deckCard.style.opacity = '1'; // Reveal the permanent card
-        if (flyer.parentNode) flyer.remove();
+        // 1. Fade in the permanent card that's already in position.
+        deckCard.style.transition = 'opacity 0.15s ease-out';
+        deckCard.style.opacity = '1';
+
+        // 2. Simultaneously, fade out the flyer.
+        flyer.style.transition = 'opacity 0.15s ease-out';
+        flyer.style.opacity = '0';
+
+        // 3. Remove the flyer from the DOM *after* it has finished fading out.
+        flyer.addEventListener('transitionend', () => {
+            if (flyer.parentNode) flyer.remove();
+        }, { once: true });
+
     }, { once: true });
 }
+    createDeckCard(image) {
+        const deckCard = document.createElement('div');
+        deckCard.className = 'smoozoo-deck-card';
+        deckCard.style.position = 'absolute';
+        deckCard.style.width = `${this.options.cardWidth}px`;
+        deckCard.style.height = `${this.options.cardHeight}px`;
+        deckCard.style.top = '10px';
+        deckCard.style.border = '2px solid white';
+        deckCard.style.borderRadius = '8px';
+        deckCard.style.boxShadow = '0 4px 12px rgba(0,0,0,0.4)';
+        deckCard.style.backgroundColor = '#333';
+        deckCard.style.opacity = '0'; // Permanent card starts invisible
 
+        const deckThumb = document.createElement('img');
+        deckThumb.src = this.plugin.config.apiOrigin + (image.thumb || image.highRes);
+        deckThumb.style.width = '100%';
+        deckThumb.style.height = '100%';
+        deckThumb.style.objectFit = 'cover';
+        deckThumb.style.borderRadius = '6px';
 
-createDeckCard(image) {
-    const deckCard = document.createElement('div');
-    deckCard.className = 'smoozoo-deck-card';
-
-    deckCard.style.position = 'absolute';
-    deckCard.style.width = `${this.options.cardWidth}px`;
-    deckCard.style.height = `${this.options.cardHeight}px`;
-    deckCard.style.top = '10px';
-    deckCard.style.border = '2px solid white';
-    deckCard.style.borderRadius = '8px';
-    deckCard.style.boxShadow = '0 4px 12px rgba(0,0,0,0.4)';
-    deckCard.style.backgroundColor = '#333';
-    // --- FIX: Ensure the permanent card starts invisible ---
-    deckCard.style.opacity = '0';
-
-    const deckThumb = document.createElement('img');
-    const imageUrl = image.thumb || image.highRes;
-    deckThumb.src = this.plugin.config.apiOrigin + imageUrl;
-    deckThumb.style.width = '100%';
-    deckThumb.style.height = '100%';
-    deckThumb.style.objectFit = 'cover';
-    deckThumb.style.borderRadius = '6px';
-
-    deckCard.appendChild(deckThumb);
-    return deckCard;
-}
-
+        deckCard.appendChild(deckThumb);
+        return deckCard;
+    }
 }
