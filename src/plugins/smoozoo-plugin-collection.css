@@ -96,3 +96,11 @@ body.ui-hidden #smoozoo-collection-actions {
     transform: translateY(20px) !important;
     transition: transform 0.3s ease-out, opacity 0.3s ease-out !important;
 }
+
+.smoozoo-drag-select-box {
+    position: absolute;
+    z-index: 200;
+    border: 1px solid rgba(130, 180, 255, 0.9);
+    background-color: rgba(40, 120, 255, 0.3);
+    pointer-events: none; /* Allows mouse events to pass through the box */
+}

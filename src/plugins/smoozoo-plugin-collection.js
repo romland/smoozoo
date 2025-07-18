@@ -958,34 +958,73 @@ export class SmoozooCollection
     */
 
     onMouseDown = (e) => {
-        // Only start drag-to-select if Shift key is held down
-        if (this.isSelectModeActive) {
-            if (e.button !== 0) return true;
-            this.isDraggingSelection = true;
-            this.selectionBox = {
-                startX: this.lastMouseWorldPos.x,
-                startY: this.lastMouseWorldPos.y
-            };
-            this.api.cancelAllAnimations();
-            return false; // Prevent panning
+        // If Shift is not held, allow normal panning.
+        if (!e.shiftKey) {
+            return true;
         }
-        // If Shift is not held, let the default panning behavior pass through
-        return true;
-    }
 
-    onDrag = (e) => {
-        if (!this.isDraggingSelection) return true;
-        this.updateSelection();
-        this.api.requestRender();
-        return false;
-    }
+        // --- Shift IS held. Start our own drag handling. ---
+        e.preventDefault();
 
-    onMouseUp = (e) => {
-        if (!this.isDraggingSelection) return true;
-        this.isDraggingSelection = false;
-        this.updateSelection(true);
-        this.api.requestRender();
-        this.updateActionUI();
+        this.selectionBoxStart = { ...this.lastMouseWorldPos };
+
+        // Create the visual box element
+        const box = document.createElement('div');
+        box.className = 'smoozoo-drag-select-box';
+        this.targetElement.appendChild(box);
+
+        // This function will handle mouse movement.
+        const handleDrag = (moveEvent) => {
+            moveEvent.preventDefault();
+            const { scale, originX, originY } = this.api.getTransform();
+            const start = this.selectionBoxStart;
+            const end = this.lastMouseWorldPos;
+
+            const worldX = Math.min(start.x, end.x);
+            const worldY = Math.min(start.y, end.y);
+            const worldWidth = Math.abs(start.x - end.x);
+            const worldHeight = Math.abs(start.y - end.y);
+
+            box.style.left = `${(worldX + originX) * scale}px`;
+            box.style.top = `${(worldY + originY) * scale}px`;
+            box.style.width = `${worldWidth * scale}px`;
+            box.style.height = `${worldHeight * scale}px`;
+        };
+
+        // This function will run when the mouse is released.
+        const handleMouseUp = (upEvent) => {
+            // Clean up the event listeners
+            document.removeEventListener('mousemove', handleDrag);
+            document.removeEventListener('mouseup', handleMouseUp);
+
+            // Get the final selection rectangle.
+            const start = this.selectionBoxStart;
+            const end = this.lastMouseWorldPos;
+            const selectionRect = {
+                x: Math.min(start.x, end.x),
+                y: Math.min(start.y, end.y),
+                width: Math.abs(start.x - end.x),
+                height: Math.abs(start.y - end.y)
+            };
+
+            // Remove the visual box.
+            box.remove();
+
+            // Find intersecting images.
+            const intersectingImages = this.quadtree.query(selectionRect);
+            
+            // --- THIS IS THE FIX ---
+            // Toggle each image's selection status instead of just adding.
+            intersectingImages.forEach(image => {
+                this.selectionDeck.toggle(image);
+            });
+        };
+
+        // Attach our own listeners to the document.
+        document.addEventListener('mousemove', handleDrag);
+        document.addEventListener('mouseup', handleMouseUp);
+
+        // Tell Smoozoo we've handled this.
         return false;
     }
 
@@ -1004,6 +1043,7 @@ export class SmoozooCollection
 
     // --- UI and Actions ---
 
+    
     /**
      * Injects a div used to highlight the currently focused image.
      */
