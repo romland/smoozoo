@@ -182,3 +182,9 @@ body.ui-hidden #smoozoo-collection-actions {
 .smoozoo-deck-menu .has-submenu:hover > .submenu {
     display: block; /* Show sub-menu on hover */
 }
+
+/* ----------- */
+body.ui-hidden .highres-infolabel {
+    opacity: 0 !important;
+    pointer-events: none !important;
+}

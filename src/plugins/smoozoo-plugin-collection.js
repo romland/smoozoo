@@ -1,4 +1,4 @@
-// REVERT TO HERE
+// REVERT TO HERE!
 /**
  * Smoozoo Collection Plugin
  *
@@ -815,21 +815,35 @@ export class SmoozooCollection
         
         this.imageUnderCursor = newImageUnderCursor;
         
-        // --- 5. High-Resolution Logic ---
-        let dominantImg = null;
-        let maxDominance = 0;
-        for (const img of visibleImages) {
-            const screenWidth = img.width * scale;
-            const screenHeight = img.height * scale;
-            const hDominance = screenWidth / canvas.width;
-            const vDominance = screenHeight / canvas.height;
-            const currentDominance = Math.max(hDominance, vDominance);
+// --- 5. High-Resolution Logic ---
+let dominantImg = null;
+let maxVisibleArea = 0;
 
-            if (currentDominance > maxDominance) {
-                maxDominance = currentDominance;
-                dominantImg = img;
-            }
-        }
+// First, find the image with the largest *visible area* in the viewport.
+for (const img of visibleImages) {
+    const intersectX = Math.max(img.x, viewX);
+    const intersectY = Math.max(img.y, viewY);
+    const intersectRight = Math.min(img.x + img.width, viewX + viewWidth);
+    const intersectBottom = Math.min(img.y + img.height, viewY + viewHeight);
+
+    const visibleWidth = Math.max(0, intersectRight - intersectX);
+    const visibleHeight = Math.max(0, intersectBottom - intersectY);
+    const currentVisibleArea = visibleWidth * visibleHeight;
+
+    if (currentVisibleArea > maxVisibleArea) {
+        maxVisibleArea = currentVisibleArea;
+        dominantImg = img;
+    }
+}
+
+// After finding the truly dominant image, calculate its size-based dominance
+// value, which is still needed for the instant-load threshold check below.
+let maxDominance = 0;
+if (dominantImg) {
+    const screenWidth = dominantImg.width * scale;
+    const screenHeight = dominantImg.height * scale;
+    maxDominance = Math.max(screenWidth / canvas.width, screenHeight / canvas.height);
+}
 
         clearTimeout(this.highResLoadDebounceTimer);
 
@@ -924,44 +938,45 @@ export class SmoozooCollection
         // --- 7. Final Processing and UI ---
         this.processRequestQueue();
 
-        // --- Update Info Labels for all eligible images ---
-        const labelsToUpdate = [];
-        if (scale > this.config.highResThreshold) {
-            for (const img of visibleImages) {
-                if (img && img.details && img.highResState === 'ready') {
-                    // Calculate rendered dimensions for this specific image
-                    const boxAspect = img.width / img.height;
-                    const imageAspect = img.originalWidth / img.originalHeight;
-                    let finalWidth, finalHeight, offsetX, offsetY;
+        // --- Consolidated Info Label Logic (New Approach) ---
+        const subjectImage = dominantImg; // Uses the dominant image already found earlier in this function
 
-                    if (imageAspect > boxAspect) {
-                        finalWidth = img.width;
-                        finalHeight = img.width / imageAspect;
-                        offsetX = 0;
-                        offsetY = (img.height - finalHeight) / 2;
-                    } else {
-                        finalHeight = img.height;
-                        finalWidth = img.height * imageAspect;
-                        offsetY = 0;
-                        offsetX = (img.width - finalWidth) / 2;
-                    }
+        if (
+            subjectImage &&
+            subjectImage.highResState === 'ready' &&
+            scale > this.config.highResThreshold
+        ) {
+            // We have a valid subject for the label. Calculate its rendered dimensions.
+            const boxAspect = subjectImage.width / subjectImage.height;
+            const imageAspect = subjectImage.originalWidth / subjectImage.originalHeight;
+            let finalWidth, finalHeight, offsetX, offsetY;
 
-                    labelsToUpdate.push({
-                        image: img,
-                        dimensions: { finalWidth, finalHeight, offsetX, offsetY }
-                    });
-                }
+            if (imageAspect > boxAspect) {
+                finalWidth = subjectImage.width;
+                finalHeight = subjectImage.width / imageAspect;
+                offsetX = 0;
+                offsetY = (subjectImage.height - finalHeight) / 2;
+            } else {
+                finalHeight = subjectImage.height;
+                finalWidth = subjectImage.height * imageAspect;
+                offsetY = 0;
+                offsetX = (subjectImage.width - finalWidth) / 2;
             }
+
+            // Pass all necessary info to the label to handle its own state.
+            this.infoLabel.update({
+                image: subjectImage,
+                dimensions: { finalWidth, finalHeight, offsetX, offsetY },
+                transform: { scale, originX, originY },
+                canvas: this.canvas,
+                config: this.config
+            });
+        } else {
+            // If conditions are not met, explicitly tell the label to hide.
+            this.infoLabel.update({});
         }
-
-        // Pass all eligible labels to the manager to update the DOM
-        this.infoLabel.updateAll({
-            labels: labelsToUpdate,
-            transform: { scale, originX, originY },
-            canvas: this.canvas
-        });
     }
-
+    
 
     /**
      * Uploads a generated thumbnail blob to the server in the background.

@@ -1,77 +1,96 @@
+/**
+ * InfoLabel Plugin Helper
+ *
+ * Creates and manages an HTML label that sticks to a corner of a high-resolution
+ * image within the Smoozoo viewer, displaying metadata.
+ */
 export class InfoLabel {
+    /**
+     * @param {HTMLElement} targetElement The main container element of the Smoozoo instance.
+     */
     constructor(targetElement) {
         this.targetElement = targetElement;
-        this.labelElements = new Map(); // Use a map to store a label for each image ID
+        this.labelElement = null;
+        this.init();
     }
 
-    getOrCreateLabelElement(imageId) {
-        if (this.labelElements.has(imageId)) {
-            return this.labelElements.get(imageId);
-        }
-
-        // If it doesn't exist, create, style, and append it
-        const labelElement = document.createElement('div');
-        labelElement.style.position = 'absolute';
-        labelElement.style.top = '0';
-        labelElement.style.left = '0';
-        labelElement.style.backgroundColor = 'rgba(0, 0, 0, 0.6)';
-        labelElement.style.color = 'white';
-        labelElement.style.padding = '4px 8px';
-        labelElement.style.fontSize = '12px';
-        labelElement.style.fontFamily = 'sans-serif';
-        labelElement.style.borderRadius = '3px';
-        labelElement.style.pointerEvents = 'none';
-        labelElement.style.display = 'none';
-        labelElement.style.whiteSpace = 'nowrap';
-        labelElement.style.transition = 'opacity 0.2s ease-in-out, transform 0.0s linear'; // Fast transform
-        this.targetElement.appendChild(labelElement);
-        this.labelElements.set(imageId, labelElement);
-        return labelElement;
+    /**
+     * Creates and styles the label div and appends it to the DOM.
+     */
+    init() {
+        this.labelElement = document.createElement('div');
+        this.labelElement.classList = "highres-infolabel";
+        this.labelElement.style.position = 'absolute';
+        this.labelElement.style.top = '0'; // Controlled by transform for performance
+        this.labelElement.style.left = '0';
+        this.labelElement.style.backgroundColor = 'rgba(0, 0, 0, 0.6)';
+        this.labelElement.style.color = 'white';
+        this.labelElement.style.padding = '4px 8px';
+        this.labelElement.style.fontSize = '12px';
+        this.labelElement.style.fontFamily = 'sans-serif';
+        this.labelElement.style.borderRadius = '3px';
+        this.labelElement.style.pointerEvents = 'none';
+        this.labelElement.style.display = 'none';
+        this.labelElement.style.whiteSpace = 'nowrap';
+        this.labelElement.style.transition = 'opacity 0.2s ease-in-out';
+        this.targetElement.appendChild(this.labelElement);
     }
 
-    updateAll({ labels, transform, canvas }) {
-        const activeImageIds = new Set();
-
-        for (const labelInfo of labels) {
-            const { image, dimensions } = labelInfo;
-            activeImageIds.add(image.id);
-
-            const labelElement = this.getOrCreateLabelElement(image.id);
-
-            const geo = image.details.geo ? `${image.details.geo.city || ''}, ${image.details.geo.country || ''}`.replace(/^, |, $/g, '') : null;
-            const dateTime = image.details.exif?.DateTimeOriginal?.rawValue;
-            let infoString = dateTime ? `${dateTime.split(' ')[0]}` : '';
-            if (geo) {
-                infoString += `${infoString ? ' | ' : ''}${geo}`;
-            }
-
-            if (!infoString) {
-                labelElement.style.display = 'none';
-                continue;
-            }
-
-            const { finalWidth, finalHeight, offsetX, offsetY } = dimensions;
-            const { scale, originX, originY } = transform;
-            const worldX_br = image.x + offsetX + finalWidth;
-            const worldY_br = image.y + offsetY + finalHeight;
-            const screenX_br = (worldX_br + originX) * scale;
-            const screenY_br = (worldY_br + originY) * scale;
-
-            if (screenX_br < 10 || screenX_br > canvas.width - 10 || screenY_br < 10 || screenY_br > canvas.height - 10) {
-                labelElement.style.display = 'none';
-            } else {
-                labelElement.textContent = infoString;
-                labelElement.style.opacity = 1;
-                labelElement.style.transform = `translate(${screenX_br - 10}px, ${screenY_br - 10}px) translate(-100%, -100%)`;
-                labelElement.style.display = 'block';
-            }
+    /**
+     * Updates the label's content, position, and visibility.
+     * This is the main hook called from the render loop.
+     * @param {object} params - The necessary data from the main plugin's render loop.
+     */
+    update({ image, dimensions, transform, canvas, config }) {
+        // If there's no valid image to display a label for, hide the element and exit.
+        if (!image || !image.details || !dimensions || !transform || !canvas || !config) {
+            this.labelElement.style.display = 'none';
+            return;
         }
 
-        // Hide any labels for images that are no longer active
-        for (const [imageId, labelElement] of this.labelElements.entries()) {
-            if (!activeImageIds.has(imageId)) {
-                labelElement.style.display = 'none';
-            }
+        const { finalWidth, finalHeight, offsetX, offsetY } = dimensions;
+        const { scale, originX, originY } = transform;
+
+        // 1. Calculate the image's full bounding box on the screen
+        const screenLeft = (image.x + offsetX + originX) * scale;
+        const screenTop = (image.y + offsetY + originY) * scale;
+        const screenRight = screenLeft + (finalWidth * scale);
+        const screenBottom = screenTop + (finalHeight * scale);
+
+        // 2. Check if the image rectangle intersects with the canvas rectangle at all
+        const isVisible = screenLeft < canvas.width && screenRight > 0 && screenTop < canvas.height && screenBottom > 0;
+
+        if (!isVisible) {
+            this.labelElement.style.display = 'none';
+            return;
         }
+
+        // 3. Format the label string from image details
+        const geo = image.details.geo ? `${image.details.geo.city || ''}, ${image.details.geo.country || ''}`.replace(/^, |, $/g, '') : null;
+        const dateTime = image.details.exif?.DateTimeOriginal?.rawValue;
+        let infoString = dateTime ? `${dateTime.split(' ')[0]}` : ''; // Just the date part
+        if (geo) {
+            infoString += `${infoString ? ' | ' : ''}${geo}`;
+        }
+
+        if (!infoString) {
+            this.labelElement.style.display = 'none';
+            return;
+        }
+        
+        // 4. Position the label, clamping its coordinates to stay within the canvas
+        let labelX = screenRight - 10;
+        let labelY = screenBottom - 10;
+        
+        // This makes the label "stick" to the edge of the screen if the image corner moves past it.
+        labelX = Math.min(labelX, canvas.width - 10);
+        labelY = Math.min(labelY, canvas.height - 10);
+        
+        // 5. Update and show the label
+        this.labelElement.textContent = infoString;
+        this.labelElement.style.opacity = 1;
+        this.labelElement.style.transform = `translate(${labelX}px, ${labelY}px) translate(-100%, -100%)`;
+        this.labelElement.style.display = 'block';
+        
     }
 }
