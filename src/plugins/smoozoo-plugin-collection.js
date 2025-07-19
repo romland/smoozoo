@@ -924,45 +924,44 @@ export class SmoozooCollection
         // --- 7. Final Processing and UI ---
         this.processRequestQueue();
 
-        // --- Consolidated Info Label Logic (New Approach) ---
-        const subjectImage = dominantImg; // Uses the dominant image already found earlier in this function
+        // --- Update Info Labels for all eligible images ---
+        const labelsToUpdate = [];
+        if (scale > this.config.highResThreshold) {
+            for (const img of visibleImages) {
+                if (img && img.details && img.highResState === 'ready') {
+                    // Calculate rendered dimensions for this specific image
+                    const boxAspect = img.width / img.height;
+                    const imageAspect = img.originalWidth / img.originalHeight;
+                    let finalWidth, finalHeight, offsetX, offsetY;
 
-        if (
-            subjectImage &&
-            subjectImage.highResState === 'ready' &&
-            scale > this.config.highResThreshold
-        ) {
-            // We have a valid subject for the label. Calculate its rendered dimensions.
-            const boxAspect = subjectImage.width / subjectImage.height;
-            const imageAspect = subjectImage.originalWidth / subjectImage.originalHeight;
-            let finalWidth, finalHeight, offsetX, offsetY;
+                    if (imageAspect > boxAspect) {
+                        finalWidth = img.width;
+                        finalHeight = img.width / imageAspect;
+                        offsetX = 0;
+                        offsetY = (img.height - finalHeight) / 2;
+                    } else {
+                        finalHeight = img.height;
+                        finalWidth = img.height * imageAspect;
+                        offsetY = 0;
+                        offsetX = (img.width - finalWidth) / 2;
+                    }
 
-            if (imageAspect > boxAspect) {
-                finalWidth = subjectImage.width;
-                finalHeight = subjectImage.width / imageAspect;
-                offsetX = 0;
-                offsetY = (subjectImage.height - finalHeight) / 2;
-            } else {
-                finalHeight = subjectImage.height;
-                finalWidth = subjectImage.height * imageAspect;
-                offsetY = 0;
-                offsetX = (subjectImage.width - finalWidth) / 2;
+                    labelsToUpdate.push({
+                        image: img,
+                        dimensions: { finalWidth, finalHeight, offsetX, offsetY }
+                    });
+                }
             }
-
-            // Pass all necessary info to the label to handle its own state.
-            this.infoLabel.update({
-                image: subjectImage,
-                dimensions: { finalWidth, finalHeight, offsetX, offsetY },
-                transform: { scale, originX, originY },
-                canvas: this.canvas,
-                config: this.config
-            });
-        } else {
-            // If conditions are not met, explicitly tell the label to hide.
-            this.infoLabel.update({});
         }
+
+        // Pass all eligible labels to the manager to update the DOM
+        this.infoLabel.updateAll({
+            labels: labelsToUpdate,
+            transform: { scale, originX, originY },
+            canvas: this.canvas
+        });
     }
-    
+
 
     /**
      * Uploads a generated thumbnail blob to the server in the background.
