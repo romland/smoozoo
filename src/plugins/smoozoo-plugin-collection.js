@@ -730,8 +730,6 @@ export class SmoozooCollection
             originY
         } = this.api.getTransform();
 
-        let labelWasUpdatedThisFrame = false;
-
         const gl = this.gl;
         const canvas = this.canvas;
         const smoozooSettings = this.api.getSettings();
@@ -913,17 +911,6 @@ export class SmoozooCollection
                     drawn = true;
                 }
 
-                // Hook for the InfoLabel: Update it only for the first high-res image drawn this frame.
-                if (drawn && !labelWasUpdatedThisFrame) {
-                    this.infoLabel.update({
-                        image: img,
-                        dimensions: { finalWidth, finalHeight, offsetX, offsetY },
-                        transform: { scale, originX, originY },
-                        canvas: this.canvas,
-                        config: this.config
-                    });
-                    labelWasUpdatedThisFrame = true;
-                }
             }
             
             if (!drawn && textureToDisplay) {
@@ -937,11 +924,45 @@ export class SmoozooCollection
         // --- 7. Final Processing and UI ---
         this.processRequestQueue();
 
-        // If no high-res image was drawn this frame, ensure the label is hidden.
-        if (!labelWasUpdatedThisFrame) {
-            this.infoLabel.update({}); // Calling with empty params will hide it
+        // --- Consolidated Info Label Logic (New Approach) ---
+        const subjectImage = dominantImg; // Uses the dominant image already found earlier in this function
+
+        if (
+            subjectImage &&
+            subjectImage.highResState === 'ready' &&
+            scale > this.config.highResThreshold
+        ) {
+            // We have a valid subject for the label. Calculate its rendered dimensions.
+            const boxAspect = subjectImage.width / subjectImage.height;
+            const imageAspect = subjectImage.originalWidth / subjectImage.originalHeight;
+            let finalWidth, finalHeight, offsetX, offsetY;
+
+            if (imageAspect > boxAspect) {
+                finalWidth = subjectImage.width;
+                finalHeight = subjectImage.width / imageAspect;
+                offsetX = 0;
+                offsetY = (subjectImage.height - finalHeight) / 2;
+            } else {
+                finalHeight = subjectImage.height;
+                finalWidth = subjectImage.height * imageAspect;
+                offsetY = 0;
+                offsetX = (subjectImage.width - finalWidth) / 2;
+            }
+
+            // Pass all necessary info to the label to handle its own state.
+            this.infoLabel.update({
+                image: subjectImage,
+                dimensions: { finalWidth, finalHeight, offsetX, offsetY },
+                transform: { scale, originX, originY },
+                canvas: this.canvas,
+                config: this.config
+            });
+        } else {
+            // If conditions are not met, explicitly tell the label to hide.
+            this.infoLabel.update({});
         }
     }
+    
 
     /**
      * Uploads a generated thumbnail blob to the server in the background.

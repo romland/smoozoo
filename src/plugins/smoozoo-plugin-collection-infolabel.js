@@ -71,19 +71,21 @@ export class InfoLabel {
         const screenY_br = (worldY_br + originY) * scale;
 
         // 3. Check if the corner is visible within the canvas bounds (with a margin)
+        // if (screenX_br < 10 || screenX_br > canvas.width - 10 || screenY_br < 10 || screenY_br > canvas.height - 10) {
         if (screenX_br < 10 || screenX_br > canvas.width - 10 || screenY_br < 10 || screenY_br > canvas.height - 10) {
             this.labelElement.style.display = 'none';
             return;
         }
         
-        // 4. Calculate opacity to fade the label in/out with zoom
-        const fadeStart = config.highResThreshold;
-        const fadeEnd = fadeStart + 0.5;
-        const opacity = Math.min(1, Math.max(0, (scale - fadeStart) / (fadeEnd - fadeStart)));
+        // 4. Update and show the label (Opacity is now always 1)
+        this.labelElement.textContent = infoString;
+        this.labelElement.style.opacity = 1;
+        this.labelElement.style.transform = `translate(${screenX_br - 10}px, ${screenY_br - 10}px) translate(-100%, -100%)`;
+        this.labelElement.style.display = 'block';
 
         // 5. Update and show the label
         this.labelElement.textContent = infoString;
-        this.labelElement.style.opacity = opacity;
+        this.labelElement.style.opacity = 1;
         // Use translate for positioning to be GPU-accelerated and avoid layout shifts.
         // The -10px provides padding from the corner. translate(-100%, -100%) aligns the bottom-right of the label.
         this.labelElement.style.transform = `translate(${screenX_br - 10}px, ${screenY_br - 10}px) translate(-100%, -100%)`;
