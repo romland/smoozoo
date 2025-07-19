@@ -7,6 +7,7 @@
 import { ThumbnailCache, LocalStorageDB, Quadtree } from './smoozoo-plugin-collection-helpers.js';
 import { ImageInfoCache } from './smoozoo-plugin-collection-imageinfocache.js';
 import { SelectionDeck } from './smoozoo-plugin-collection-selectiondeck.js';
+import { InfoLabel } from './smoozoo-plugin-collection-infolabel.js';
 
 export class SmoozooCollection
 {
@@ -97,6 +98,8 @@ export class SmoozooCollection
         // --- Tagging ---
         this.db = new LocalStorageDB('smoozoo_tags');
         this.tags = this.db.getAll() || {};
+
+        this.infoLabel = new InfoLabel(this.targetElement);
 
         this.init();
 
@@ -726,6 +729,9 @@ export class SmoozooCollection
             originX,
             originY
         } = this.api.getTransform();
+
+        let labelWasUpdatedThisFrame = false;
+
         const gl = this.gl;
         const canvas = this.canvas;
         const smoozooSettings = this.api.getSettings();
@@ -811,50 +817,50 @@ export class SmoozooCollection
         
         this.imageUnderCursor = newImageUnderCursor;
         
-// --- 5. High-Resolution Logic ---
-let dominantImg = null;
-let maxDominance = 0;
-for (const img of visibleImages) {
-    const screenWidth = img.width * scale;
-    const screenHeight = img.height * scale;
-    const hDominance = screenWidth / canvas.width;
-    const vDominance = screenHeight / canvas.height;
-    const currentDominance = Math.max(hDominance, vDominance);
+        // --- 5. High-Resolution Logic ---
+        let dominantImg = null;
+        let maxDominance = 0;
+        for (const img of visibleImages) {
+            const screenWidth = img.width * scale;
+            const screenHeight = img.height * scale;
+            const hDominance = screenWidth / canvas.width;
+            const vDominance = screenHeight / canvas.height;
+            const currentDominance = Math.max(hDominance, vDominance);
 
-    if (currentDominance > maxDominance) {
-        maxDominance = currentDominance;
-        dominantImg = img;
-    }
-}
-
-clearTimeout(this.highResLoadDebounceTimer);
-
-if (dominantImg && dominantImg.state === 'ready' && scale > this.config.highResThreshold) {
-    if (dominantImg.highResState === 'none') {
-        const isDominantOnScreen = maxDominance >= this.config.instantLoadThreshold;
-
-        if (isDominantOnScreen) {
-            // This image is very large on screen, load it immediately.
-            this.requestHighResLoad(dominantImg);
-        } else {
-            // The user might be panning or the image isn't big enough. Use a delay.
-            this.highResLoadDebounceTimer = setTimeout(() => {
-                const { scale: currentScale } = this.api.getTransform();
-                // After the delay, re-check that conditions are met before loading.
-                if (currentScale > this.config.highResThreshold) {
-                     this.requestHighResLoad(dominantImg);
-                }
-            }, this.config.highResLoadDelay);
+            if (currentDominance > maxDominance) {
+                maxDominance = currentDominance;
+                dominantImg = img;
+            }
         }
-    }
-}
+
+        clearTimeout(this.highResLoadDebounceTimer);
+
+        if (dominantImg && dominantImg.state === 'ready' && scale > this.config.highResThreshold) {
+            if (dominantImg.highResState === 'none') {
+                const isDominantOnScreen = maxDominance >= this.config.instantLoadThreshold;
+
+                if (isDominantOnScreen) {
+                    // This image is very large on screen, load it immediately.
+                    this.requestHighResLoad(dominantImg);
+                } else {
+                    // The user might be panning or the image isn't big enough. Use a delay.
+                    this.highResLoadDebounceTimer = setTimeout(() => {
+                        const { scale: currentScale } = this.api.getTransform();
+                        // After the delay, re-check that conditions are met before loading.
+                        if (currentScale > this.config.highResThreshold) {
+                            this.requestHighResLoad(dominantImg);
+                        }
+                    }, this.config.highResLoadDelay);
+                }
+            }
+        }
         
         // --- 6. Draw Visible Images ---
         for (const img of visibleImages) {
             let textureToDisplay = img.thumbTex;
             if (!textureToDisplay) continue; // Don't draw if texture isn't ready
 
-            // --- NEW: On-Canvas Selection Indicator ---
+            // On-Canvas Selection Indicator
             // Get the location of the new 'u_brightness' uniform from your shader.
             const brightnessLocation = gl.getUniformLocation(program, "u_brightness");
             if (this.selectionDeck.isSelected(img.id)) {
@@ -865,48 +871,34 @@ if (dominantImg && dominantImg.state === 'ready' && scale > this.config.highResT
 
             let drawn = false;
 
-            // if (img === this.imageUnderCursor && img.highResState === 'ready' && (img.highResTexture || img.highResTiles)) {
             if (img.highResState === 'ready' && (img.highResTexture || img.highResTiles)) {
                 this.updateCacheUsage(img);
-                
+
+                // --- Calculate final dimensions ONCE to fix the scope issue ---
+                const boxAspect = img.width / img.height;
+                const imageAspect = img.originalWidth / img.originalHeight;
+                let finalWidth, finalHeight, offsetX, offsetY;
+
+                if (imageAspect > boxAspect) { // Image is wider than the box
+                    finalWidth = img.width;
+                    finalHeight = img.width / imageAspect;
+                    offsetX = 0;
+                    offsetY = (img.height - finalHeight) / 2;
+                } else { // Image is taller or same aspect as the box
+                    finalHeight = img.height;
+                    finalWidth = img.height * imageAspect;
+                    offsetY = 0;
+                    offsetX = (img.width - finalWidth) / 2;
+                }
+                // --- End of calculation ---
+
                 if (img.highResTexture) {
-                    const boxAspect = img.width / img.height;
-                    const imageAspect = img.originalWidth / img.originalHeight;
-                    let finalWidth, finalHeight, offsetX, offsetY;
-                    
-                    if (imageAspect > boxAspect) { // Image is wider than the box
-                        finalWidth = img.width;
-                        finalHeight = img.width / imageAspect;
-                        offsetX = 0;
-                        offsetY = (img.height - finalHeight) / 2;
-                    } else { // Image is taller than the box
-                        finalHeight = img.height;
-                        finalWidth = img.height * imageAspect;
-                        offsetY = 0;
-                        offsetX = (img.width - finalWidth) / 2;
-                    }
-                    
                     gl.bindTexture(gl.TEXTURE_2D, img.highResTexture);
                     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, filter);
                     this.api.setRectangle(gl, img.x + offsetX, img.y + offsetY, finalWidth, finalHeight);
                     gl.drawArrays(gl.TRIANGLES, 0, 6);
-                    drawn = true; // Mark as drawn to prevent the default renderer from running
+                    drawn = true;
                 } else if (img.highResTiles) {
-                    
-                    const boxAspect = img.width / img.height;
-                    const imageAspect = img.originalWidth / img.originalHeight;
-                    let finalWidth, finalHeight, offsetX, offsetY;
-                    if (imageAspect > boxAspect) {
-                        finalWidth = img.width;
-                        finalHeight = img.width / imageAspect;
-                        offsetX = 0;
-                        offsetY = (img.height - finalHeight) / 2;
-                    } else {
-                        finalHeight = img.height;
-                        finalWidth = img.height * imageAspect;
-                        offsetY = 0;
-                        offsetX = (img.width - finalWidth) / 2;
-                    }
                     const tileScaleFactor = finalWidth / img.originalWidth;
                     for (const tile of img.highResTiles) {
                         gl.bindTexture(gl.TEXTURE_2D, tile.texture);
@@ -920,6 +912,18 @@ if (dominantImg && dominantImg.state === 'ready' && scale > this.config.highResT
                     }
                     drawn = true;
                 }
+
+                // Hook for the InfoLabel: Update it only for the first high-res image drawn this frame.
+                if (drawn && !labelWasUpdatedThisFrame) {
+                    this.infoLabel.update({
+                        image: img,
+                        dimensions: { finalWidth, finalHeight, offsetX, offsetY },
+                        transform: { scale, originX, originY },
+                        canvas: this.canvas,
+                        config: this.config
+                    });
+                    labelWasUpdatedThisFrame = true;
+                }
             }
             
             if (!drawn && textureToDisplay) {
@@ -932,6 +936,11 @@ if (dominantImg && dominantImg.state === 'ready' && scale > this.config.highResT
         
         // --- 7. Final Processing and UI ---
         this.processRequestQueue();
+
+        // If no high-res image was drawn this frame, ensure the label is hidden.
+        if (!labelWasUpdatedThisFrame) {
+            this.infoLabel.update({}); // Calling with empty params will hide it
+        }
     }
 
     /**
