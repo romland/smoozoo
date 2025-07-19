@@ -1,3 +1,4 @@
+// REVERT TO HERE
 /**
  * Smoozoo Collection Plugin
  *
@@ -18,7 +19,7 @@ export class SmoozooCollection
 
         // --- Caching and Worker Setup ---
         this.cache = new ThumbnailCache();
-        this.imageInfoCache = new ImageInfoCache(this.options.apiOrigin);
+        this.imageInfoCache = new ImageInfoCache(this.options.apiOrigin);        
         this.worker = new Worker(new URL('../js/thumbnail.worker.js', import.meta.url));
         this.worker.onmessage = this.handleWorkerMessage.bind(this);
 
@@ -79,11 +80,9 @@ export class SmoozooCollection
         this.isSelectModeActive = false;
 
 
-        this.imageUnderCursor = null;
-        this.focusedHighResImage = null;
+        this.imageUnderCursor = null; // Replaces 'focusedImage'
         this.lastMouseWorldPos = { x: 0, y: 0 }; // Track mouse in world coordinates
         this.selectionDeck = null; // Will hold the SelectionDeck instance
-        this.infoLabel = null;
 
         this.imageLoadQueue = new Set(); // Tracks images that need loading
 
@@ -109,8 +108,6 @@ export class SmoozooCollection
         console.log("🖼️ Smoozoo Collection Plugin Initializing...");
         this.api.preventInitialLoad();
         this.api.overrideRenderer(this.render.bind(this));
-
-        this.initInfoLabel();
 
         this.selectionDeck = new SelectionDeck(this, this.imageInfoCache, this.config.deckConfig, this.targetElement);
         this.selectionDeck.init();
@@ -213,7 +210,29 @@ export class SmoozooCollection
             if (details) {
                 // Store details on the image object for potential future use (e.g., drawing on canvas)
                 image.details = details; 
-                this.api.requestRender();
+                
+                // For now, just log the full details object
+                console.log("Details for zoomed image:", details);
+
+                // This is how you would extract and print specific info as requested
+                // This will be useful when you want to draw this text over the image.
+                const geo = details.geo ? `${details.geo.city || 'N/A'}, ${details.geo.country || 'N/A'}` : null;
+                const dateTime = details.exif?.DateTimeOriginal?.rawValue;
+                
+                let infoString = "";
+                
+                if (dateTime) {
+                    infoString += `Date: ${dateTime}`;
+                }
+
+                if (geo) {
+                    infoString += `${infoString ? ' | ' : ''}Location: ${geo}`;
+                }
+                
+                if (infoString) {
+                    // In the future, you could draw this `infoString` in the bottom right corner.
+                    console.log(`Formatted Info: ${infoString}`);
+                }
             }
         });
 
@@ -266,7 +285,6 @@ export class SmoozooCollection
 
             image.highResState = 'ready';
             this.addTextureToCache(image);
-            this.focusedHighResImage = image;
             this.api.requestRender();
 
         } catch (e) {
@@ -733,10 +751,6 @@ export class SmoozooCollection
         gl.uniformMatrix3fv(uniformLocations.rotation, false, identityMatrix);
         gl.uniform2f(uniformLocations.texCoordScale, 1, 1);
         
-        if (scale < this.config.highResThreshold) {
-            this.focusedHighResImage = null;
-        }
-
         // --- 2. Calculate Query Area ---
         const viewWidth = canvas.width / scale;
         const viewHeight = canvas.height / scale;
@@ -797,36 +811,44 @@ export class SmoozooCollection
         
         this.imageUnderCursor = newImageUnderCursor;
         
-        // --- 5. High-Resolution Logic ---
-        // Always clear any high-res load request that was scheduled in the previous frame.
-        clearTimeout(this.highResLoadDebounceTimer);
+// --- 5. High-Resolution Logic ---
+let dominantImg = null;
+let maxDominance = 0;
+for (const img of visibleImages) {
+    const screenWidth = img.width * scale;
+    const screenHeight = img.height * scale;
+    const hDominance = screenWidth / canvas.width;
+    const vDominance = screenHeight / canvas.height;
+    const currentDominance = Math.max(hDominance, vDominance);
 
-        // Condition: We are hovering over a valid thumbnail and are zoomed in enough.
-        if (this.imageUnderCursor && this.imageUnderCursor.state === 'ready' && scale > this.config.highResThreshold) {
+    if (currentDominance > maxDominance) {
+        maxDominance = currentDominance;
+        dominantImg = img;
+    }
+}
 
-            // We only need to act if the image we're hovering over is not already the one being shown in high-res.
-            if (this.imageUnderCursor !== this.focusedHighResImage) {
+clearTimeout(this.highResLoadDebounceTimer);
 
-                // Case A: The new image's high-res data has never been loaded. Fetch it.
-                if (this.imageUnderCursor.highResState === 'none') {
-                    // Use a debounced loader to avoid spamming requests while panning across many images.
-                    this.highResLoadDebounceTimer = setTimeout(() => {
-                        // Re-check scale in case the user zoomed out during the timeout.
-                        const { scale: currentScale } = this.api.getTransform();
-                        if (currentScale > this.config.highResThreshold && this.imageUnderCursor) {
-                            this.requestHighResLoad(this.imageUnderCursor);
-                        }
-                    }, this.config.highResLoadDelay);
+if (dominantImg && dominantImg.state === 'ready' && scale > this.config.highResThreshold) {
+    if (dominantImg.highResState === 'none') {
+        const isDominantOnScreen = maxDominance >= this.config.instantLoadThreshold;
+
+        if (isDominantOnScreen) {
+            // This image is very large on screen, load it immediately.
+            this.requestHighResLoad(dominantImg);
+        } else {
+            // The user might be panning or the image isn't big enough. Use a delay.
+            this.highResLoadDebounceTimer = setTimeout(() => {
+                const { scale: currentScale } = this.api.getTransform();
+                // After the delay, re-check that conditions are met before loading.
+                if (currentScale > this.config.highResThreshold) {
+                     this.requestHighResLoad(dominantImg);
                 }
-                // Case B: The new image's high-res data IS already loaded. We can switch to it instantly.
-                // This fixes the bug where zooming out and back in did nothing.
-                else if (this.imageUnderCursor.highResState === 'ready') {
-                    this.focusedHighResImage = this.imageUnderCursor;
-                    this.updateCacheUsage(this.imageUnderCursor); // Keep the LRU cache logic happy.
-                }
-            }
+            }, this.config.highResLoadDelay);
         }
-                
+    }
+}
+        
         // --- 6. Draw Visible Images ---
         for (const img of visibleImages) {
             let textureToDisplay = img.thumbTex;
@@ -844,7 +866,7 @@ export class SmoozooCollection
             let drawn = false;
 
             // if (img === this.imageUnderCursor && img.highResState === 'ready' && (img.highResTexture || img.highResTiles)) {
-            if (img === this.focusedHighResImage && img.highResState === 'ready' && (img.highResTexture || img.highResTiles)) {
+            if (img.highResState === 'ready' && (img.highResTexture || img.highResTiles)) {
                 this.updateCacheUsage(img);
                 
                 if (img.highResTexture) {
@@ -910,8 +932,6 @@ export class SmoozooCollection
         
         // --- 7. Final Processing and UI ---
         this.processRequestQueue();
-
-        this.updateInfoLabel();        
     }
 
     /**
@@ -948,127 +968,6 @@ export class SmoozooCollection
             console.error(`🚨 Thumbnail upload failed for ${image.filename}:`, error);
         }
     }
-
-    initInfoLabel()
-    {
-        const infoLabel = document.createElement('div');
-        infoLabel.id = 'smoozoo-info-label';
-        infoLabel.style.position = 'absolute';
-        infoLabel.style.visibility = 'hidden';
-        infoLabel.style.opacity = '0';
-        infoLabel.style.transition = 'opacity 0.3s ease-in-out';
-        infoLabel.style.backgroundColor = 'rgba(0, 0, 0, 0.65)';
-        infoLabel.style.color = 'white';
-        infoLabel.style.padding = '4px 8px';
-        infoLabel.style.borderRadius = '4px';
-        infoLabel.style.fontSize = '13px';
-        infoLabel.style.fontFamily = 'sans-serif';
-        infoLabel.style.pointerEvents = 'none'; // So it doesn't block mouse interactions
-        infoLabel.style.zIndex = '10';
-        this.targetElement.appendChild(infoLabel);
-        this.infoLabel = infoLabel;
-    }
-
-    updateInfoLabel() {
-        const label = this.infoLabel;
-        const img = this.imageUnderCursor;
-        const { scale, originX, originY } = this.api.getTransform();
-        const canvas = this.canvas;
-
-        // Conditions to show the label:
-        // 1. We are hovering over an image.
-        // 2. Its high-res texture is fully loaded and ready.
-        // 3. The detailed info for it has been fetched.
-        const shouldBeVisible = img && img.highResState === 'ready' && img.details;
-
-        if (shouldBeVisible) {
-            const dateStr = img.details.exif?.DateTimeOriginal?.rawValue;
-            const geo = img.details.geo;
-            let infoText = '';
-
-            // Format the date string nicely
-            if (dateStr) {
-                try {
-                    // The rawValue "YYYY:MM:DD HH:MM:SS" needs reformatting for the Date constructor
-                    const formattedDate = dateStr.replace(/(\d{4}):(\d{2}):(\d{2})/, '$1-$2-$3');
-                    infoText += new Date(formattedDate).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
-                } catch (e) { /* ignore invalid dates */ }
-            }
-            // Format the location string
-            if (geo) {
-                const location = [geo.city, geo.country].filter(Boolean).join(', ');
-                if (location) {
-                    infoText += `${infoText ? ' | ' : ''}${location}`;
-                }
-            }
-
-            // If there's no text to show, hide the label and exit
-            if (!infoText) {
-                label.style.opacity = '0';
-                return;
-            }
-
-            // Calculate the actual on-screen dimensions of the letterboxed/pillarboxed high-res image
-            const boxAspect = img.width / img.height;
-            const imageAspect = img.originalWidth / img.originalHeight;
-            let finalWidth, finalHeight, offsetX, offsetY;
-
-            if (imageAspect > boxAspect) { // Image is wider than the box
-                finalWidth = img.width;
-                finalHeight = img.width / imageAspect;
-                offsetX = 0;
-                offsetY = (img.height - finalHeight) / 2;
-            } else { // Image is taller than the box
-                finalHeight = img.height;
-                finalWidth = img.height * imageAspect;
-                offsetY = 0;
-                offsetX = (img.width - finalWidth) / 2;
-            }
-
-            // Find the image's bottom-right corner in world coordinates
-            const worldX_br = (img.x + offsetX) + finalWidth;
-            const worldY_br = (img.y + offsetY) + finalHeight;
-
-            // Convert that world coordinate to a screen coordinate (pixels)
-            const screenX_br = (worldX_br + originX) * scale;
-            const screenY_br = (worldY_br + originY) * scale;
-
-            // Check if this corner is actually visible within the canvas viewport
-            const padding = 15; // A small buffer from the edge
-            const isCornerVisible =
-                screenX_br > padding &&
-                screenX_br < canvas.width - padding &&
-                screenY_br > padding &&
-                screenY_br < canvas.height - padding;
-
-            if (isCornerVisible) {
-                // The corner is on-screen, so update and show the label
-                label.innerText = infoText;
-                
-                // Position the label's bottom-right corner to align with the image's corner
-                label.style.left = 'auto';
-                label.style.top = 'auto';
-                label.style.right = `${canvas.width - screenX_br + padding}px`;
-                label.style.bottom = `${canvas.height - screenY_br + padding}px`;
-                
-                label.style.visibility = 'visible';
-                label.style.opacity = '1';
-
-            } else {
-                // The corner is off-screen, so fade the label out
-                label.style.opacity = '0';
-            }
-        } else {
-            // Conditions not met (not hovering, not high-res, etc.), so fade the label out
-            label.style.opacity = '0';
-        }
-
-        // After the fade-out transition, set visibility to hidden to be safe.
-        if (label.style.opacity === '0' && label.style.visibility === 'visible') {
-            setTimeout(() => { label.style.visibility = 'hidden'; }, 300);
-        }
-    }
-
 
     // --- Event Handlers ---
     addKeyListeners() {
