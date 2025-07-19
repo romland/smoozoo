@@ -18,7 +18,7 @@ export class SmoozooCollection
 
         // --- Caching and Worker Setup ---
         this.cache = new ThumbnailCache();
-        this.imageInfoCache = new ImageInfoCache(this.options.apiOrigin);        
+        this.imageInfoCache = new ImageInfoCache(this.options.apiOrigin);
         this.worker = new Worker(new URL('../js/thumbnail.worker.js', import.meta.url));
         this.worker.onmessage = this.handleWorkerMessage.bind(this);
 
@@ -79,7 +79,8 @@ export class SmoozooCollection
         this.isSelectModeActive = false;
 
 
-        this.imageUnderCursor = null; // Replaces 'focusedImage'
+        this.imageUnderCursor = null;
+        this.focusedHighResImage = null;
         this.lastMouseWorldPos = { x: 0, y: 0 }; // Track mouse in world coordinates
         this.selectionDeck = null; // Will hold the SelectionDeck instance
         this.infoLabel = null;
@@ -212,6 +213,7 @@ export class SmoozooCollection
             if (details) {
                 // Store details on the image object for potential future use (e.g., drawing on canvas)
                 image.details = details; 
+                this.api.requestRender();
             }
         });
 
@@ -264,6 +266,7 @@ export class SmoozooCollection
 
             image.highResState = 'ready';
             this.addTextureToCache(image);
+            this.focusedHighResImage = image;
             this.api.requestRender();
 
         } catch (e) {
@@ -730,6 +733,10 @@ export class SmoozooCollection
         gl.uniformMatrix3fv(uniformLocations.rotation, false, identityMatrix);
         gl.uniform2f(uniformLocations.texCoordScale, 1, 1);
         
+        if (scale < this.config.highResThreshold) {
+            this.focusedHighResImage = null;
+        }
+
         // --- 2. Calculate Query Area ---
         const viewWidth = canvas.width / scale;
         const viewHeight = canvas.height / scale;
@@ -793,36 +800,33 @@ export class SmoozooCollection
         // --- 5. High-Resolution Logic ---
         // Always clear any high-res load request that was scheduled in the previous frame.
         clearTimeout(this.highResLoadDebounceTimer);
-        
-        if (this.imageUnderCursor) {
-            if (this.imageUnderCursor.state === 'ready' && scale > this.config.highResThreshold) {
+
+        // Condition: We are hovering over a valid thumbnail and are zoomed in enough.
+        if (this.imageUnderCursor && this.imageUnderCursor.state === 'ready' && scale > this.config.highResThreshold) {
+
+            // We only need to act if the image we're hovering over is not already the one being shown in high-res.
+            if (this.imageUnderCursor !== this.focusedHighResImage) {
+
+                // Case A: The new image's high-res data has never been loaded. Fetch it.
                 if (this.imageUnderCursor.highResState === 'none') {
-                    // Check if the image's width OR height dominates the corresponding canvas dimension.
-                    const imageScreenWidth = this.imageUnderCursor.width * scale;
-                    const imageScreenHeight = this.imageUnderCursor.height * scale;
-                    
-                    const isDominantOnScreen =
-                        (imageScreenWidth / this.canvas.width >= this.config.instantLoadThreshold) ||
-                        (imageScreenHeight / this.canvas.height >= this.config.instantLoadThreshold);
-                    
-                    if (isDominantOnScreen) {
-                        // Bypass the debounce and load the high-res version immediately.
-                        this.requestHighResLoad(this.imageUnderCursor);
-                    } else {
-                        // The user is likely panning. Use the timeout to prevent choppiness.
-                        this.highResLoadDebounceTimer = setTimeout(() => {
-                            const {
-                                scale: currentScale
-                            } = this.api.getTransform();
-                            if (currentScale > this.config.highResThreshold) {
-                                this.requestHighResLoad(this.imageUnderCursor);
-                            }
-                        }, this.config.highResLoadDelay);
-                    }
+                    // Use a debounced loader to avoid spamming requests while panning across many images.
+                    this.highResLoadDebounceTimer = setTimeout(() => {
+                        // Re-check scale in case the user zoomed out during the timeout.
+                        const { scale: currentScale } = this.api.getTransform();
+                        if (currentScale > this.config.highResThreshold && this.imageUnderCursor) {
+                            this.requestHighResLoad(this.imageUnderCursor);
+                        }
+                    }, this.config.highResLoadDelay);
+                }
+                // Case B: The new image's high-res data IS already loaded. We can switch to it instantly.
+                // This fixes the bug where zooming out and back in did nothing.
+                else if (this.imageUnderCursor.highResState === 'ready') {
+                    this.focusedHighResImage = this.imageUnderCursor;
+                    this.updateCacheUsage(this.imageUnderCursor); // Keep the LRU cache logic happy.
                 }
             }
         }
-        
+                
         // --- 6. Draw Visible Images ---
         for (const img of visibleImages) {
             let textureToDisplay = img.thumbTex;
@@ -839,7 +843,8 @@ export class SmoozooCollection
 
             let drawn = false;
 
-            if (img === this.imageUnderCursor && img.highResState === 'ready' && (img.highResTexture || img.highResTiles)) {
+            // if (img === this.imageUnderCursor && img.highResState === 'ready' && (img.highResTexture || img.highResTiles)) {
+            if (img === this.focusedHighResImage && img.highResState === 'ready' && (img.highResTexture || img.highResTiles)) {
                 this.updateCacheUsage(img);
                 
                 if (img.highResTexture) {
