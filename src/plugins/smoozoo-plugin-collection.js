@@ -63,7 +63,9 @@ export class SmoozooCollection
 
             deckConfig: {
                 apiOrigin: this.options.apiOrigin
-            }
+            },
+
+            infoLabelCorner: options.infoLabelCorner || 'bottom-left', // Accepts: 'top-left', 'top-right', 'bottom-left', 'bottom-right'
         };
 
         // --- State ---
@@ -213,7 +215,9 @@ export class SmoozooCollection
             if (details) {
                 // Store details on the image object for potential future use (e.g., drawing on canvas)
                 image.details = details; 
-                
+
+                this.api.requestRender();
+/*                
                 // For now, just log the full details object
                 console.log("Details for zoomed image:", details);
 
@@ -236,6 +240,7 @@ export class SmoozooCollection
                     // In the future, you could draw this `infoString` in the bottom right corner.
                     console.log(`Formatted Info: ${infoString}`);
                 }
+*/
             }
         });
 

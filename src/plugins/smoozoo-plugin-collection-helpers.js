@@ -19,7 +19,7 @@ export async function fetchImageInfo(apiOrigin, imageId)
         }
 
         const data = await response.json();
-        console.log(`✅ Successfully fetched info for ${imageId}:`, data);
+        // console.log(`✅ Successfully fetched info for ${imageId}:`, data);
         return data;
 
     } catch (error) {
@@ -56,7 +56,7 @@ export async function fetchMultipleImageInfo(apiOrigin, imageIds)
         }
 
         const data = await response.json();
-        console.log(`✅ Successfully fetched batch info for ${data.length} images:`, data);
+        // console.log(`✅ Successfully fetched batch info for ${data.length} images:`, data);
         return data;
 
     } catch (error) {

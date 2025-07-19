@@ -68,7 +68,7 @@ export class InfoLabel {
         // 3. Format the label string from image details
         const geo = image.details.geo ? `${image.details.geo.city || ''}, ${image.details.geo.country || ''}`.replace(/^, |, $/g, '') : null;
         const dateTime = image.details.exif?.DateTimeOriginal?.rawValue;
-        let infoString = dateTime ? `${dateTime.split(' ')[0]}` : ''; // Just the date part
+        let infoString = dateTime ? `${dateTime.split(' ')[0].replace(/:/g, "-")}` : ''; // Just the date part
         if (geo) {
             infoString += `${infoString ? ' | ' : ''}${geo}`;
         }
@@ -77,20 +77,43 @@ export class InfoLabel {
             this.labelElement.style.display = 'none';
             return;
         }
-        
-        // 4. Position the label, clamping its coordinates to stay within the canvas
-        let labelX = screenRight - 10;
-        let labelY = screenBottom - 10;
-        
-        // This makes the label "stick" to the edge of the screen if the image corner moves past it.
-        labelX = Math.min(labelX, canvas.width - 10);
-        labelY = Math.min(labelY, canvas.height - 10);
-        
+
+        // 4. Position the label based on the corner configuration
+        const corner = config.infoLabelCorner || 'bottom-right';
+        const padding = 10; // Screen pixels
+        let labelX, labelY, cssTransform;
+
+        switch (corner) {
+            case 'top-left':
+                labelX = Math.max(screenLeft, 0) + padding;
+                labelY = Math.max(screenTop, 0) + padding;
+                cssTransform = `translate(0, 0)`;
+                break;
+
+            case 'top-right':
+                labelX = Math.min(screenRight, canvas.width) - padding;
+                labelY = Math.max(screenTop, 0) + padding;
+                cssTransform = `translate(-100%, 0)`;
+                break;
+
+            case 'bottom-left':
+                labelX = Math.max(screenLeft, 0) + padding;
+                labelY = Math.min(screenBottom, canvas.height) - padding;
+                cssTransform = `translate(0, -100%)`;
+                break;
+
+            default: // 'bottom-right'
+                labelX = Math.min(screenRight, canvas.width) - padding;
+                labelY = Math.min(screenBottom, canvas.height) - padding;
+                cssTransform = `translate(-100%, -100%)`;
+                break;
+        }
+
         // 5. Update and show the label
         this.labelElement.textContent = infoString;
         this.labelElement.style.opacity = 1;
-        this.labelElement.style.transform = `translate(${labelX}px, ${labelY}px) translate(-100%, -100%)`;
+        this.labelElement.style.transform = `translate(${labelX}px, ${labelY}px) ${cssTransform}`;
         this.labelElement.style.display = 'block';
-        
     }
+
 }
