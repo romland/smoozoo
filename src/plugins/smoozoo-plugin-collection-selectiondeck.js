@@ -17,17 +17,12 @@ export class SelectionDeck {
         this.targetElement = targetElement;
         this.container = null;
         this.selectedImages = new Map();
-        
-        // SURGICAL CHANGE 1 of 3: The menu is no longer defined here.
-        // this.menuStructure is removed.
     }
 
     init() {
         this.injectUI();
         this.applyStyles();
 
-        // SURGICAL CHANGE 2 of 3: The original menu logic is replaced by this block.
-        // ------------------- START OF REPLACEMENT -------------------
         const menuButton = document.getElementById('smoozoo-deck-menu-btn');
         const menuPanel = document.getElementById('smoozoo-deck-actions-menu');
 
@@ -45,10 +40,8 @@ export class SelectionDeck {
             menuStructure: deckMenuStructure,
             onAction: (detail) => this._handleMenuAction(detail)
         });
-        // -------------------- END OF REPLACEMENT --------------------
     }
 
-    // SURGICAL CHANGE 3 of 3: New method to handle the callback from the menu.
     _handleMenuAction({ action, value }) {
         if (action === 'tag') {
             this.plugin.tagSelectedDeckImages();
@@ -59,10 +52,6 @@ export class SelectionDeck {
         }
     }
 
-    // =========================================================================
-    // ALL METHODS BELOW ARE 100% IDENTICAL TO YOUR ORIGINAL CODE TO PRESERVE ALL
-    // EXISTING FUNCTIONALITY AND ANIMATIONS.
-    // =========================================================================
 
     loadSelection() {
         const savedIdsJson = localStorage.getItem('smoozooDeckSelection');
@@ -96,9 +85,7 @@ export class SelectionDeck {
         this.container = document.getElementById('smoozoo-deck-container');
     }
     
-    // NOTE: This method is intentionally removed as it's now inside ContextMenu.js
-    // _buildMenuHTML(items, parentElement) { ... }
-    
+   
     applyStyles() {
         const style = this.container.style;
         style.position = 'absolute';
