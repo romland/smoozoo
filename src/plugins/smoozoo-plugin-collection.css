@@ -188,3 +188,102 @@ body.ui-hidden .highres-infolabel {
     opacity: 0 !important;
     pointer-events: none !important;
 }
+
+.highres-infolabel-button:hover {
+    color: rgba(200, 200, 255, 1) !important;
+}
+
+/**
+ * Generic Modal & Smoozoo InfoLabel Styles
+ */
+
+/* Modal Overlay: The backdrop */
+.highres-infomodal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.5);
+    z-index: 10000;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.25s ease-in-out;
+}
+
+/* Visibility Control */
+.highres-infomodal-overlay.is-visible {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+/* Modal Content: The main dialog box */
+.highres-infomodal-content {
+    background-color: #282c34;
+    color: #abb2bf;
+    border-radius: 8px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+    width: 90%;
+    max-width: 700px;
+    max-height: 85vh;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen-Sans, Ubuntu, Cantarell, "Helvetica Neue", sans-serif;
+    display: flex;
+    flex-direction: column;
+    transform: scale(0.95);
+    transition: transform 0.25s ease-in-out;
+}
+
+.highres-infomodal-overlay.is-visible .highres-infomodal-content {
+    transform: scale(1);
+}
+
+/* Modal Header: Fixed at the top */
+.highres-infomodal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px 24px;
+    border-bottom: 1px solid #3a3f4b;
+    flex-shrink: 0;
+}
+
+.highres-infomodal-header h2 {
+    margin: 0;
+    font-size: 1.25rem;
+    color: #ffffff;
+}
+
+/* Modal Close Button */
+.highres-infomodal-close {
+    background: none;
+    border: none;
+    color: #abb2bf;
+    font-size: 28px;
+    font-weight: bold;
+    line-height: 1;
+    cursor: pointer;
+    padding: 4px;
+    transition: color 0.2s ease, transform 0.2s ease;
+}
+
+.highres-infomodal-close:hover {
+    color: #ffffff;
+    transform: scale(1.1);
+}
+
+/* Modal Body: The scrollable content area */
+.highres-infomodal-body {
+    padding: 24px;
+    overflow-y: auto;
+    flex-grow: 1;
+}
+
+/* Styling for the definition list in the InfoLabel use-case */
+.highres-infomodal-body dl { margin: 0; padding: 0; }
+.highres-infomodal-body dt { color: #61afef; font-weight: bold; margin-top: 16px; font-size: 0.9rem; letter-spacing: 0.5px; text-transform: capitalize; }
+.highres-infomodal-body dd { margin: 4px 0 0 16px; padding-bottom: 8px; border-bottom: 1px solid #3a3f4b22; word-break: break-word; }
+.highres-infomodal-body dd dl { margin-top: 8px; }
+.highres-infomodal-body dd dt { margin-top: 8px; }

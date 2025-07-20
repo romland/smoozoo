@@ -1,119 +1,190 @@
 /**
  * InfoLabel Plugin Helper
  *
- * Creates and manages an HTML label that sticks to a corner of a high-resolution
- * image within the Smoozoo viewer, displaying metadata.
+ * Creates and manages an HTML label and a clickable info icon. It uses a Modal
+ * component to display all image metadata when the icon is clicked.
+ */
+import { Modal } from './smoozoo-plugin-collection-helpers.js';
+
+/**
+ * InfoLabel Plugin Helper
+ *
+ * Creates and manages an HTML label and a clickable info icon. It uses a Modal
+ * component to display all image metadata when the icon is clicked.
  */
 export class InfoLabel {
-    /**
-     * @param {HTMLElement} targetElement The main container element of the Smoozoo instance.
-     */
     constructor(targetElement) {
         this.targetElement = targetElement;
+
+        // Element Properties
+        this.containerElement = null;
         this.labelElement = null;
+        this.infoButtonElement = null;
+        
+        // This class now OWNS an instance of the Modal
+        this.modal = new Modal(this.targetElement);
+        
+        this.currentImageDetails = null;
+
         this.init();
     }
 
-    /**
-     * Creates and styles the label div and appends it to the DOM.
-     */
     init() {
-        this.labelElement = document.createElement('div');
-        this.labelElement.classList = "highres-infolabel";
-        this.labelElement.style.position = 'absolute';
-        this.labelElement.style.top = '0'; // Controlled by transform for performance
-        this.labelElement.style.left = '0';
-        this.labelElement.style.backgroundColor = 'rgba(0, 0, 0, 0.6)';
-        this.labelElement.style.color = 'white';
-        this.labelElement.style.padding = '4px 8px';
-        this.labelElement.style.fontSize = '12px';
-        this.labelElement.style.fontFamily = 'sans-serif';
-        this.labelElement.style.borderRadius = '3px';
-        this.labelElement.style.pointerEvents = 'none';
-        this.labelElement.style.display = 'none';
+        // --- Info Label and Icon Container (This part is correct) ---
+        this.containerElement = document.createElement('div');
+        this.containerElement.className = "highres-infolabel";
+        Object.assign(this.containerElement.style, {
+            position: 'absolute', top: '0', left: '0',
+            backgroundColor: 'rgba(0, 0, 0, 0.6)',
+            color: 'white', padding: '4px 8px',
+            fontSize: '12px', fontFamily: 'sans-serif',
+            borderRadius: '3px', pointerEvents: 'none',
+            display: 'none', transition: 'opacity 0.2s ease-in-out',
+            display: 'flex', alignItems: 'center', gap: '8px'
+        });
+
+        this.labelElement = document.createElement('span');
+        this.labelElement.className = "highres-infolabel-text";
         this.labelElement.style.whiteSpace = 'nowrap';
-        this.labelElement.style.transition = 'opacity 0.2s ease-in-out';
-        this.targetElement.appendChild(this.labelElement);
+
+        this.infoButtonElement = document.createElement('button');
+        this.infoButtonElement.className = "highres-infolabel-button";
+        this.infoButtonElement.innerHTML = '&#9432;';
+        Object.assign(this.infoButtonElement.style, {
+            pointerEvents: 'auto', cursor: 'pointer', background: 'none',
+            border: 'none', color: 'rgba(80, 80, 255, 1)', fontSize: '22px',
+            padding: '0', lineHeight: '0.8'
+        });
+
+        this.containerElement.appendChild(this.infoButtonElement);
+        this.containerElement.appendChild(this.labelElement);
+        this.targetElement.appendChild(this.containerElement);
+        
+        // --- Event Listener (This part is correct) ---
+        this.infoButtonElement.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (this.currentImageDetails) {
+                const title = this.currentImageDetails.fileName || 'Image Details';
+                const bodyContent = this._createModalContent(this.currentImageDetails);
+                
+                this.modal.setContent({ title, bodyContent });
+                this.modal.show();
+            }
+        });
+    }
+
+    /**
+     * Creates the specific HTML content (a DL list) for the metadata modal.
+     * @param {object} details The image details object.
+     * @returns {HTMLDListElement} The populated DL element.
+     * @private
+     */
+    _createModalContent(details) {
+        const list = document.createElement('dl');
+
+        const renderObject = (obj, container) => {
+            for (const key in obj) {
+                if (!obj.hasOwnProperty(key) || key.startsWith('_')) continue;
+                const value = obj[key];
+                if (value === null || value === undefined || value === '') continue;
+                
+                const formattedKey = key.replace(/([A-Z])/g, ' $1').trim();
+                const dt = document.createElement('dt');
+                dt.textContent = formattedKey;
+                const dd = document.createElement('dd');
+
+                if (typeof value === 'object' && !Array.isArray(value)) {
+                    container.appendChild(dt);
+                    container.appendChild(dd);
+                    const nestedDl = document.createElement('dl');
+                    dd.appendChild(nestedDl);
+                    renderObject(value, nestedDl);
+                } else {
+                    dd.textContent = value.toString();
+                    container.appendChild(dt);
+                    container.appendChild(dd);
+                }
+            }
+        };
+
+        renderObject(details, list);
+        return list;
     }
 
     /**
      * Updates the label's content, position, and visibility.
-     * This is the main hook called from the render loop.
      * @param {object} params - The necessary data from the main plugin's render loop.
      */
     update({ image, dimensions, transform, canvas, config }) {
-        // If there's no valid image to display a label for, hide the element and exit.
         if (!image || !image.details || !dimensions || !transform || !canvas || !config) {
-            this.labelElement.style.display = 'none';
+            this.containerElement.style.display = 'none';
+            this.currentImageDetails = null;
             return;
         }
 
+        this.currentImageDetails = image.details;
+
         const { finalWidth, finalHeight, offsetX, offsetY } = dimensions;
+        // **FIXED**: Re-added originX and originY which were omitted in the previous refactoring.
         const { scale, originX, originY } = transform;
 
-        // 1. Calculate the image's full bounding box on the screen
+        // **FIXED**: The position calculation now correctly includes the transform origin,
+        // restoring the label's correct position.
         const screenLeft = (image.x + offsetX + originX) * scale;
         const screenTop = (image.y + offsetY + originY) * scale;
         const screenRight = screenLeft + (finalWidth * scale);
         const screenBottom = screenTop + (finalHeight * scale);
 
-        // 2. Check if the image rectangle intersects with the canvas rectangle at all
         const isVisible = screenLeft < canvas.width && screenRight > 0 && screenTop < canvas.height && screenBottom > 0;
 
         if (!isVisible) {
-            this.labelElement.style.display = 'none';
+            this.containerElement.style.display = 'none';
             return;
         }
 
-        // 3. Format the label string from image details
         const geo = image.details.geo ? `${image.details.geo.city || ''}, ${image.details.geo.country || ''}`.replace(/^, |, $/g, '') : null;
         const dateTime = image.details.exif?.DateTimeOriginal?.rawValue;
-        let infoString = dateTime ? `${dateTime.split(' ')[0].replace(/:/g, "-")}` : ''; // Just the date part
+        let infoString = dateTime ? `${dateTime.split(' ')[0].replace(/:/g, "-")}` : '';
         if (geo) {
             infoString += `${infoString ? ' | ' : ''}${geo}`;
         }
 
-        if (!infoString) {
+        if (infoString) {
+            this.labelElement.textContent = infoString;
+            this.labelElement.style.display = 'inline';
+        } else {
             this.labelElement.style.display = 'none';
-            return;
         }
 
-        // 4. Position the label based on the corner configuration
         const corner = config.infoLabelCorner || 'bottom-right';
-        const padding = 10; // Screen pixels
-        let labelX, labelY, cssTransform;
+        const padding = 10;
+        let containerX, containerY, cssTransform;
 
         switch (corner) {
             case 'top-left':
-                labelX = Math.max(screenLeft, 0) + padding;
-                labelY = Math.max(screenTop, 0) + padding;
+                containerX = Math.max(screenLeft, 0) + padding;
+                containerY = Math.max(screenTop, 0) + padding;
                 cssTransform = `translate(0, 0)`;
                 break;
-
             case 'top-right':
-                labelX = Math.min(screenRight, canvas.width) - padding;
-                labelY = Math.max(screenTop, 0) + padding;
+                containerX = Math.min(screenRight, canvas.width) - padding;
+                containerY = Math.max(screenTop, 0) + padding;
                 cssTransform = `translate(-100%, 0)`;
                 break;
-
             case 'bottom-left':
-                labelX = Math.max(screenLeft, 0) + padding;
-                labelY = Math.min(screenBottom, canvas.height) - padding;
+                containerX = Math.max(screenLeft, 0) + padding;
+                containerY = Math.min(screenBottom, canvas.height) - padding;
                 cssTransform = `translate(0, -100%)`;
                 break;
-
             default: // 'bottom-right'
-                labelX = Math.min(screenRight, canvas.width) - padding;
-                labelY = Math.min(screenBottom, canvas.height) - padding;
+                containerX = Math.min(screenRight, canvas.width) - padding;
+                containerY = Math.min(screenBottom, canvas.height) - padding;
                 cssTransform = `translate(-100%, -100%)`;
                 break;
         }
 
-        // 5. Update and show the label
-        this.labelElement.textContent = infoString;
-        this.labelElement.style.opacity = 1;
-        this.labelElement.style.transform = `translate(${labelX}px, ${labelY}px) ${cssTransform}`;
-        this.labelElement.style.display = 'block';
+        this.containerElement.style.opacity = 1;
+        this.containerElement.style.transform = `translate(${containerX}px, ${containerY}px) ${cssTransform}`;
+        this.containerElement.style.display = 'flex';
     }
-
 }

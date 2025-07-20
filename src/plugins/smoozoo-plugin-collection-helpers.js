@@ -286,3 +286,122 @@ export class Quadtree {
         );
     }
 }
+
+/**
+ * A reusable, generic modal dialog component.
+ */
+export class Modal {
+    /**
+     * @param {HTMLElement} targetElement The element to which the modal will be appended.
+     */
+    constructor(targetElement) {
+        this.targetElement = targetElement;
+        
+        // Bind methods to ensure `this` is correct in event listeners
+        this.show = this.show.bind(this);
+        this.hide = this.hide.bind(this);
+        this._handleEscKey = this._handleEscKey.bind(this);
+
+        this._initDOMElements();
+        this._attachEventListeners();
+    }
+
+    /**
+     * Creates all the necessary DOM elements for the modal.
+     * @private
+     */
+    _initDOMElements() {
+        this.overlayElement = document.createElement('div');
+        this.overlayElement.className = "highres-infomodal-overlay";
+        this.overlayElement.setAttribute('role', 'dialog');
+        this.overlayElement.setAttribute('aria-modal', 'true');
+
+        this.contentElement = document.createElement('div');
+        this.contentElement.className = "highres-infomodal-content";
+
+        this.headerElement = document.createElement('header');
+        this.headerElement.className = "highres-infomodal-header";
+        
+        this.titleElement = document.createElement('h2');
+        
+        this.closeButton = document.createElement('button');
+        this.closeButton.className = "highres-infomodal-close";
+        this.closeButton.innerHTML = '&times;';
+        this.closeButton.setAttribute('aria-label', 'Close dialog');
+        
+        this.bodyElement = document.createElement('div');
+        this.bodyElement.className = "highres-infomodal-body";
+        
+        // Assemble
+        this.headerElement.appendChild(this.titleElement);
+        this.headerElement.appendChild(this.closeButton);
+        this.contentElement.appendChild(this.headerElement);
+        this.contentElement.appendChild(this.bodyElement);
+        this.overlayElement.appendChild(this.contentElement);
+        this.targetElement.appendChild(this.overlayElement);
+    }
+    
+    /**
+     * Attaches event listeners for closing the modal.
+     * @private
+     */
+    _attachEventListeners() {
+        this.closeButton.addEventListener('click', this.hide);
+        this.overlayElement.addEventListener('click', this.hide);
+        // Prevent clicks inside the modal from closing it
+        this.contentElement.addEventListener('click', (e) => e.stopPropagation());
+    }
+    
+    /**
+     * Handles the Escape key press for closing the modal.
+     * @param {KeyboardEvent} e The keyboard event.
+     * @private
+     */
+    _handleEscKey(e) {
+        if (e.key === 'Escape') {
+            this.hide();
+        }
+    }
+
+    /**
+     * Displays the modal.
+     */
+    show() {
+        this.overlayElement.classList.add('is-visible');
+        document.addEventListener('keydown', this._handleEscKey);
+    }
+    
+    /**
+     * Hides the modal.
+     */
+    hide() {
+        this.overlayElement.classList.remove('is-visible');
+        document.removeEventListener('keydown', this._handleEscKey);
+    }
+    
+    /**
+     * Sets the content of the modal.
+     * @param {object} content
+     * @param {string} content.title The text for the modal's title.
+     * @param {HTMLElement|string} content.bodyContent The content for the modal's body. Can be an HTML element or a string.
+     */
+    setContent({ title, bodyContent }) {
+        this.titleElement.textContent = title || '';
+        this.bodyElement.innerHTML = ''; // Clear previous content
+        
+        if (typeof bodyContent === 'string') {
+            this.bodyElement.innerHTML = bodyContent;
+        } else if (bodyContent instanceof HTMLElement) {
+            this.bodyElement.appendChild(bodyContent);
+        }
+    }
+    
+    /**
+     * Removes the modal from the DOM and cleans up listeners.
+     */
+    destroy() {
+        // In a real app, you might want more robust listener cleanup, but this is a good start.
+        document.removeEventListener('keydown', this._handleEscKey);
+        this.targetElement.removeChild(this.overlayElement);
+    }
+}
