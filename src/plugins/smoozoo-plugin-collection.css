@@ -287,3 +287,79 @@ body.ui-hidden .highres-infolabel {
 .highres-infomodal-body dd { margin: 4px 0 0 16px; padding-bottom: 8px; border-bottom: 1px solid #3a3f4b22; word-break: break-word; }
 .highres-infomodal-body dd dl { margin-top: 8px; }
 .highres-infomodal-body dd dt { margin-top: 8px; }
+
+/* Generic Context Menu Styles */
+.smoozoo-context-menu-container {
+    position: relative;
+    display: inline-block;
+}
+
+.smoozoo-context-menu-btn {
+    background: rgba(0,0,0,0.4);
+    border: 1px solid rgba(255,255,255,0.2);
+    border-radius: 50%;
+    width: 28px;
+    height: 28px;
+    padding: 4px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.smoozoo-context-menu-btn:hover {
+    background: rgba(0,0,0,0.7);
+}
+
+.smoozoo-context-menu-btn svg {
+    width: 100%;
+    height: 100%;
+    fill: #fff;
+}
+
+.smoozoo-context-menu-panel {
+    position: absolute;
+    bottom: 100%; /* Position above the button */
+    right: 0;
+    margin: 0 0 8px 0;
+    padding: 6px 0;
+    list-style: none;
+    background-color: #282c34;
+    border-radius: 6px;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.5);
+    z-index: 10;
+    width: 180px;
+    opacity: 0;
+    transform: translateY(10px);
+    pointer-events: none;
+    transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.smoozoo-context-menu-panel.visible {
+    opacity: 1;
+    transform: translateY(0);
+    pointer-events: auto;
+}
+
+.smoozoo-context-menu-panel li button {
+    display: block;
+    width: 100%;
+    padding: 8px 16px;
+    background: none;
+    border: none;
+    color: #abb2bf;
+    text-align: left;
+    cursor: pointer;
+    font-size: 14px;
+}
+
+.smoozoo-context-menu-panel li button:hover {
+    background-color: #3a3f4b;
+    color: #ffffff;
+}
+
+.smoozoo-context-menu-panel .menu-separator hr {
+    border: none;
+    border-top: 1px solid #3a3f4b;
+    margin: 6px 0;
+}

@@ -405,3 +405,85 @@ export class Modal {
         this.targetElement.removeChild(this.overlayElement);
     }
 }
+
+/**
+ * ContextMenu Class (Surgical Version)
+ *
+ * Attaches menu logic to pre-existing button and panel elements.
+ * It does NOT create its own DOM. It only populates and manages.
+ */
+export class ContextMenu {
+    /**
+     * @param {object} config
+     * @param {HTMLButtonElement} config.menuButton The "..." button element that already exists in the DOM.
+     * @param {HTMLUListElement} config.menuPanel The `<ul>` element that already exists in the DOM.
+     * @param {Array<object>} config.menuStructure An array defining the menu items.
+     * @param {function({action: string, value?: any})} config.onAction The callback function when a menu item is clicked.
+     */
+    constructor({ menuButton, menuPanel, menuStructure, onAction }) {
+        if (!menuButton || !menuPanel) {
+            throw new Error('ContextMenu requires existing menuButton and menuPanel elements.');
+        }
+        this.menuButton = menuButton;
+        this.menuPanel = menuPanel;
+        this.menuStructure = menuStructure;
+        this.onAction = onAction;
+
+        this._buildMenuHTML(this.menuStructure, this.menuPanel);
+        this._attachEventListeners();
+    }
+
+    _attachEventListeners() {
+        // 1. Toggle visibility on button click
+        this.menuButton.addEventListener('click', (e) => {
+            e.stopPropagation();
+            this.menuPanel.classList.toggle('visible');
+        });
+
+        // 2. Handle actions via event delegation
+        this.menuPanel.addEventListener('click', (e) => {
+            const button = e.target.closest('button');
+            if (!button) return;
+
+            const { action, value } = button.dataset;
+            if (action && this.onAction) {
+                this.onAction({ action, value });
+            }
+            this.menuPanel.classList.remove('visible'); // Always hide after action
+        });
+
+        // 3. Global click listener to hide the menu
+        document.addEventListener('click', () => {
+            if (this.menuPanel.classList.contains('visible')) {
+                this.menuPanel.classList.remove('visible');
+            }
+        });
+    }
+
+    // This is the exact same recursive renderer from your original code.
+    _buildMenuHTML(items, parentElement) {
+        // Clear any existing content first
+        parentElement.innerHTML = '';
+        items.forEach(item => {
+            const li = document.createElement('li');
+            if (item.type === 'separator') {
+                li.className = 'menu-separator';
+                li.appendChild(document.createElement('hr'));
+            } else {
+                const button = document.createElement('button');
+                button.textContent = item.label;
+                if (item.action) button.dataset.action = item.action;
+                if (item.value) button.dataset.value = item.value;
+                li.appendChild(button);
+                if (item.children && item.children.length > 0) {
+                    li.className = 'has-submenu';
+                    const submenu = document.createElement('ul');
+                    submenu.className = 'submenu';
+                    this._buildMenuHTML(item.children, submenu);
+                    li.appendChild(submenu);
+                }
+            }
+            parentElement.appendChild(li);
+        });
+    }
+}

@@ -1,28 +1,22 @@
 /**
  * InfoLabel Plugin Helper
  *
- * Creates and manages an HTML label and a clickable info icon. It uses a Modal
- * component to display all image metadata when the icon is clicked.
+ * Creates a label and info icon on an image. The icon opens a modal,
+ * and a new context menu provides image-specific actions.
  */
-import { Modal } from './smoozoo-plugin-collection-helpers.js';
+import { Modal, ContextMenu } from './smoozoo-plugin-collection-helpers.js';
 
-/**
- * InfoLabel Plugin Helper
- *
- * Creates and manages an HTML label and a clickable info icon. It uses a Modal
- * component to display all image metadata when the icon is clicked.
- */
 export class InfoLabel {
-    constructor(targetElement) {
+    constructor(targetElement, plugin) {
         this.targetElement = targetElement;
-
-        // Element Properties
+        this.plugin = plugin;
+        
         this.containerElement = null;
         this.labelElement = null;
         this.infoButtonElement = null;
         
-        // This class now OWNS an instance of the Modal
         this.modal = new Modal(this.targetElement);
+        this.contextMenu = null;
         
         this.currentImageDetails = null;
 
@@ -30,7 +24,6 @@ export class InfoLabel {
     }
 
     init() {
-        // --- Info Label and Icon Container (This part is correct) ---
         this.containerElement = document.createElement('div');
         this.containerElement.className = "highres-infolabel";
         Object.assign(this.containerElement.style, {
@@ -40,7 +33,7 @@ export class InfoLabel {
             fontSize: '12px', fontFamily: 'sans-serif',
             borderRadius: '3px', pointerEvents: 'none',
             display: 'none', transition: 'opacity 0.2s ease-in-out',
-            display: 'flex', alignItems: 'center', gap: '8px'
+            alignItems: 'center', gap: '8px'
         });
 
         this.labelElement = document.createElement('span');
@@ -52,36 +45,74 @@ export class InfoLabel {
         this.infoButtonElement.innerHTML = '&#9432;';
         Object.assign(this.infoButtonElement.style, {
             pointerEvents: 'auto', cursor: 'pointer', background: 'none',
-            border: 'none', color: 'rgba(80, 80, 255, 1)', fontSize: '22px',
-            padding: '0', lineHeight: '0.8'
+            border: 'none', color: '#61afef', fontSize: '30px',
+            padding: '0', lineHeight: '0.8', marginTop: "-4px"
         });
+        
+        // Create the elements the ContextMenu needs before we call it.
+        const menuButton = document.createElement('button');
+        menuButton.className = 'smoozoo-context-menu-btn';
+        menuButton.title = 'Actions';
+        menuButton.innerHTML = `<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="2"></circle><circle cx="12" cy="5" r="2"></circle><circle cx="12" cy="19" r="2"></circle></svg>`;
+        menuButton.style.pointerEvents = 'auto'; // Make it clickable
 
+        const menuPanel = document.createElement('ul');
+        menuPanel.className = 'smoozoo-context-menu-panel';
+
+        // Add the created elements to the main container in the correct visual order
+        this.containerElement.appendChild(menuButton);
         this.containerElement.appendChild(this.infoButtonElement);
         this.containerElement.appendChild(this.labelElement);
-        this.targetElement.appendChild(this.containerElement);
+        this.containerElement.appendChild(menuPanel); // The panel is positioned absolutely
+
+        const infoLabelMenuStructure = [
+            { label: 'Select Image', action: 'select-image' },
+            { type: 'separator' },
+            { label: 'Copy Image URL', action: 'copy-url' },
+            { label: 'Copy Metadata (JSON)', action: 'copy-json' },
+        ];
         
-        // --- Event Listener (This part is correct) ---
+        // Now, instantiate ContextMenu with the live elements we just created.
+        this.contextMenu = new ContextMenu({
+            menuButton: menuButton,
+            menuPanel: menuPanel,
+            menuStructure: infoLabelMenuStructure,
+            onAction: (detail) => this._handleMenuAction(detail)
+        });
+        
+        this.targetElement.appendChild(this.containerElement);
+
         this.infoButtonElement.addEventListener('click', (e) => {
             e.stopPropagation();
             if (this.currentImageDetails) {
                 const title = this.currentImageDetails.fileName || 'Image Details';
                 const bodyContent = this._createModalContent(this.currentImageDetails);
-                
                 this.modal.setContent({ title, bodyContent });
                 this.modal.show();
             }
         });
     }
 
-    /**
-     * Creates the specific HTML content (a DL list) for the metadata modal.
-     * @param {object} details The image details object.
-     * @returns {HTMLDListElement} The populated DL element.
-     * @private
-     */
+    _handleMenuAction({ action }) {
+        if (!this.currentImageDetails || !this.plugin) return;
+
+        switch (action) {
+            case 'copy-url':
+                const url = this.plugin.config.apiOrigin + this.currentImageDetails.highRes;
+                navigator.clipboard.writeText(url).then(() => console.log('URL copied!'));
+                break;
+            case 'copy-json':
+                const json = JSON.stringify(this.currentImageDetails, null, 2);
+                navigator.clipboard.writeText(json).then(() => console.log('JSON copied!'));
+                break;
+            case 'select-image':
+                this.plugin.selectionDeck.toggle(this.currentImageDetails);
+                break;
+        }
+    }
+    
     _createModalContent(details) {
         const list = document.createElement('dl');
-
         const renderObject = (obj, container) => {
             for (const key in obj) {
                 if (!obj.hasOwnProperty(key) || key.startsWith('_')) continue;
@@ -106,15 +137,10 @@ export class InfoLabel {
                 }
             }
         };
-
         renderObject(details, list);
         return list;
     }
 
-    /**
-     * Updates the label's content, position, and visibility.
-     * @param {object} params - The necessary data from the main plugin's render loop.
-     */
     update({ image, dimensions, transform, canvas, config }) {
         if (!image || !image.details || !dimensions || !transform || !canvas || !config) {
             this.containerElement.style.display = 'none';
@@ -125,11 +151,8 @@ export class InfoLabel {
         this.currentImageDetails = image.details;
 
         const { finalWidth, finalHeight, offsetX, offsetY } = dimensions;
-        // **FIXED**: Re-added originX and originY which were omitted in the previous refactoring.
         const { scale, originX, originY } = transform;
 
-        // **FIXED**: The position calculation now correctly includes the transform origin,
-        // restoring the label's correct position.
         const screenLeft = (image.x + offsetX + originX) * scale;
         const screenTop = (image.y + offsetY + originY) * scale;
         const screenRight = screenLeft + (finalWidth * scale);
@@ -149,13 +172,9 @@ export class InfoLabel {
             infoString += `${infoString ? ' | ' : ''}${geo}`;
         }
 
-        if (infoString) {
-            this.labelElement.textContent = infoString;
-            this.labelElement.style.display = 'inline';
-        } else {
-            this.labelElement.style.display = 'none';
-        }
-
+        this.labelElement.style.display = infoString ? 'inline' : 'none';
+        this.labelElement.textContent = infoString;
+        
         const corner = config.infoLabelCorner || 'bottom-right';
         const padding = 10;
         let containerX, containerY, cssTransform;
@@ -183,7 +202,7 @@ export class InfoLabel {
                 break;
         }
 
-        this.containerElement.style.opacity = 1;
+        this.containerElement.style.opacity = '1';
         this.containerElement.style.transform = `translate(${containerX}px, ${containerY}px) ${cssTransform}`;
         this.containerElement.style.display = 'flex';
     }
