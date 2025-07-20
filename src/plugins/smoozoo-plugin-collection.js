@@ -8,6 +8,8 @@ import { ThumbnailCache, LocalStorageDB, Quadtree } from './smoozoo-plugin-colle
 import { ImageInfoCache } from './smoozoo-plugin-collection-imageinfocache.js';
 import { SelectionDeck } from './smoozoo-plugin-collection-selectiondeck.js';
 import { InfoLabel } from './smoozoo-plugin-collection-infolabel.js';
+import { RenderOrchestrator } from './smoozoo-plugin-collection-render-orchestrator.js';
+
 
 export class SmoozooCollection
 {
@@ -93,6 +95,7 @@ export class SmoozooCollection
         this.highResUsageList = []; // Tracks usage order for LRU logic      
 
         this.quadtree = null;
+        this.renderer = null; 
 
         this.requestQueue = []; // Holds images waiting to be loaded
         this.currentlyProcessing = 0; // Count of active network requests
@@ -112,6 +115,10 @@ export class SmoozooCollection
     init() {
         console.log("🖼️ Smoozoo Collection Plugin Initializing...");
         this.api.preventInitialLoad();
+
+        // Instantiate renderer and override with its method
+        this.renderer = new RenderOrchestrator(this);
+
         this.api.overrideRenderer(this.render.bind(this));
 
         this.selectionDeck = new SelectionDeck(this, this.imageInfoCache, this.config.deckConfig, this.targetElement);
@@ -728,257 +735,8 @@ export class SmoozooCollection
     }
 
     render = () => {
-        // --- 1. Setup ---
-        const {
-            scale,
-            originX,
-            originY
-        } = this.api.getTransform();
-
-        const gl = this.gl;
-        const canvas = this.canvas;
-        const smoozooSettings = this.api.getSettings();
-        const filter = smoozooSettings.pixelatedZoom ? gl.NEAREST : gl.LINEAR;
-        const program = this.api.getProgram();
-        const buffers = this.api.getBuffers();
-        const attribLocations = this.api.getAttribLocations();
-        const uniformLocations = this.api.getUniformLocations();
-        
-        gl.useProgram(program);
-        gl.clearColor(0.055, 0.016, 0.133, 1.0);
-        gl.clear(gl.COLOR_BUFFER_BIT);
-        gl.enableVertexAttribArray(attribLocations.position);
-        gl.bindBuffer(gl.ARRAY_BUFFER, buffers.position);
-        gl.vertexAttribPointer(attribLocations.position, 2, gl.FLOAT, false, 0, 0);
-        gl.enableVertexAttribArray(attribLocations.texcoord);
-        gl.bindBuffer(gl.ARRAY_BUFFER, buffers.texcoord);
-        gl.vertexAttribPointer(attribLocations.texcoord, 2, gl.FLOAT, false, 0, 0);
-        
-        const mainViewProjMtx = this.api.makeMatrix(originX, originY, scale);
-        gl.uniformMatrix3fv(uniformLocations.viewProjection, false, mainViewProjMtx);
-        const identityMatrix = [1, 0, 0, 0, 1, 0, 0, 0, 1];
-        gl.uniformMatrix3fv(uniformLocations.rotation, false, identityMatrix);
-        gl.uniform2f(uniformLocations.texCoordScale, 1, 1);
-        
-        // --- 2. Calculate Query Area ---
-        const viewWidth = canvas.width / scale;
-        const viewHeight = canvas.height / scale;
-        const viewX = -originX;
-        const viewY = -originY;
-        
-        const verticalBuffer = viewHeight * this.config.loadBuffer;
-        const horizontalBuffer = viewWidth * this.config.loadBuffer;
-        const loadArea = {
-            x: viewX - horizontalBuffer,
-            y: viewY - verticalBuffer,
-            width: viewWidth + horizontalBuffer * 2,
-            height: viewHeight + verticalBuffer * 2,
-        };
-        
-        // Abort if the quadtree isn't ready
-        if (!this.quadtree) {
-            return;
-        }
-        
-        // --- 3. Query Quadtree for Relevant Images ---
-        const potentialImages = this.quadtree.query(loadArea, scale);
-        
-        // --- 4. Process Images ---
-        // Find visible images and the specific image under the mouse cursor
-        const visibleImages = [];
-        let newImageUnderCursor = null;
-        
-        for (const img of potentialImages) {
-            // Check which of the potential images are actually visible to draw
-            const isVisible = (
-                img.x < viewX + viewWidth && img.x + img.width > viewX &&
-                img.y < viewY + viewHeight && img.y + img.height > viewY
-            );
-            img.isVisible = isVisible; // For network queue prioritization
-            
-            if (isVisible) {
-                visibleImages.push(img);
-                // Check if this image contains the last known mouse position
-                if (
-                    this.lastMouseWorldPos.x >= img.x &&
-                    this.lastMouseWorldPos.x <= img.x + img.width &&
-                    this.lastMouseWorldPos.y >= img.y &&
-                    this.lastMouseWorldPos.y <= img.y + img.height
-                ) {
-                    newImageUnderCursor = img;
-                }
-            }
-            
-            // If an image is in the load area and is a placeholder, queue it
-            if (img.state === 'placeholder') {
-                const isQueued = this.requestQueue.some(req => req.id === img.id);
-                if (!isQueued) {
-                    this.requestQueue.push(img);
-                }
-            }
-        }
-        
-        this.imageUnderCursor = newImageUnderCursor;
-        
-// --- 5. High-Resolution Logic ---
-let dominantImg = null;
-let maxVisibleArea = 0;
-
-// First, find the image with the largest *visible area* in the viewport.
-for (const img of visibleImages) {
-    const intersectX = Math.max(img.x, viewX);
-    const intersectY = Math.max(img.y, viewY);
-    const intersectRight = Math.min(img.x + img.width, viewX + viewWidth);
-    const intersectBottom = Math.min(img.y + img.height, viewY + viewHeight);
-
-    const visibleWidth = Math.max(0, intersectRight - intersectX);
-    const visibleHeight = Math.max(0, intersectBottom - intersectY);
-    const currentVisibleArea = visibleWidth * visibleHeight;
-
-    if (currentVisibleArea > maxVisibleArea) {
-        maxVisibleArea = currentVisibleArea;
-        dominantImg = img;
-    }
-}
-
-// After finding the truly dominant image, calculate its size-based dominance
-// value, which is still needed for the instant-load threshold check below.
-let maxDominance = 0;
-if (dominantImg) {
-    const screenWidth = dominantImg.width * scale;
-    const screenHeight = dominantImg.height * scale;
-    maxDominance = Math.max(screenWidth / canvas.width, screenHeight / canvas.height);
-}
-
-        clearTimeout(this.highResLoadDebounceTimer);
-
-        if (dominantImg && dominantImg.state === 'ready' && scale > this.config.highResThreshold) {
-            if (dominantImg.highResState === 'none') {
-                const isDominantOnScreen = maxDominance >= this.config.instantLoadThreshold;
-
-                if (isDominantOnScreen) {
-                    // This image is very large on screen, load it immediately.
-                    this.requestHighResLoad(dominantImg);
-                } else {
-                    // The user might be panning or the image isn't big enough. Use a delay.
-                    this.highResLoadDebounceTimer = setTimeout(() => {
-                        const { scale: currentScale } = this.api.getTransform();
-                        // After the delay, re-check that conditions are met before loading.
-                        if (currentScale > this.config.highResThreshold) {
-                            this.requestHighResLoad(dominantImg);
-                        }
-                    }, this.config.highResLoadDelay);
-                }
-            }
-        }
-        
-        // --- 6. Draw Visible Images ---
-        for (const img of visibleImages) {
-            let textureToDisplay = img.thumbTex;
-            if (!textureToDisplay) continue; // Don't draw if texture isn't ready
-
-            // On-Canvas Selection Indicator
-            // Get the location of the new 'u_brightness' uniform from your shader.
-            const brightnessLocation = gl.getUniformLocation(program, "u_brightness");
-            if (this.selectionDeck.isSelected(img.id)) {
-                gl.uniform1f(brightnessLocation, 0.5); // Dim selected images
-            } else {
-                gl.uniform1f(brightnessLocation, 1.0); // Full brightness for others
-            }
-
-            let drawn = false;
-
-            if (img.highResState === 'ready' && (img.highResTexture || img.highResTiles)) {
-                this.updateCacheUsage(img);
-
-                // --- Calculate final dimensions ONCE to fix the scope issue ---
-                const boxAspect = img.width / img.height;
-                const imageAspect = img.originalWidth / img.originalHeight;
-                let finalWidth, finalHeight, offsetX, offsetY;
-
-                if (imageAspect > boxAspect) { // Image is wider than the box
-                    finalWidth = img.width;
-                    finalHeight = img.width / imageAspect;
-                    offsetX = 0;
-                    offsetY = (img.height - finalHeight) / 2;
-                } else { // Image is taller or same aspect as the box
-                    finalHeight = img.height;
-                    finalWidth = img.height * imageAspect;
-                    offsetY = 0;
-                    offsetX = (img.width - finalWidth) / 2;
-                }
-                // --- End of calculation ---
-
-                if (img.highResTexture) {
-                    gl.bindTexture(gl.TEXTURE_2D, img.highResTexture);
-                    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, filter);
-                    this.api.setRectangle(gl, img.x + offsetX, img.y + offsetY, finalWidth, finalHeight);
-                    gl.drawArrays(gl.TRIANGLES, 0, 6);
-                    drawn = true;
-                } else if (img.highResTiles) {
-                    const tileScaleFactor = finalWidth / img.originalWidth;
-                    for (const tile of img.highResTiles) {
-                        gl.bindTexture(gl.TEXTURE_2D, tile.texture);
-                        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, filter);
-                        const tileX = img.x + offsetX + (tile.x * tileScaleFactor);
-                        const tileY = img.y + offsetY + (tile.y * tileScaleFactor);
-                        const tileWidth = tile.width * tileScaleFactor;
-                        const tileHeight = tile.height * tileScaleFactor;
-                        this.api.setRectangle(gl, tileX, tileY, tileWidth, tileHeight);
-                        gl.drawArrays(gl.TRIANGLES, 0, 6);
-                    }
-                    drawn = true;
-                }
-
-            }
-            
-            if (!drawn && textureToDisplay) {
-                gl.bindTexture(gl.TEXTURE_2D, textureToDisplay);
-                gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, filter);
-                this.api.setRectangle(gl, img.x, img.y, img.width, img.height);
-                gl.drawArrays(gl.TRIANGLES, 0, 6);
-            }
-        }
-        
-        // --- 7. Final Processing and UI ---
-        this.processRequestQueue();
-
-        // --- Consolidated Info Label Logic (New Approach) ---
-        const subjectImage = dominantImg; // Uses the dominant image already found earlier in this function
-
-        if (
-            subjectImage &&
-            subjectImage.highResState === 'ready' &&
-            scale > this.config.highResThreshold
-        ) {
-            // We have a valid subject for the label. Calculate its rendered dimensions.
-            const boxAspect = subjectImage.width / subjectImage.height;
-            const imageAspect = subjectImage.originalWidth / subjectImage.originalHeight;
-            let finalWidth, finalHeight, offsetX, offsetY;
-
-            if (imageAspect > boxAspect) {
-                finalWidth = subjectImage.width;
-                finalHeight = subjectImage.width / imageAspect;
-                offsetX = 0;
-                offsetY = (subjectImage.height - finalHeight) / 2;
-            } else {
-                finalHeight = subjectImage.height;
-                finalWidth = subjectImage.height * imageAspect;
-                offsetY = 0;
-                offsetX = (subjectImage.width - finalWidth) / 2;
-            }
-
-            // Pass all necessary info to the label to handle its own state.
-            this.infoLabel.update({
-                image: subjectImage,
-                dimensions: { finalWidth, finalHeight, offsetX, offsetY },
-                transform: { scale, originX, originY },
-                canvas: this.canvas,
-                config: this.config
-            });
-        } else {
-            // If conditions are not met, explicitly tell the label to hide.
-            this.infoLabel.update({});
+        if (this.renderer) {
+            this.renderer.renderFrame();
         }
     }
     
