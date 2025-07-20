@@ -299,6 +299,49 @@ window.smoozoo = (imageUrl, settings) => {
     }
 
 
+    /**
+     * Calculates the required scale and position to fit a given bounding box
+     * into the viewport and then animates to it.
+     * @public
+     * @param {number} x - The world x-coordinate of the box's top-left corner.
+     * @param {number} y - The world y-coordinate of the box's top-left corner.
+     * @param {number} width - The width of the box in world coordinates.
+     * @param {number} height - The height of the box in world coordinates.
+     * @param {object} [options] - Animation options.
+     * @param {boolean} [options.animate=true] - Whether to animate the transition.
+     * @param {number} [options.padding=0.1] - The percentage of padding around the box (0.1 = 10%).
+     * @param {number} [options.duration=800] - Animation duration in ms.
+     */
+    function fitBounds(x, y, width, height, { animate = true, padding = 0.1, duration = 800 } = {}) {
+        // Calculate the scale needed to fit the box's width and height separately
+        const scaleX = canvas.width / width;
+        const scaleY = canvas.height / height;
+        
+        // Use the smaller of the two scales to ensure the entire box is visible
+        let targetFitScale = Math.min(scaleX, scaleY);
+        
+        // Apply padding by reducing the calculated scale
+        targetFitScale *= (1 - padding);
+        
+        // Calculate the center of the bounding box
+        const centerX = x + width / 2;
+        const centerY = y + height / 2;
+
+        if (animate) {
+            animateTo({ x: centerX, y: centerY, scale: targetFitScale, duration: duration });
+        } else {
+            // If not animating, jump directly
+            scale = targetScale = targetFitScale;
+            const idealOriginX = (canvas.width / (2 * scale)) - centerX;
+            const idealOriginY = (canvas.height / (2 * scale)) - centerY;
+            const clamped = getClampedOrigin(idealOriginX, idealOriginY, scale);
+            originX = targetOriginX = clamped.x;
+            originY = targetOriginY = clamped.y;
+            render();
+        }
+    }
+
+
     // ------------------------
     // --- Matrix Utilities ---
     // ------------------------
@@ -2207,6 +2250,7 @@ window.smoozoo = (imageUrl, settings) => {
         renderToPixelsAsync: renderToPixelsAsync,
         loadImage: loadImage,
         animateTo: animateTo,
+        fitBounds: fitBounds,
         ready: () => readyPromise,
         getSettings: () => settings,
 
