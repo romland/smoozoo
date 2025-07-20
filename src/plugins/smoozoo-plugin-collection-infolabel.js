@@ -94,17 +94,21 @@ export class InfoLabel {
     }
 
     _handleMenuAction({ action }) {
-        if (!this.currentImageDetails || !this.plugin) return;
+        if (!this.currentImageDetails || !this.plugin) {
+            return;
+        }
 
         switch (action) {
             case 'copy-url':
                 const url = this.plugin.config.apiOrigin + this.currentImageDetails.highRes;
                 navigator.clipboard.writeText(url).then(() => console.log('URL copied!'));
                 break;
+
             case 'copy-json':
                 const json = JSON.stringify(this.currentImageDetails, null, 2);
                 navigator.clipboard.writeText(json).then(() => console.log('JSON copied!'));
                 break;
+
             case 'select-image':
                 this.plugin.selectionDeck.toggle(this.currentImageDetails);
                 break;
