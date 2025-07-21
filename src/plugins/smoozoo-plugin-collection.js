@@ -1,4 +1,5 @@
-// REVERT TO HERE!
+// The OffscreenCanvas Worker Architecture
+
 /**
  * Smoozoo Collection Plugin
  *
@@ -23,7 +24,7 @@ export class SmoozooCollection
         // --- Caching and Worker Setup ---
         this.cache = new ThumbnailCache();
         this.imageInfoCache = new ImageInfoCache(this.options.apiOrigin);        
-        this.worker = new Worker(new URL('../js/thumbnail.worker.js', import.meta.url));
+        this.worker = new Worker(new URL('./smoozoo-plugin-collection-thumbnail.worker.js', import.meta.url));
         this.worker.onmessage = this.handleWorkerMessage.bind(this);
 
         this.collectionName = options.collectionName;
