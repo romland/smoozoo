@@ -81,6 +81,11 @@ window.smoozoo = (imageUrl, settings) => {
     let lastMouseRealX = 0,
         lastMouseRealY = 0;
 
+    if(settings.disableFetchForImages) {
+        // We can't get size (on disk) of image without fetch()
+        settings.statusShowFileSize = false;
+    }
+
     // Default settings if not provided
     settings.backgroundColor = settings.backgroundColor ?? "#0e0422";
     settings.pixelatedZoom = settings.pixelatedZoom ?? false;
@@ -986,7 +991,7 @@ window.smoozoo = (imageUrl, settings) => {
         gl.uniform1i(textureUniformLocation, 0);
         // Set the brightness to 1.0 (full brightness)
         gl.uniform1f(brightnessLocation, 1.0);
-                
+
         gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
         gl.enableVertexAttribArray(positionLocation);
         gl.vertexAttribPointer(positionLocation, 2, gl.FLOAT, false, 0, 0);
