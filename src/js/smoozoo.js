@@ -153,6 +153,8 @@ window.smoozoo = (imageUrl, settings) => {
     const maxTextureSize = gl.getParameter(gl.MAX_TEXTURE_SIZE);
     const webGLclearColor = hexToNormalizedRGB(settings.backgroundColor);
 
+    let textureUniformLocation, brightnessLocation;
+
     // Plugins
     let plugins = settings.plugins || [];
     let _rendererOverride = null;
@@ -942,7 +944,6 @@ window.smoozoo = (imageUrl, settings) => {
 
             zoomLevelSpan.textContent = scale.toFixed(2);
             updatePanSlider();
-
             return;
         }
 
@@ -980,6 +981,12 @@ window.smoozoo = (imageUrl, settings) => {
         gl.clearColor(webGLclearColor.r, webGLclearColor.g, webGLclearColor.b, 1.0);
         gl.clear(gl.COLOR_BUFFER_BIT);
         gl.useProgram(program);
+
+        // Tell the shader to use texture unit 0 for the 'u_texture' sampler
+        gl.uniform1i(textureUniformLocation, 0);
+        // Set the brightness to 1.0 (full brightness)
+        gl.uniform1f(brightnessLocation, 1.0);
+                
         gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
         gl.enableVertexAttribArray(positionLocation);
         gl.vertexAttribPointer(positionLocation, 2, gl.FLOAT, false, 0, 0);
@@ -2191,6 +2198,9 @@ window.smoozoo = (imageUrl, settings) => {
     const texCoordScaleLocation = gl.getUniformLocation(program, "u_texCoordScale");
     const viewProjectionMatrixLocation = gl.getUniformLocation(program, "u_viewProjectionMatrix");
     const rotationMatrixLocation = gl.getUniformLocation(program, "u_rotationMatrix");
+
+    textureUniformLocation = gl.getUniformLocation(program, "u_texture");
+    brightnessLocation = gl.getUniformLocation(program, "u_brightness");
 
     // Create WebGL Buffers. Buffers are chunks of memory on the GPU that hold our vertex data.
     const positionBuffer = gl.createBuffer();

@@ -12,9 +12,10 @@
 
         <meta name="viewport" content="width=device-width, initial-scale=1" />
 
-        <script>
+        <script type="module">
             window.addEventListener('DOMContentLoaded', async () => {
-                smoozoo(`https://picsum.photos/seed/picsum/200/300`, {
+                // smoozoo(`https://picsum.photos/seed/picsum/200/300`, {
+                smoozoo(new URL(`../assets/xanadu-reconstruction.png`, import.meta.url).toString(), {
                     canvas:                     document.getElementById('smoozoo-glcanvas'),
                     disableFetchForImages:      true,
                     backgroundColor:            "#0e0422",
