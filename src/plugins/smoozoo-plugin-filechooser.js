@@ -1,6 +1,7 @@
 export class FileChooserPlugin
 {
-    toString() { return "FileChooserPlugin"; }
+    static toString() { return "SmoozooCollection"; }
+    static path = "./plugins/smoozoo-plugin-filechooser.js";
 
     /**
      * @param {object} viewerApi The API exposed by the Smoozoo viewer.

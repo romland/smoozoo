@@ -1,6 +1,7 @@
 export class MinimapPlugin
 {
-    toString() { return "MinimapPlugin"; }
+    static toString() { return "MinimapPlugin"; }
+    static path = "./plugins/smoozoo-plugin-minimap.js";
 
     /**
      * @param {object} viewerApi Smoozoo viewer API

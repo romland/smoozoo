@@ -12,7 +12,8 @@ import { OverlayBasePlugin } from "./smoozoo-plugin-overlay-base";
 
 export class WurmMapPlugin extends OverlayBasePlugin
 {
-    toString() { return "WurmMapPlugin"; }
+    static toString() { return "WurmMapPlugin"; }
+    static path = "./plugins/smoozoo-plugin-wurm-map.js";
 
     constructor(api, options, containerElement)
     {

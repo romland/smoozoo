@@ -14,6 +14,9 @@ import { RenderOrchestrator } from './smoozoo-plugin-collection-render-orchestra
 
 export class SmoozooCollection
 {
+    static toString() { return "SmoozooCollection"; }
+    static path = "./plugins/smoozoo-plugin-collection.js";
+
     constructor(api, options, targetElement) {
         this.api = api;
         this.options = options;

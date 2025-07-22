@@ -1,6 +1,7 @@
 export class HotspotPlugin
 {
-    toString() { return "HotspotPlugin"; }
+    static toString() { return "HotspotPlugin"; }
+    static path = "./plugins/smoozoo-plugin-hotspot.js";
 
     constructor(viewer, options, containerElement)
     {

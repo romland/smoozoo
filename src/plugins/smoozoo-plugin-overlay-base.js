@@ -56,7 +56,8 @@
 */
 export class OverlayBasePlugin
 {
-    toString() { return "OverlayBasePlugin"; }
+    static toString() { return "OverlayBasePlugin"; }
+    static path = "./plugins/smoozoo-plugin-overlay-base.js"
 
     /**
      * @param {object} viewerApi - The API provided by Smoozoo image viewer.

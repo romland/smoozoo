@@ -39,18 +39,11 @@
                 } else {
                     const notPublicFilenames = [
                         new URL("../assets/notpublic/dsc_0001.jpg", import.meta.url),
+                        // ...add more pictures here...
                     ];
 
                     imageCollection = [
                         { id: "image001", lowRes: undefined, highRes : new URL("https://plus.unsplash.com/premium_photo-1743619563821-4f93ff886a37?q=80&w=1355&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D", import.meta.url).toString() },
-                        { id: "image004", lowRes: undefined, highRes : new URL("../assets/ara-map.png", import.meta.url).toString() },
-                        { id: "image005", lowRes: undefined, highRes : new URL("../assets/BTCUSDT-ath.png", import.meta.url).toString() },
-                        { id: "image006", lowRes: undefined, highRes : new URL("../assets/ETHUSDT-ath.png", import.meta.url).toString() },
-                        { id: "image007", lowRes: undefined, highRes : new URL("../assets/xanadu-reconstruction.png", import.meta.url).toString() },
-                        { id: "image008", lowRes: undefined, highRes : new URL("../assets/zenath-pve-3d.png", import.meta.url).toString() },
-                        { id: "image009", lowRes: undefined, highRes : new URL("../assets/zenath-pve-road.png", import.meta.url).toString() },
-                        { id: "image010", lowRes: undefined, highRes : new URL("../assets/zenath-pve.png", import.meta.url).toString() },
-                        { id: "image011", lowRes: undefined, highRes : new URL("../assets/zenath-pve.webp", import.meta.url).toString() },
                     ];
 
                     for(const fn of notPublicFilenames) {
